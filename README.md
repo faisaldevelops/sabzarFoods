@@ -1,4 +1,4 @@
-<h1 align="center">E-Commerce Store 🛒</h1>
+<h1 align="center">URBAN K E-Commerce Store 🛒</h1>
 
 Features of this App
 

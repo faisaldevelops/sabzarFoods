@@ -37,7 +37,7 @@ export const getOrdersData = async (req, res) => {
           image: prod?.image ?? null,
           category: prod?.category ?? null,
           // isFeatured: prod?.isFeatured ?? false,
-          // quantity: p.quantity ?? 0,
+          quantity: p.quantity ?? 0,
           // orderItemId: p._id ?? null, // the order's products array item id
         };
       });
@@ -54,6 +54,7 @@ export const getOrdersData = async (req, res) => {
           email: order.user.email,
         } : null,
         products,
+        address: order.address,
         // rawOrder: order // optional: the original order object if you want it
       };
     });

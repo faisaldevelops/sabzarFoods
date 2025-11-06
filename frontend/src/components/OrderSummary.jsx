@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { MoveRight } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import axios from "../lib/axios";
+import { useAddressStore } from "../stores/useAddressStore";
+import toast from "react-hot-toast";
 
 const stripePromise = loadStripe(
 	"pk_test_51KDTCDSGNvdrBQJJeyLX8rYoOFxOdHrwPskPEuzmFp0F5ol38avQCFyCl3sWyfMu7LoughhJBfigV3vxRHPBh7sO00R4FHN8Ja"
@@ -11,6 +13,9 @@ const stripePromise = loadStripe(
 
 const OrderSummary = () => {
 	const { total, subtotal, coupon, isCouponApplied, cart } = useCartStore();
+	const { address } = useAddressStore();
+
+	const selectedAddress = Array.isArray(address) && address.length ? address[0] : null;
 
 	const savings = subtotal - total;
 	const formattedSubtotal = subtotal.toFixed(2);
@@ -18,10 +23,16 @@ const OrderSummary = () => {
 	const formattedSavings = savings.toFixed(2);
 
 	const handlePayment = async () => {
+		console.log(selectedAddress);
+		
+		if (!selectedAddress) {
+			return toast.error("Please add/select a shipping address before checkout");
+		}
 		const stripe = await stripePromise;
 		const res = await axios.post("/payments/create-checkout-session", {
 			products: cart,
 			couponCode: coupon ? coupon.code : null,
+			address: selectedAddress, // re-send here too
 		});
 
 		const session = res.data;
@@ -93,3 +104,54 @@ const OrderSummary = () => {
 	);
 };
 export default OrderSummary;
+
+
+// import { motion } from "framer-motion";
+// import { useCartStore } from "../stores/useCartStore";
+// import { useAddressStore } from "../stores/useAddressStore"; // import your address store
+// import { Link } from "react-router-dom";
+// import { MoveRight } from "lucide-react";
+// import { loadStripe } from "@stripe/stripe-js";
+// import axios from "../lib/axios";
+
+// const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+// const OrderSummary = () => {
+//   const { total, subtotal, coupon, isCouponApplied, cart } = useCartStore();
+//   const { address } = useAddressStore(); // address is array
+//   // pick the address to use (adapt to your app's selected address logic)
+//   const selectedAddress = Array.isArray(address) && address.length ? address[0] : null;
+
+//   const handlePayment = async () => {
+//     if (!selectedAddress) {
+//       return toast.error("Please add/select a shipping address before checkout");
+//     }
+
+//     try {
+//       const stripe = await stripePromise;
+
+//       // 1) create checkout session and include address in body
+//       const res = await axios.post("/payments/create-checkout-session", {
+//         products: cart,
+//         couponCode: coupon ? coupon.code : null,
+//         address: selectedAddress, // included
+//       });
+
+//       const session = res.data;
+
+//       // redirect to stripe checkout
+//       const result = await stripe.redirectToCheckout({ sessionId: session.id });
+
+//       if (result.error) console.error("Stripe redirect error:", result.error);
+//     } catch (err) {
+//       console.error(err);
+//       toast.error(err.response?.data?.message || "Failed to start checkout");
+//     }
+//   };
+
+//   return (
+//     /* your existing JSX - keep unchanged */
+//     <motion.button onClick={handlePayment}>Proceed to Checkout</motion.button>
+//   );
+// };
+// export default OrderSummary;

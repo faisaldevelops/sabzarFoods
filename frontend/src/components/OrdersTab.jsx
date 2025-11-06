@@ -64,7 +64,8 @@ const OrderslistTab = () => {
         {orders.map((order, orderIndex) => (
             <motion.div
             key={orderIndex}
-            className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto"
+            // className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto"
+            className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto rounded-md border border-gray-700 bg-gray-800 p-3 text-white"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
@@ -76,6 +77,17 @@ const OrderslistTab = () => {
                     Order for {order.user.name}
                 </h2>
                 <p className="text-sm text-gray-400">{order.user.email}</p>
+                </div>
+                <div>
+                    <div>
+                        <p className="font-medium">
+                            Shipping Address: {order.address.name} • {order.address.phoneNumber}
+                        </p>
+                        <p className="text-sm text-gray-300">
+                            {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
+                        </p>
+                    </div>
+
                 </div>
                 <div className="text-right">
                 <p className="text-sm text-gray-400">
@@ -103,6 +115,9 @@ const OrderslistTab = () => {
                         Price
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Quantity
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                         Featured
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -121,6 +136,9 @@ const OrderslistTab = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-300">
                             ${product.price.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-300">
+                            {product.quantity}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <button
@@ -166,6 +184,10 @@ const OrderslistTab = () => {
                     <p className="text-sm text-gray-300 mt-1">
                         <span className="font-medium">Price:</span> $
                         {product.price.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-300 mt-1">
+                        <span className="font-medium">Quantity: </span>
+                        {product.quantity}
                     </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
