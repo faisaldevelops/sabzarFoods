@@ -5,7 +5,6 @@ import { ShoppingCart } from "lucide-react";
 import CartItem from "../components/CartItem";
 import PeopleAlsoBought from "../components/PeopleAlsoBought";
 import OrderSummary from "../components/OrderSummary";
-import GiftCouponCard from "../components/GiftCouponCard";
 import AddressPage from "../components/AddressPage";
 
 const CartPage = () => {
@@ -42,7 +41,6 @@ const CartPage = () => {
 						>
 							<AddressPage />
 							<OrderSummary />
-							<GiftCouponCard />
 						</motion.div>
 					)}
 				</div>

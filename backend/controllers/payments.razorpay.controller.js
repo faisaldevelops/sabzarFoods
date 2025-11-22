@@ -2,7 +2,6 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/order.model.js";
-import Coupon from "../models/coupon.model.js";
 import User from "../models/user.model.js";
 
 const razorpay = new Razorpay({
@@ -12,11 +11,11 @@ const razorpay = new Razorpay({
 
 /**
  * Create a Razorpay order and a pending local order record.
- * Expects: { products, couponCode, address } in req.body
+ * Expects: { products, address } in req.body
  */
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { products, couponCode, address } = req.body;
+    const { products, address } = req.body;
     if (!Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ message: "Cart empty" });
     }
@@ -57,16 +56,6 @@ export const createRazorpayOrder = async (req, res) => {
       totalPaise += pricePaise * qty;
     }
 
-    // apply coupon server-side if any
-    let coupon = null;
-    if (couponCode && req.user) {
-      coupon = await Coupon.findOne({ code: couponCode, userId: req.user._id, isActive: true });
-      if (coupon) {
-        const discountPaise = Math.round((totalPaise * coupon.discountPercentage) / 100);
-        totalPaise -= discountPaise;
-      }
-    }
-
     const options = {
       amount: totalPaise,
       currency: "INR",
@@ -88,7 +77,6 @@ export const createRazorpayOrder = async (req, res) => {
       razorpayOrderId: razorpayOrder.id,
       status: "pending",
       address,
-      couponCode: couponCode || null,
     });
     await pendingOrder.save();
 
@@ -170,15 +158,6 @@ export const verifyRazorpayPayment = async (req, res) => {
     }
 
     await order.save();
-
-    // deactivate coupon if used
-    if (order.couponCode) {
-      try {
-        await Coupon.findOneAndUpdate({ code: order.couponCode, userId: order.user }, { isActive: false });
-      } catch (e) {
-        console.warn("Failed to deactivate coupon:", e);
-      }
-    }
 
     return res.json({ success: true, orderId: order._id, message: "Payment verified & order saved" });
   } catch (err) {

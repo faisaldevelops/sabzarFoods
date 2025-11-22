@@ -13,8 +13,8 @@ const stripePromise = loadStripe(
 );
 
 const OrderSummary = () => {
-	const [isProcessing, setIsProcessing] = useState(false); // ✅ add this line
-	const { total, subtotal, coupon, isCouponApplied, cart } = useCartStore();
+	const [isProcessing, setIsProcessing] = useState(false);
+	const { total, subtotal, cart } = useCartStore();
 	const { address } = useAddressStore();
 
 	const selectedAddress = Array.isArray(address) && address.length ? address[0] : null;
@@ -56,7 +56,6 @@ const OrderSummary = () => {
 		try {
 			const res = await axios.post("/payments/razorpay-create-order", {
 			products: cart,
-			couponCode: coupon ? coupon.code : null,
 			address: selectedAddress,
 			});
 
@@ -154,13 +153,6 @@ const OrderSummary = () => {
 						<dl className='flex items-center justify-between gap-4'>
 							<dt className='text-base font-normal text-gray-300'>Savings</dt>
 							<dd className='text-base font-medium text-emerald-400'>-${formattedSavings}</dd>
-						</dl>
-					)}
-
-					{coupon && isCouponApplied && (
-						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-gray-300'>Coupon ({coupon.code})</dt>
-							<dd className='text-base font-medium text-emerald-400'>-{coupon.discountPercentage}%</dd>
 						</dl>
 					)}
 					<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>

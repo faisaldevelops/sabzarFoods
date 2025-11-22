@@ -48,34 +48,8 @@ const clearLocalCart = () => {
 
 export const useCartStore = create((set, get) => ({
 	cart: [],
-	coupon: null,
 	total: 0,
 	subtotal: 0,
-	isCouponApplied: false,
-
-	getMyCoupon: async () => {
-		try {
-			const response = await axios.get("/coupons");
-			set({ coupon: response.data });
-		} catch (error) {
-			console.error("Error fetching coupon:", error);
-		}
-	},
-	applyCoupon: async (code) => {
-		try {
-			const response = await axios.post("/coupons/validate", { code });
-			set({ coupon: response.data, isCouponApplied: true });
-			get().calculateTotals();
-			toast.success("Coupon applied successfully");
-		} catch (error) {
-			toast.error(error.response?.data?.message || "Failed to apply coupon");
-		}
-	},
-	removeCoupon: () => {
-		set({ coupon: null, isCouponApplied: false });
-		get().calculateTotals();
-		toast.success("Coupon removed");
-	},
 
 	getCartItems: async () => {
 		try {
@@ -178,14 +152,9 @@ export const useCartStore = create((set, get) => ({
 	},
 	
 	calculateTotals: () => {
-		const { cart, coupon } = get();
+		const { cart } = get();
 		const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-		let total = subtotal;
-
-		if (coupon) {
-			const discount = subtotal * (coupon.discountPercentage / 100);
-			total = subtotal - discount;
-		}
+		const total = subtotal;
 
 		set({ subtotal, total });
 	},
@@ -196,25 +165,6 @@ export const useCartStore = create((set, get) => ({
 		if (localCart.length > 0) {
 			set({ cart: localCart });
 			get().calculateTotals();
-		}
-	},
-	
-	// Merge localStorage cart with server cart when user logs in
-	syncCartWithServer: async () => {
-		const localCart = getLocalCart();
-		if (localCart.length === 0) return;
-		
-		try {
-			// For each item in localStorage, add to server
-			for (const item of localCart) {
-				await axios.post("/cart", { productId: item._id });
-			}
-			// Clear localStorage after successful sync
-			clearLocalCart();
-			// Reload cart from server
-			await get().getCartItems();
-		} catch (error) {
-			console.error("Error syncing cart:", error);
 		}
 	},
 }));

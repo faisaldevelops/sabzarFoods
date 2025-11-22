@@ -18,7 +18,7 @@ import PurchaseCancelPage from "./pages/PurchaseCancelPage";
 
 function App() {
 	const { user, checkAuth, checkingAuth } = useUserStore();
-	const { getCartItems, initCart, syncCartWithServer } = useCartStore();
+	const { initCart } = useCartStore();
 	
 	useEffect(() => {
 		checkAuth();
@@ -28,15 +28,6 @@ function App() {
 		// Initialize cart from localStorage on app load
 		initCart();
 	}, [initCart]);
-
-	useEffect(() => {
-		// When user logs in, sync localStorage cart with server
-		if (user) {
-			syncCartWithServer().then(() => {
-				getCartItems();
-			});
-		}
-	}, [user, getCartItems, syncCartWithServer]);
 
 	if (checkingAuth) return <LoadingSpinner />;
 
