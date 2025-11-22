@@ -1,6 +1,7 @@
 import { redis } from "../lib/redis.js";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const generateTokens = (userId) => {
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
@@ -175,7 +176,7 @@ export const createGuestUser = async (req, res) => {
 			phoneNumber,
 			email: email || undefined,
 			isGuest: true,
-			password: Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8) // Random password for guest
+			password: crypto.randomBytes(16).toString('hex') // Secure random password for guest
 		});
 
 		// Authenticate guest user

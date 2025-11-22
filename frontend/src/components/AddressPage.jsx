@@ -40,6 +40,7 @@ const AddressPage = () => {
               <p className="font-medium">
                 {a.name} • {a.phoneNumber}
               </p>
+              {a.email && <p className="text-sm text-gray-400">{a.email}</p>}
               <p className="text-sm text-gray-300">
                 {a.houseNumber}, {a.streetAddress}, {a.city}, {a.state} - {a.pincode}
               </p>

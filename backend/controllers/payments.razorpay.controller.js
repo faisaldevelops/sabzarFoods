@@ -42,7 +42,7 @@ export const createRazorpayOrder = async (req, res) => {
           phoneNumber,
           email: email || undefined,
           isGuest: true,
-          password: Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8)
+          password: crypto.randomBytes(16).toString('hex')
         });
       }
       
