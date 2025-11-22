@@ -24,9 +24,9 @@ export const getCartProducts = async (req, res) => {
 
 export const addToCart = async (req, res) => {
 	try {
-		// Require authentication for cart operations
+		// Guest users should use localStorage on frontend, return success with empty response
 		if (!req.user) {
-			return res.status(401).json({ message: "Authentication required to add to cart" });
+			return res.status(200).json({ message: "Guest cart managed on client side", guestMode: true });
 		}
 
 		const { productId } = req.body;
@@ -49,9 +49,9 @@ export const addToCart = async (req, res) => {
 
 export const removeAllFromCart = async (req, res) => {
 	try {
-		// Require authentication for cart operations
+		// Guest users should use localStorage on frontend, return success with empty response
 		if (!req.user) {
-			return res.status(401).json({ message: "Authentication required" });
+			return res.status(200).json({ message: "Guest cart managed on client side", guestMode: true });
 		}
 
 		const { productId } = req.body;
@@ -70,9 +70,9 @@ export const removeAllFromCart = async (req, res) => {
 
 export const updateQuantity = async (req, res) => {
 	try {
-		// Require authentication for cart operations
+		// Guest users should use localStorage on frontend, return success with empty response
 		if (!req.user) {
-			return res.status(401).json({ message: "Authentication required" });
+			return res.status(200).json({ message: "Guest cart managed on client side", guestMode: true });
 		}
 
 		const { id: productId } = req.params;

@@ -104,22 +104,11 @@ export const useCartStore = create((set, get) => ({
 	addToCart: async (product) => {
 		try {
 			// Try to add to server cart first
-			await axios.post("/cart", { productId: product._id });
-			toast.success("Product added to cart");
-
-			set((prevState) => {
-				const existingItem = prevState.cart.find((item) => item._id === product._id);
-				const newCart = existingItem
-					? prevState.cart.map((item) =>
-							item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
-					  )
-					: [...prevState.cart, { ...product, quantity: 1 }];
-				return { cart: newCart };
-			});
-			get().calculateTotals();
-		} catch (error) {
-			// If not authenticated, store in localStorage
-			if (error.response?.status === 401) {
+			const response = await axios.post("/cart", { productId: product._id });
+			
+			// Check if this is guest mode (server returned guestMode flag)
+			if (response.data?.guestMode) {
+				// Handle as guest user - store in localStorage
 				set((prevState) => {
 					const existingItem = prevState.cart.find((item) => item._id === product._id);
 					const newCart = existingItem
@@ -133,8 +122,21 @@ export const useCartStore = create((set, get) => ({
 				get().calculateTotals();
 				toast.success("Product added to cart");
 			} else {
-				toast.error(error.response?.data?.message || "An error occurred");
+				// Authenticated user - server handled it
+				toast.success("Product added to cart");
+				set((prevState) => {
+					const existingItem = prevState.cart.find((item) => item._id === product._id);
+					const newCart = existingItem
+						? prevState.cart.map((item) =>
+								item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
+						  )
+						: [...prevState.cart, { ...product, quantity: 1 }];
+					return { cart: newCart };
+				});
+				get().calculateTotals();
 			}
+		} catch (error) {
+			toast.error(error.response?.data?.message || "An error occurred");
 		}
 	},
 	
