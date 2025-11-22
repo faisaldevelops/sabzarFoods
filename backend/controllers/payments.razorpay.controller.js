@@ -55,7 +55,6 @@ export const createRazorpayOrder = async (req, res) => {
           phoneNumber,
           email: email || undefined,
           isGuest: true,
-          password: crypto.randomBytes(16).toString('hex')
         });
       }
       

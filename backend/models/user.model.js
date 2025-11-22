@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
 		},
 		password: {
 			type: String,
-			minlength: [6, "Password must be at least 6 characters long"],
+			select: false, // Don't return password in queries by default
 		},
 		isGuest: {
 			type: Boolean,
@@ -75,9 +75,9 @@ const userSchema = new mongoose.Schema(
 	}
 );
 
-// Pre-save hook to hash password before saving to database
+// Pre-save hook to hash password before saving to database (only if password is modified)
 userSchema.pre("save", async function (next) {
-	if (!this.isModified("password")) return next();
+	if (!this.password || !this.isModified("password")) return next();
 
 	try {
 		const salt = await bcrypt.genSalt(10);
@@ -89,6 +89,7 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.comparePassword = async function (password) {
+	if (!this.password) return false;
 	return bcrypt.compare(password, this.password);
 };
 

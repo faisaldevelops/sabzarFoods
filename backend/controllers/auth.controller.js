@@ -176,7 +176,6 @@ export const createGuestUser = async (req, res) => {
 			phoneNumber,
 			email: email || undefined,
 			isGuest: true,
-			password: crypto.randomBytes(16).toString('hex') // Secure random password for guest
 		});
 
 		// Authenticate guest user

@@ -24,7 +24,7 @@ const generateOTP = () => {
 // Send OTP to phone number
 export const sendOTP = async (req, res) => {
   try {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, isSignup } = req.body;
 
     if (!phoneNumber) {
       return res.status(400).json({ message: "Phone number is required" });
@@ -34,6 +34,19 @@ export const sendOTP = async (req, res) => {
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phoneNumber)) {
       return res.status(400).json({ message: "Invalid phone number format. Must be 10 digits." });
+    }
+
+    // Check if user exists
+    const userExists = await User.findOne({ phoneNumber });
+
+    // If signing up and user already exists, return error
+    if (isSignup && userExists) {
+      return res.status(400).json({ message: "Phone number already registered. Please login instead." });
+    }
+
+    // If logging in and user doesn't exist, return error
+    if (!isSignup && !userExists) {
+      return res.status(400).json({ message: "Phone number not registered. Please sign up first." });
     }
 
     const otp = generateOTP();
@@ -62,6 +75,7 @@ export const sendOTP = async (req, res) => {
 
     res.json({
       message: "OTP sent successfully",
+      userExists: !!userExists,
       // In development, return OTP for testing (remove in production)
       ...(process.env.NODE_ENV === "development" && { otp }),
     });
@@ -114,7 +128,6 @@ export const verifyOTP = async (req, res) => {
         name,
         phoneNumber,
         isGuest: false, // Not a guest since they authenticated
-        password: crypto.randomBytes(16).toString("hex"), // Random password
       });
       isNewUser = true;
     } else {

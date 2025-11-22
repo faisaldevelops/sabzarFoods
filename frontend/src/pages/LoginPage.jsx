@@ -23,7 +23,7 @@ const LoginPage = () => {
 
 		setLoading(true);
 		try {
-			const response = await axios.post("/otp/send", { phoneNumber });
+			const response = await axios.post("/otp/send", { phoneNumber, isSignup: false });
 			toast.success(response.data.message);
 			
 			// In development, show OTP in toast
