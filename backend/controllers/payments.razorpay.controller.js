@@ -141,10 +141,15 @@ export const verifyRazorpayPayment = async (req, res) => {
 
     if (!order) {
       // create fallback order if pending wasn't saved (rare)
-      // Try to get userId from req.user or from payment metadata
-      const userId = req.user?._id;
+      // Get userId from req.user if authenticated, or return error
+      let userId = req.user?._id;
+      
       if (!userId) {
-        return res.status(400).json({ success: false, message: "Cannot create order: user not found" });
+        // For guest users without pending order, we cannot proceed
+        return res.status(400).json({ 
+          success: false, 
+          message: "Cannot verify payment: order not found. Please contact support with payment ID: " + razorpay_payment_id 
+        });
       }
 
       order = new Order({

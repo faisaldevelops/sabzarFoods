@@ -8,7 +8,22 @@ const CART_STORAGE_KEY = "guest_cart";
 const getLocalCart = () => {
 	try {
 		const cart = localStorage.getItem(CART_STORAGE_KEY);
-		return cart ? JSON.parse(cart) : [];
+		if (!cart) return [];
+		
+		const parsed = JSON.parse(cart);
+		// Validate that parsed data is an array
+		if (!Array.isArray(parsed)) return [];
+		
+		// Validate each item has required properties
+		const validated = parsed.filter(item => 
+			item && 
+			typeof item === 'object' && 
+			item._id && 
+			typeof item.price === 'number' &&
+			typeof item.quantity === 'number'
+		);
+		
+		return validated;
 	} catch (error) {
 		console.error("Error reading cart from localStorage:", error);
 		return [];
@@ -179,6 +194,25 @@ export const useCartStore = create((set, get) => ({
 		if (localCart.length > 0) {
 			set({ cart: localCart });
 			get().calculateTotals();
+		}
+	},
+	
+	// Merge localStorage cart with server cart when user logs in
+	syncCartWithServer: async () => {
+		const localCart = getLocalCart();
+		if (localCart.length === 0) return;
+		
+		try {
+			// For each item in localStorage, add to server
+			for (const item of localCart) {
+				await axios.post("/cart", { productId: item._id });
+			}
+			// Clear localStorage after successful sync
+			clearLocalCart();
+			// Reload cart from server
+			await get().getCartItems();
+		} catch (error) {
+			console.error("Error syncing cart:", error);
 		}
 	},
 }));
