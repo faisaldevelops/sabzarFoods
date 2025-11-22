@@ -1,14 +1,15 @@
 import { motion } from "framer-motion";
 import { useCartStore } from "../stores/useCartStore";
 import { useUserStore } from "../stores/useUserStore";
+import { useAddressStore } from "../stores/useAddressStore";
 import { Link } from "react-router-dom";
 import { MoveRight } from "lucide-react";
 import { loadStripe } from "@stripe/stripe-js";
 import axios from "../lib/axios";
-import { useAddressStore } from "../stores/useAddressStore";
 import toast from "react-hot-toast";
 import { useState } from "react";
 import PhoneAuthModal from "./PhoneAuthModal";
+import AddressSelectionModal from "./AddressSelectionModal";
 
 const stripePromise = loadStripe(
 	"pk_test_51KDTCDSGNvdrBQJJeyLX8rYoOFxOdHrwPskPEuzmFp0F5ol38avQCFyCl3sWyfMu7LoughhJBfigV3vxRHPBh7sO00R4FHN8Ja"
@@ -17,11 +18,10 @@ const stripePromise = loadStripe(
 const OrderSummary = () => {
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [showPhoneAuth, setShowPhoneAuth] = useState(false);
+	const [showAddressSelection, setShowAddressSelection] = useState(false);
+	const [selectedAddress, setSelectedAddress] = useState(null);
 	const { total, subtotal, cart } = useCartStore();
 	const { user } = useUserStore();
-	const { address } = useAddressStore();
-
-	const selectedAddress = Array.isArray(address) && address.length ? address[0] : null;
 
 	const savings = subtotal - total;
 	const formattedSubtotal = subtotal.toFixed(2);
@@ -60,25 +60,25 @@ const OrderSummary = () => {
 			return;
 		}
 
-		// User is authenticated, check address and proceed
-		if (!selectedAddress) {
-			toast.error("Please add/select an address");
-			return;
-		}
-
-		// Proceed to payment
-		handlePayment();
+		// User is authenticated, show address selection modal
+		setShowAddressSelection(true);
 	};
 
-	const handlePayment = async () => {
-		if (!selectedAddress) return toast.error("Please add/select an address");
+	const handleAddressSelected = (address) => {
+		setSelectedAddress(address);
+		// Proceed to payment with selected address
+		handlePayment(address);
+	};
+
+	const handlePayment = async (address) => {
+		if (!address) return toast.error("Please add/select an address");
 		if (!cart || cart.length === 0) return toast.error("Cart empty");
 
 		setIsProcessing(true);
 		try {
 			const res = await axios.post("/payments/razorpay-create-order", {
 			products: cart,
-			address: selectedAddress,
+			address: address,
 			});
 
 			const { orderId, amount, currency, keyId, localOrderId } = res.data;
@@ -208,12 +208,15 @@ const OrderSummary = () => {
 				isOpen={showPhoneAuth} 
 				onClose={() => setShowPhoneAuth(false)}
 				onSuccess={(data) => {
-					// After successful authentication, check if address exists
-					// If no address, user needs to add one
-					if (!selectedAddress) {
-						toast.success("Please add your delivery address to continue");
-					}
+					// After successful authentication, show address selection
+					setShowAddressSelection(true);
 				}}
+			/>
+			
+			<AddressSelectionModal
+				isOpen={showAddressSelection}
+				onClose={() => setShowAddressSelection(false)}
+				onSelectAddress={handleAddressSelected}
 			/>
 		</motion.div>
 	);
