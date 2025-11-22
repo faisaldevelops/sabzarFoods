@@ -15,6 +15,7 @@ const INDIAN_STATES = [
 const emptyAddress = {
   name: "",
   phoneNumber: "",
+  email: "",
   pincode: "",
   houseNumber: "",
   streetAddress: "",
@@ -51,6 +52,10 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     const e = {};
     if (!form.name.trim()) e.name = "Name is required";
     if (!/^\d{10}$/.test(form.phoneNumber)) e.phoneNumber = "Enter 10 digit phone";
+    // Email is optional, but if provided, validate format
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      e.email = "Enter valid email";
+    }
     if (!/^\d{6}$/.test(form.pincode)) e.pincode = "Enter 6 digit pincode";
     if (!form.houseNumber.trim()) e.houseNumber = "House number required";
     if (!form.streetAddress.trim()) e.streetAddress = "Street address required";
@@ -117,17 +122,30 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               {errors.phoneNumber && <p className="text-xs text-rose-400">{errors.phoneNumber}</p>}
             </div>
             <div>
-              <label className="text-sm text-gray-300">Pincode</label>
+              <label className="text-sm text-gray-300">Email (optional)</label>
               <input
-                name="pincode"
-                value={form.pincode}
+                name="email"
+                type="email"
+                value={form.email}
                 onChange={handleChange}
-                inputMode="numeric"
                 className="mt-1 w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-300"
-                placeholder="6 digits"
+                placeholder="Optional"
               />
-              {errors.pincode && <p className="text-xs text-rose-400">{errors.pincode}</p>}
+              {errors.email && <p className="text-xs text-rose-400">{errors.email}</p>}
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-300">Pincode</label>
+            <input
+              name="pincode"
+              value={form.pincode}
+              onChange={handleChange}
+              inputMode="numeric"
+              className="mt-1 w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-300"
+              placeholder="6 digits"
+            />
+            {errors.pincode && <p className="text-xs text-rose-400">{errors.pincode}</p>}
           </div>
 
           <div>
