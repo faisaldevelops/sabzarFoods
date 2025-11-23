@@ -42,14 +42,19 @@ export const sendOTP = async (req, res) => {
     // Note: User enumeration trade-off
     // The following checks reveal account existence to prevent confusion during signup/login.
     // This is a deliberate UX decision per requirements, trading some security for better user experience.
-    // If signup and user already exists, return error
-    if (isSignup && userExists) {
-      return res.status(400).json({ message: "Phone number already registered. Please login instead." });
-    }
+    
+    // Only enforce signup/login distinction when isSignup is explicitly provided
+    // When isSignup is undefined (e.g., from checkout modal), allow both new and existing users
+    if (isSignup !== undefined) {
+      // If signup and user already exists, return error
+      if (isSignup && userExists) {
+        return res.status(400).json({ message: "Phone number already registered. Please login instead." });
+      }
 
-    // If logging in and user doesn't exist, return error
-    if (!isSignup && !userExists) {
-      return res.status(400).json({ message: "Phone number not registered. Please sign up first." });
+      // If logging in and user doesn't exist, return error
+      if (!isSignup && !userExists) {
+        return res.status(400).json({ message: "Phone number not registered. Please sign up first." });
+      }
     }
 
     const otp = generateOTP();
