@@ -21,16 +21,16 @@ const HomePage = () => {
 	}, [fetchFeaturedProducts]);
 
 	return (
-		<div className='relative min-h-screen text-white'>
+		<div className='relative min-h-screen bg-stone-50 text-stone-900'>
 			<div className='relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16'>
-				<h1 className='text-4xl sm:text-5xl font-semibold text-white mb-2 tracking-tight'>
+				<h1 className='text-4xl sm:text-5xl font-bold text-stone-900 mb-3 tracking-tight'>
 					Explore Our Categories
 				</h1>
-				<p className='text-sm text-neutral-400 mb-12'>
+				<p className='text-base text-stone-600 mb-12 font-light'>
 					Discover the latest trends in fashion
 				</p>
 
-				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
 					{categories.map((category) => (
 						<CategoryItem category={category} key={category.name} />
 					))}

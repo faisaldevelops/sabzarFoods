@@ -1,4 +1,4 @@
-import { ShoppingCart } from "lucide-react";
+import { Home, ShoppingCart, Package, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
@@ -9,36 +9,42 @@ const Navbar = () => {
 	const { cart } = useCartStore();
 
 	return (
-		<header className='fixed top-0 left-0 w-full bg-black border-b border-neutral-800 z-40'>
-			<div className='container mx-auto px-4 py-4'>
+		<header className='fixed top-0 left-0 w-full bg-stone-50 border-b border-stone-200 z-40 shadow-sm'>
+			<div className='container mx-auto px-4 py-3'>
 				<div className='flex justify-between items-center'>
-					<Link to='/' className='text-xl font-semibold tracking-tight'>
-						URBAN K
+					<Link to='/' className='text-2xl font-bold tracking-tight text-stone-900'>
+						Urban K
 					</Link>
 
-					<nav className='flex items-center gap-6'>
+					<nav className='flex items-center gap-2'>
 						<Link
 							to={"/"}
-							className='text-sm text-neutral-400 hover:text-white transition-colors'
+							className='flex items-center gap-2 px-3 py-2 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+							title="Home"
 						>
-							Home
+							<Home size={20} />
+							<span className='text-sm font-medium hidden sm:inline'>Home</span>
 						</Link>
 						{user && (
 							<Link
 								to={"/my-orders"}
-								className='text-sm text-neutral-400 hover:text-white transition-colors'
+								className='flex items-center gap-2 px-3 py-2 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+								title="My Orders"
 							>
-								Orders
+								<Package size={20} />
+								<span className='text-sm font-medium hidden sm:inline'>Orders</span>
 							</Link>
 						)}
 						<Link
 							to={"/cart"}
-							className='relative text-sm text-neutral-400 hover:text-white transition-colors flex items-center gap-1'
+							className='relative flex items-center gap-2 px-3 py-2 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+							title="Shopping Cart"
 						>
-							Cart
+							<ShoppingCart size={20} />
+							<span className='text-sm font-medium hidden sm:inline'>Cart</span>
 							{cart.length > 0 && (
 								<span
-									className='absolute -top-2 -right-2 bg-white text-black text-xs px-1.5 py-0.5 font-medium'
+									className='absolute -top-1 -right-1 bg-stone-800 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-medium'
 								>
 									{cart.length}
 								</span>
@@ -46,33 +52,41 @@ const Navbar = () => {
 						</Link>
 						{isAdmin && (
 							<Link
-								className='text-sm bg-white text-black px-4 py-2 font-medium hover:bg-neutral-200 transition-colors'
+								className='flex items-center gap-2 px-3 py-2 bg-stone-800 text-white hover:bg-stone-700 rounded-md transition-colors'
 								to={"/secret-dashboard"}
+								title="Admin Dashboard"
 							>
-								Dashboard
+								<LayoutDashboard size={20} />
+								<span className='text-sm font-medium hidden sm:inline'>Dashboard</span>
 							</Link>
 						)}
 
 						{user ? (
 							<button
-								className='text-sm border border-neutral-700 text-white px-4 py-2 hover:bg-neutral-900 transition-colors'
+								className='flex items-center gap-2 px-3 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
 								onClick={logout}
+								title="Logout"
 							>
-								Logout
+								<LogOut size={20} />
+								<span className='text-sm font-medium hidden sm:inline'>Logout</span>
 							</button>
 						) : (
 							<>
 								<Link
 									to={"/signup"}
-									className='text-sm bg-white text-black px-4 py-2 font-medium hover:bg-neutral-200 transition-colors'
+									className='flex items-center gap-2 px-3 py-2 bg-stone-800 text-white hover:bg-stone-700 rounded-md transition-colors'
+									title="Sign Up"
 								>
-									Sign Up
+									<UserPlus size={20} />
+									<span className='text-sm font-medium hidden sm:inline'>Sign Up</span>
 								</Link>
 								<Link
 									to={"/login"}
-									className='text-sm border border-neutral-700 text-white px-4 py-2 hover:bg-neutral-900 transition-colors'
+									className='flex items-center gap-2 px-3 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+									title="Login"
 								>
-									Login
+									<LogIn size={20} />
+									<span className='text-sm font-medium hidden sm:inline'>Login</span>
 								</Link>
 							</>
 						)}

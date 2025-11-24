@@ -70,17 +70,17 @@ const LoginPage = () => {
 	};
 
 	return (
-		<div className='min-h-screen flex flex-col justify-center py-12 px-4 bg-black'>
+		<div className='min-h-screen flex flex-col justify-center py-12 px-4 bg-stone-50'>
 			<motion.div
 				className='sm:mx-auto sm:w-full sm:max-w-md'
 				initial={{ opacity: 0, y: -20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.4 }}
 			>
-				<h2 className='text-3xl font-semibold text-white mb-2 tracking-tight'>
+				<h2 className='text-3xl font-bold text-stone-900 mb-2 tracking-tight'>
 					{step === "phone" ? "Login" : "Verify Code"}
 				</h2>
-				<p className='text-sm text-neutral-400'>
+				<p className='text-sm text-stone-600 font-light'>
 					{step === "phone" ? "Enter your phone number to continue" : `Code sent to +91${phoneNumber}`}
 				</p>
 			</motion.div>
@@ -91,11 +91,11 @@ const LoginPage = () => {
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.4, delay: 0.1 }}
 			>
-				<div className='bg-neutral-900 py-8 px-6 border border-neutral-800'>
+				<div className='bg-white py-8 px-6 shadow-lg rounded-lg border border-stone-200'>
 					{step === "phone" ? (
 						<form onSubmit={handleSendOTP} className='space-y-6'>
 							<div>
-								<label htmlFor='phoneNumber' className='block text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide'>
+								<label htmlFor='phoneNumber' className='block text-sm font-medium text-stone-700 mb-2'>
 									Phone Number
 								</label>
 								<input
@@ -104,19 +104,19 @@ const LoginPage = () => {
 									required
 									value={phoneNumber}
 									onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-									className='block w-full px-4 py-3 bg-black border border-neutral-800 
-									text-white placeholder-neutral-600 focus:outline-none focus:border-white 
-									sm:text-sm transition-colors'
+									className='block w-full px-4 py-3 bg-white border border-stone-300 rounded-md
+									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-800 focus:border-transparent
+									sm:text-sm transition-all'
 									placeholder='10-digit mobile number'
 								/>
 							</div>
 
 							<button
 								type='submit'
-								className='w-full flex justify-center items-center py-3 px-4 
-								text-xs font-medium tracking-wide text-black bg-white
-								hover:bg-neutral-200 focus:outline-none 
-								transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase'
+								className='w-full flex justify-center items-center py-3 px-4 rounded-md
+								text-sm font-medium text-white bg-stone-800
+								hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-stone-800
+								transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm'
 								disabled={loading}
 							>
 								{loading ? 'Sending...' : 'Send Code'}
@@ -125,7 +125,7 @@ const LoginPage = () => {
 					) : (
 						<form onSubmit={handleVerifyOTP} className='space-y-6'>
 							<div>
-								<label htmlFor='otp' className='block text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide'>
+								<label htmlFor='otp' className='block text-sm font-medium text-stone-700 mb-2'>
 									Verification Code
 								</label>
 								<input
@@ -134,9 +134,9 @@ const LoginPage = () => {
 									required
 									value={otp}
 									onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-									className='block w-full px-4 py-3 bg-black border border-neutral-800 
-									text-white placeholder-neutral-600 focus:outline-none focus:border-white 
-									sm:text-sm text-center text-lg tracking-widest transition-colors'
+									className='block w-full px-4 py-3 bg-white border border-stone-300 rounded-md
+									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-800 focus:border-transparent
+									sm:text-sm text-center text-lg font-mono tracking-widest transition-all'
 									placeholder='000000'
 									maxLength={6}
 								/>
@@ -144,10 +144,10 @@ const LoginPage = () => {
 
 							<button
 								type='submit'
-								className='w-full flex justify-center items-center py-3 px-4 
-								text-xs font-medium tracking-wide text-black bg-white
-								hover:bg-neutral-200 focus:outline-none 
-								transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase'
+								className='w-full flex justify-center items-center py-3 px-4 rounded-md
+								text-sm font-medium text-white bg-stone-800
+								hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-stone-800
+								transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm'
 								disabled={loading}
 							>
 								{loading ? 'Verifying...' : 'Verify & Login'}
@@ -159,7 +159,7 @@ const LoginPage = () => {
 									setStep("phone");
 									setOtp("");
 								}}
-								className="w-full text-xs text-neutral-400 hover:text-white transition-colors py-2"
+								className="w-full text-sm text-stone-600 hover:text-stone-900 transition-colors py-2 font-medium"
 								disabled={loading}
 							>
 								← Change phone number
@@ -168,9 +168,9 @@ const LoginPage = () => {
 					)}
 
 					<div className='mt-6 text-center'>
-						<p className='text-xs text-neutral-400'>
+						<p className='text-sm text-stone-600'>
 							Don't have an account?{" "}
-							<Link to='/signup' className='text-white hover:underline'>
+							<Link to='/signup' className='text-stone-900 font-medium hover:underline'>
 								Sign up
 							</Link>
 						</p>

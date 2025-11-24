@@ -42,7 +42,7 @@ function App() {
 	if (checkingAuth) return <LoadingSpinner />;
 
 	return (
-		<div className='min-h-screen bg-black text-white relative overflow-hidden'>
+		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden'>
 			<div className='relative z-50 pt-16'>
 				<Navbar />
 				<Routes>
@@ -63,9 +63,10 @@ function App() {
 			<Toaster 
 				toastOptions={{
 					style: {
-						background: '#000',
-						color: '#fff',
-						border: '1px solid #333',
+						background: '#fff',
+						color: '#1c1917',
+						border: '1px solid #e7e5e4',
+						boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
 					},
 				}}
 			/>
