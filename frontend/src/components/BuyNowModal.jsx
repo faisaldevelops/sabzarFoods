@@ -39,6 +39,15 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
     setShowAddressSelection(true);
   };
 
+  const handleAuthSuccess = () => {
+    // Close phone auth modal
+    setShowPhoneAuth(false);
+    // Wait a bit for modal to close, then open address selection
+    setTimeout(() => {
+      setShowAddressSelection(true);
+    }, 100);
+  };
+
   const handleAddressSelected = (address) => {
     // Proceed to payment with selected address
     handlePayment(address);
@@ -247,10 +256,7 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
       <PhoneAuthModal 
         isOpen={showPhoneAuth} 
         onClose={() => setShowPhoneAuth(false)}
-        onSuccess={(data) => {
-          // After successful authentication, show address selection
-          setShowAddressSelection(true);
-        }}
+        onSuccess={handleAuthSuccess}
       />
       
       <AddressSelectionModal
