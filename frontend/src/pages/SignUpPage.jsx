@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Phone, KeyRound, User, ArrowRight, Loader } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
@@ -78,17 +77,17 @@ const SignUpPage = () => {
 	};
 
 	return (
-		<div className='min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-gray-900'>
+		<div className='min-h-screen flex flex-col justify-center py-12 px-4 bg-black'>
 			<motion.div
 				className='sm:mx-auto sm:w-full sm:max-w-md'
 				initial={{ opacity: 0, y: -20 }}
 				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.5 }}
+				transition={{ duration: 0.4 }}
 			>
-				<h2 className='text-center text-4xl font-bold text-emerald-400 mb-2'>
+				<h2 className='text-3xl font-semibold text-white mb-2 tracking-tight'>
 					{step === "phone" ? "Create Account" : "Verify Code"}
 				</h2>
-				<p className='text-center text-sm text-gray-400'>
+				<p className='text-sm text-neutral-400'>
 					{step === "phone" ? "Enter your phone number to get started" : `Code sent to +91${phoneNumber}`}
 				</p>
 			</motion.div>
@@ -97,120 +96,85 @@ const SignUpPage = () => {
 				className='mt-8 sm:mx-auto sm:w-full sm:max-w-md'
 				initial={{ opacity: 0, y: 20 }}
 				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.5, delay: 0.1 }}
+				transition={{ duration: 0.4, delay: 0.1 }}
 			>
-				<div className='bg-gray-800 py-8 px-6 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-700'>
+				<div className='bg-neutral-900 py-8 px-6 border border-neutral-800'>
 					{step === "phone" ? (
-						<form onSubmit={handleSendOTP} className='space-y-5'>
+						<form onSubmit={handleSendOTP} className='space-y-6'>
 							<div>
-								<label htmlFor='phoneNumber' className='block text-sm font-medium text-gray-300 mb-2'>
+								<label htmlFor='phoneNumber' className='block text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide'>
 									Phone Number
 								</label>
-								<div className='relative'>
-									<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-										<Phone className='h-5 w-5 text-gray-500' />
-									</div>
-									<input
-										id='phoneNumber'
-										type='tel'
-										required
-										value={phoneNumber}
-										onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-										className='block w-full pl-10 pr-3 py-3 bg-gray-700/50 border border-gray-600 
-										rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-										focus:border-transparent sm:text-sm transition-all'
-										placeholder='10-digit mobile number'
-									/>
-								</div>
+								<input
+									id='phoneNumber'
+									type='tel'
+									required
+									value={phoneNumber}
+									onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+									className='block w-full px-4 py-3 bg-black border border-neutral-800 
+									text-white placeholder-neutral-600 focus:outline-none focus:border-white 
+									sm:text-sm transition-colors'
+									placeholder='10-digit mobile number'
+								/>
 							</div>
 
 							<button
 								type='submit'
 								className='w-full flex justify-center items-center py-3 px-4 
-								rounded-xl shadow-lg text-sm font-semibold text-white bg-emerald-600
-								hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-gray-800
-								transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+								text-xs font-medium tracking-wide text-black bg-white
+								hover:bg-neutral-200 focus:outline-none 
+								transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase'
 								disabled={loading}
 							>
-								{loading ? (
-									<>
-										<Loader className='mr-2 h-5 w-5 animate-spin' />
-										Sending...
-									</>
-								) : (
-									<>
-										<Phone className='mr-2 h-5 w-5' />
-										Send Verification Code
-									</>
-								)}
+								{loading ? 'Sending...' : 'Send Code'}
 							</button>
 						</form>
 					) : (
-						<form onSubmit={handleVerifyOTP} className='space-y-5'>
+						<form onSubmit={handleVerifyOTP} className='space-y-6'>
 							<div>
-								<label htmlFor='name' className='block text-sm font-medium text-gray-300 mb-2'>
+								<label htmlFor='name' className='block text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide'>
 									Full Name
 								</label>
-								<div className='relative'>
-									<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-										<User className='h-5 w-5 text-gray-500' />
-									</div>
-									<input
-										id='name'
-										type='text'
-										required
-										value={name}
-										onChange={(e) => setName(e.target.value)}
-										className='block w-full pl-10 pr-3 py-3 bg-gray-700/50 border border-gray-600 
-										rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-										focus:border-transparent sm:text-sm transition-all'
-										placeholder='John Doe'
-									/>
-								</div>
+								<input
+									id='name'
+									type='text'
+									required
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									className='block w-full px-4 py-3 bg-black border border-neutral-800 
+									text-white placeholder-neutral-600 focus:outline-none focus:border-white 
+									sm:text-sm transition-colors'
+									placeholder='John Doe'
+								/>
 							</div>
 
 							<div>
-								<label htmlFor='otp' className='block text-sm font-medium text-gray-300 mb-2'>
+								<label htmlFor='otp' className='block text-xs font-medium text-neutral-400 mb-2 uppercase tracking-wide'>
 									Verification Code
 								</label>
-								<div className='relative'>
-									<div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-										<KeyRound className='h-5 w-5 text-gray-500' />
-									</div>
-									<input
-										id='otp'
-										type='text'
-										required
-										value={otp}
-										onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-										className='block w-full pl-10 pr-3 py-3 bg-gray-700/50 border border-gray-600 
-										rounded-xl shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-										focus:border-transparent sm:text-sm text-center text-lg tracking-widest transition-all'
-										placeholder='000000'
-										maxLength={6}
-									/>
-								</div>
+								<input
+									id='otp'
+									type='text'
+									required
+									value={otp}
+									onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+									className='block w-full px-4 py-3 bg-black border border-neutral-800 
+									text-white placeholder-neutral-600 focus:outline-none focus:border-white 
+									sm:text-sm text-center text-lg tracking-widest transition-colors'
+									placeholder='000000'
+									maxLength={6}
+								/>
 							</div>
 
 							<button
 								type='submit'
 								className='w-full flex justify-center items-center py-3 px-4 
-								rounded-xl shadow-lg text-sm font-semibold text-white bg-emerald-600
-								hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-gray-800
-								transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+								text-xs font-medium tracking-wide text-black bg-white
+								hover:bg-neutral-200 focus:outline-none 
+								transition-colors disabled:opacity-50 disabled:cursor-not-allowed uppercase'
 								disabled={loading}
 							>
-								{loading ? (
-									<>
-										<Loader className='mr-2 h-5 w-5 animate-spin' />
-										Verifying...
-									</>
-								) : (
-									<>
-										<KeyRound className='mr-2 h-5 w-5' />
-										Verify & Create Account
-									</>
-								)}
+								{loading ? 'Verifying...' : 'Verify & Create Account'}
 							</button>
 
 							<button
@@ -219,7 +183,7 @@ const SignUpPage = () => {
 									setStep("phone");
 									setOtp("");
 								}}
-								className="w-full text-sm text-emerald-400 hover:text-emerald-300 transition-colors py-2"
+								className="w-full text-xs text-neutral-400 hover:text-white transition-colors py-2"
 								disabled={loading}
 							>
 								← Change phone number
@@ -228,10 +192,10 @@ const SignUpPage = () => {
 					)}
 
 					<div className='mt-6 text-center'>
-						<p className='text-sm text-gray-400'>
+						<p className='text-xs text-neutral-400'>
 							Already have an account?{" "}
-							<Link to='/login' className='font-medium text-emerald-400 hover:text-emerald-300 transition-colors'>
-								Sign in <ArrowRight className='inline h-4 w-4' />
+							<Link to='/login' className='text-white hover:underline'>
+								Sign in
 							</Link>
 						</p>
 					</div>
