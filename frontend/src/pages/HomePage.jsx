@@ -1,42 +1,54 @@
 import { useEffect } from "react";
-import CategoryItem from "../components/CategoryItem";
 import { useProductStore } from "../stores/useProductStore";
-import FeaturedProducts from "../components/FeaturedProducts";
-
-const categories = [
-	{ href: "/jeans", name: "Jeans", imageUrl: "/jeans.jpg" },
-	{ href: "/t-shirts", name: "T-shirts", imageUrl: "/tshirts.jpg" },
-	{ href: "/shoes", name: "Shoes", imageUrl: "/shoes.jpg" },
-	{ href: "/glasses", name: "Glasses", imageUrl: "/glasses.png" },
-	{ href: "/jackets", name: "Jackets", imageUrl: "/jackets.jpg" },
-	{ href: "/suits", name: "Suits", imageUrl: "/suits.jpg" },
-	{ href: "/bags", name: "Bags", imageUrl: "/bags.jpg" },
-];
+import ProductCard from "../components/ProductCard";
+import LoadingSpinner from "../components/LoadingSpinner";
+import { motion } from "framer-motion";
 
 const HomePage = () => {
-	const { fetchFeaturedProducts, products, isLoading } = useProductStore();
+	const { fetchAllProducts, products, loading } = useProductStore();
 
 	useEffect(() => {
-		fetchFeaturedProducts();
-	}, [fetchFeaturedProducts]);
+		fetchAllProducts();
+	}, [fetchAllProducts]);
+
+	if (loading) {
+		return <LoadingSpinner />;
+	}
 
 	return (
 		<div className='relative min-h-screen bg-stone-50 text-stone-900'>
 			<div className='relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16'>
-				<h1 className='text-4xl sm:text-5xl font-bold text-stone-900 mb-3 tracking-tight'>
-					Explore Our Categories
-				</h1>
-				<p className='text-base text-stone-600 mb-12 font-light'>
-					Discover the latest trends in fashion
-				</p>
+				<motion.div
+					initial={{ opacity: 0, y: -20 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4 }}
+				>
+					<h1 className='text-4xl sm:text-5xl font-bold text-stone-900 mb-3 tracking-tight'>
+						All Products
+					</h1>
+					<p className='text-base text-stone-600 mb-12 font-light'>
+						Discover the latest trends in fashion
+					</p>
+				</motion.div>
 
-				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
-					{categories.map((category) => (
-						<CategoryItem category={category} key={category.name} />
+				<motion.div
+					className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+					initial={{ opacity: 0, y: 20 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4, delay: 0.1 }}
+				>
+					{products?.length === 0 && (
+						<div className='col-span-full text-center py-12'>
+							<p className='text-xl font-medium text-stone-600'>
+								No products available
+							</p>
+						</div>
+					)}
+
+					{products?.map((product) => (
+						<ProductCard key={product._id} product={product} />
 					))}
-				</div>
-
-				{!isLoading && products.length > 0 && <FeaturedProducts featuredProducts={products} />}
+				</motion.div>
 			</div>
 		</div>
 	);

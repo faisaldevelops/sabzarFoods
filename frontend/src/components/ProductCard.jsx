@@ -1,9 +1,12 @@
-import { ShoppingCart, AlertCircle, Tag } from "lucide-react";
+import { ShoppingCart, AlertCircle, Tag, Zap } from "lucide-react";
 import { useCartStore } from "../stores/useCartStore";
 import toast from "react-hot-toast";
+import { useState } from "react";
+import BuyNowModal from "./BuyNowModal";
 
 const ProductCard = ({ product }) => {
 	const { addToCart } = useCartStore();
+	const [showBuyNow, setShowBuyNow] = useState(false);
 	const isOutOfStock = !product.stockQuantity || product.stockQuantity === 0;
 	const isLowStock = product.stockQuantity > 0 && product.stockQuantity < 10;
 	
@@ -15,67 +18,103 @@ const ProductCard = ({ product }) => {
 		addToCart(product);
 	};
 
+	const handleBuyNow = () => {
+		if (isOutOfStock) {
+			toast.error("This item is currently out of stock");
+			return;
+		}
+		setShowBuyNow(true);
+	};
+
 	return (
-		<div className='group relative flex w-full flex-col overflow-hidden rounded-lg border border-stone-200 bg-white hover:shadow-lg transition-all duration-300'>
-			{/* Image Container */}
-			<div className='relative flex h-64 overflow-hidden bg-stone-100 rounded-t-lg'>
-				<img 
-					className='object-cover w-full transition-transform duration-500 group-hover:scale-105' 
-					src={product.image} 
-					alt={product.name} 
-				/>
-				
-				{/* Overlay for out of stock */}
-				{isOutOfStock && (
-					<div className='absolute inset-0 bg-stone-900/80 flex items-center justify-center'>
-						<div className='flex flex-col items-center gap-2'>
-							<AlertCircle size={32} className='text-white' />
-							<span className='text-white text-sm font-medium'>
-								OUT OF STOCK
+		<>
+			<div className='group relative flex w-full flex-col overflow-hidden rounded-lg border border-stone-200 bg-white hover:shadow-lg transition-all duration-300'>
+				{/* Image Container */}
+				<div className='relative flex h-64 overflow-hidden bg-stone-100 rounded-t-lg'>
+					<img 
+						className='object-cover w-full transition-transform duration-500 group-hover:scale-105' 
+						src={product.image} 
+						alt={product.name} 
+					/>
+					
+					{/* Overlay for out of stock */}
+					{isOutOfStock && (
+						<div className='absolute inset-0 bg-stone-900/80 flex items-center justify-center'>
+							<div className='flex flex-col items-center gap-2'>
+								<AlertCircle size={32} className='text-white' />
+								<span className='text-white text-sm font-medium'>
+									OUT OF STOCK
+								</span>
+							</div>
+						</div>
+					)}
+					
+					{/* Low stock badge */}
+					{isLowStock && (
+						<div className='absolute top-3 right-3'>
+							<span className='bg-amber-500 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md'>
+								<Tag size={12} />
+								{product.stockQuantity} LEFT
 							</span>
 						</div>
-					</div>
-				)}
-				
-				{/* Low stock badge */}
-				{isLowStock && (
-					<div className='absolute top-3 right-3'>
-						<span className='bg-amber-500 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md'>
-							<Tag size={12} />
-							{product.stockQuantity} LEFT
-						</span>
-					</div>
-				)}
-			</div>
+					)}
+				</div>
 
-			{/* Content */}
-			<div className='p-4 flex flex-col flex-grow bg-white'>
-				<h5 className='text-sm font-medium text-stone-900 mb-1 line-clamp-2'>
-					{product.name}
-				</h5>
-				
-				<div className='mt-auto pt-3'>
-					<div className='flex items-baseline justify-between mb-3'>
-						<span className='text-xl font-bold text-stone-900'>
-							${product.price}
-						</span>
-					</div>
+				{/* Content */}
+				<div className='p-4 flex flex-col flex-grow bg-white'>
+					<h5 className='text-sm font-medium text-stone-900 mb-1 line-clamp-2'>
+						{product.name}
+					</h5>
 					
-					<button
-						className={`w-full px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
-							isOutOfStock
-								? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-								: 'bg-stone-800 text-white hover:bg-stone-700 hover:shadow-md'
-						}`}
-						onClick={handleAddToCart}
-						disabled={isOutOfStock}
-					>
-						{!isOutOfStock && <ShoppingCart size={16} />}
-						{isOutOfStock ? 'OUT OF STOCK' : 'Add to Cart'}
-					</button>
+					<div className='mt-auto pt-3'>
+						<div className='flex items-baseline justify-between mb-3'>
+							<span className='text-xl font-bold text-stone-900'>
+								${product.price}
+							</span>
+							{!isOutOfStock && (
+								<span className='text-xs text-stone-500'>
+									Qty: {product.stockQuantity}
+								</span>
+							)}
+						</div>
+						
+						<div className='flex gap-2'>
+							<button
+								className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
+									isOutOfStock
+										? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+										: 'bg-stone-800 text-white hover:bg-stone-700 hover:shadow-md'
+								}`}
+								onClick={handleAddToCart}
+								disabled={isOutOfStock}
+							>
+								{!isOutOfStock && <ShoppingCart size={14} />}
+								{isOutOfStock ? 'OUT OF STOCK' : 'Add'}
+							</button>
+							
+							<button
+								className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
+									isOutOfStock
+										? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+										: 'bg-white text-stone-900 border border-stone-300 hover:bg-stone-50 hover:shadow-md'
+								}`}
+								onClick={handleBuyNow}
+								disabled={isOutOfStock}
+							>
+								{!isOutOfStock && <Zap size={14} />}
+								Buy Now
+							</button>
+						</div>
+					</div>
 				</div>
 			</div>
-		</div>
+			
+			<BuyNowModal 
+				isOpen={showBuyNow}
+				onClose={() => setShowBuyNow(false)}
+				product={product}
+			/>
+		</>
 	);
 };
 export default ProductCard;
