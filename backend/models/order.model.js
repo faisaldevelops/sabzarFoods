@@ -125,6 +125,36 @@ const orderSchema = new mongoose.Schema(
     razorpayPaymentId: { type: String },  // new field for Razorpay payment id
     status: { type: String, enum: ["pending", "paid", "cancelled"], default: "pending" },
     couponCode: { type: String, default: null },
+    trackingStatus: {
+      type: String,
+      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+      default: "pending",
+    },
+    trackingNumber: {
+      type: String,
+      default: null,
+    },
+    estimatedDelivery: {
+      type: Date,
+      default: null,
+    },
+    trackingHistory: [
+      {
+        status: {
+          type: String,
+          enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+          required: true,
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now,
+        },
+        note: {
+          type: String,
+          default: "",
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -149,6 +179,18 @@ orderSchema.index(
   { razorpayPaymentId: 1 },
   { unique: true, partialFilterExpression: { razorpayPaymentId: { $exists: true, $type: "string" } } }
 );
+
+// Pre-save middleware to add initial tracking history
+orderSchema.pre("save", function (next) {
+  if (this.isNew && this.trackingHistory.length === 0) {
+    this.trackingHistory.push({
+      status: this.trackingStatus,
+      timestamp: new Date(),
+      note: "Order placed",
+    });
+  }
+  next();
+});
 
 const Order = mongoose.model("Order", orderSchema);
 

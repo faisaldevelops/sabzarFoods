@@ -41,7 +41,7 @@ export const getFeaturedProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, description, price, image, category } = req.body;
+		const { name, description, price, image, category, stockQuantity } = req.body;
 
 		let cloudinaryResponse = null;
 
@@ -55,6 +55,7 @@ export const createProduct = async (req, res) => {
 			price,
 			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
 			category,
+			stockQuantity: stockQuantity || 0,
 		});
 
 		res.status(201).json(product);
@@ -104,6 +105,8 @@ export const getRecommendedProducts = async (req, res) => {
 					description: 1,
 					image: 1,
 					price: 1,
+					stockQuantity: 1,
+					sold: 1,
 				},
 			},
 		]);
@@ -139,6 +142,27 @@ export const toggleFeaturedProduct = async (req, res) => {
 		}
 	} catch (error) {
 		console.log("Error in toggleFeaturedProduct controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+export const updateProductStock = async (req, res) => {
+	try {
+		const { stockQuantity } = req.body;
+		const product = await Product.findById(req.params.id);
+		
+		if (!product) {
+			return res.status(404).json({ message: "Product not found" });
+		}
+
+		if (stockQuantity !== undefined) {
+			product.stockQuantity = stockQuantity;
+		}
+
+		const updatedProduct = await product.save();
+		res.json(updatedProduct);
+	} catch (error) {
+		console.log("Error in updateProductStock controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };

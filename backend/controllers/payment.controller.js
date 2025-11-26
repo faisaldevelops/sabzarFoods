@@ -1,5 +1,6 @@
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
+import Product from "../models/product.model.js";
 import { stripe } from "../lib/stripe.js";
 
 export const createCheckoutSession = async (req, res) => {
@@ -8,6 +9,19 @@ export const createCheckoutSession = async (req, res) => {
 
 		if (!Array.isArray(products) || products.length === 0) {
 			return res.status(400).json({ error: "Invalid or empty products array" });
+		}
+
+		// Validate stock availability for all products
+		for (const item of products) {
+			const product = await Product.findById(item._id);
+			if (!product) {
+				return res.status(404).json({ error: `Product ${item.name} not found` });
+			}
+			if (product.stockQuantity < item.quantity) {
+				return res.status(400).json({ 
+					error: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}` 
+				});
+			}
 		}
 
 		let totalAmount = 0;
@@ -95,6 +109,22 @@ export const checkoutSuccess = async (req, res) => {
 			// create a new Order
 			const products = JSON.parse(session.metadata.products);
 			const address = JSON.parse(session.metadata.address); // 👈 retrieve address
+			
+			// Update stock quantities and sold counts for each product using Promise.all for better performance
+			await Promise.all(
+				products.map((item) =>
+					Product.findByIdAndUpdate(
+						item.id,
+						{
+							$inc: {
+								stockQuantity: -item.quantity,
+								sold: item.quantity,
+							},
+						}
+					)
+				)
+			);
+
 			const newOrder = new Order({
 				user: session.metadata.userId,
 				products: products.map((product) => ({
@@ -105,6 +135,8 @@ export const checkoutSuccess = async (req, res) => {
 				totalAmount: session.amount_total / 100, // convert from cents to dollars,
 				stripeSessionId: sessionId,
 				address,
+				status: "paid",
+				trackingStatus: "pending",
 			});
 
 			await newOrder.save();

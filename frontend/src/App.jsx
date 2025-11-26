@@ -5,6 +5,7 @@ import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import CategoryPage from "./pages/CategoryPage";
+import MyOrdersPage from "./pages/MyOrdersPage";
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -41,15 +42,8 @@ function App() {
 	if (checkingAuth) return <LoadingSpinner />;
 
 	return (
-		<div className='min-h-screen bg-gray-900 text-white relative overflow-hidden'>
-			{/* Background gradient */}
-			<div className='absolute inset-0 overflow-hidden'>
-				<div className='absolute inset-0'>
-					<div className='absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.3)_0%,rgba(10,80,60,0.2)_45%,rgba(0,0,0,0.1)_100%)]' />
-				</div>
-			</div>
-
-			<div className='relative z-50 pt-20'>
+		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden'>
+			<div className='relative z-50 pt-16'>
 				<Navbar />
 				<Routes>
 					<Route path='/' element={<HomePage />} />
@@ -61,11 +55,21 @@ function App() {
 					/>
 					<Route path='/category/:category' element={<CategoryPage />} />
 					<Route path='/cart' element={<CartPage />} />
+					<Route path='/my-orders' element={user ? <MyOrdersPage /> : <Navigate to='/login' />} />
 					<Route path='/purchase-success' element={<PurchaseSuccessPage />} />
 					<Route path='/purchase-cancel' element={<PurchaseCancelPage />} />
 				</Routes>
 			</div>
-			<Toaster />
+			<Toaster 
+				toastOptions={{
+					style: {
+						background: '#fff',
+						color: '#1c1917',
+						border: '1px solid #e7e5e4',
+						boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+					},
+				}}
+			/>
 		</div>
 	);
 }

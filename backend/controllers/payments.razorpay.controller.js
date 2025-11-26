@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
+import Product from "../models/product.model.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -20,6 +21,19 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ message: "Cart empty" });
     }
     if (!address) return res.status(400).json({ message: "Address required" });
+
+    // Validate stock availability for all products
+    for (const item of products) {
+      const product = await Product.findById(item._id || item.id);
+      if (!product) {
+        return res.status(404).json({ message: `Product ${item.name} not found` });
+      }
+      if (product.stockQuantity < item.quantity) {
+        return res.status(400).json({ 
+          message: `Insufficient stock for ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}` 
+        });
+      }
+    }
 
     // Get or create user based on phone number from address
     let userId = req.user?._id;
@@ -41,7 +55,6 @@ export const createRazorpayOrder = async (req, res) => {
           phoneNumber,
           email: email || undefined,
           isGuest: true,
-          password: crypto.randomBytes(16).toString('hex')
         });
       }
       
@@ -77,6 +90,7 @@ export const createRazorpayOrder = async (req, res) => {
       razorpayOrderId: razorpayOrder.id,
       status: "pending",
       address,
+      trackingStatus: "pending",
     });
     await pendingOrder.save();
 
@@ -147,14 +161,32 @@ export const verifyRazorpayPayment = async (req, res) => {
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
         status: "paid",
+        trackingStatus: "pending",
       });
     } else {
       // avoid duplicate updates
       if (order.status === "paid") {
         return res.status(200).json({ success: true, orderId: order._id, message: "Order already paid" });
       }
+      
+      // Update stock quantities and sold counts for each product using Promise.all for better performance
+      await Promise.all(
+        order.products.map((item) =>
+          Product.findByIdAndUpdate(
+            item.product,
+            {
+              $inc: {
+                stockQuantity: -item.quantity,
+                sold: item.quantity,
+              },
+            }
+          )
+        )
+      );
+      
       order.razorpayPaymentId = razorpay_payment_id;
       order.status = "paid";
+      order.trackingStatus = "pending";
     }
 
     await order.save();

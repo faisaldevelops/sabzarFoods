@@ -159,6 +159,33 @@ export const useCartStore = create((set, get) => ({
 		set({ subtotal, total });
 	},
 	
+	// Sync guest cart to database after login
+	syncGuestCart: async () => {
+		try {
+			const guestCart = getLocalCart();
+			
+			// If no guest cart items, just fetch server cart
+			if (guestCart.length === 0) {
+				await get().getCartItems();
+				return;
+			}
+
+			// Send guest cart to backend for merging
+			const response = await axios.post("/cart/sync", { guestCart });
+			
+			// Clear local cart after successful sync
+			clearLocalCart();
+			
+			// Update state with merged cart from server
+			set({ cart: response.data });
+			get().calculateTotals();
+		} catch (error) {
+			console.error("Error syncing cart:", error);
+			// If sync fails, just fetch server cart
+			await get().getCartItems();
+		}
+	},
+	
 	// Initialize cart on app load
 	initCart: () => {
 		const localCart = getLocalCart();

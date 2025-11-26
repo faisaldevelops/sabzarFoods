@@ -98,3 +98,54 @@ export const updateQuantity = async (req, res) => {
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
+
+export const syncCart = async (req, res) => {
+	try {
+		// Only authenticated users can sync cart
+		if (!req.user) {
+			return res.status(401).json({ message: "Authentication required" });
+		}
+
+		const { guestCart } = req.body;
+
+		if (!Array.isArray(guestCart)) {
+			return res.status(400).json({ message: "Invalid cart data" });
+		}
+
+		const user = req.user;
+
+		// Merge guest cart with user's existing cart
+		for (const guestItem of guestCart) {
+			const { _id: productId, quantity } = guestItem;
+
+			if (!productId || !quantity) {
+				continue; // Skip invalid items
+			}
+
+			// Check if product exists in user's cart
+			const existingItem = user.cartItems.find((item) => item.id === productId);
+
+			if (existingItem) {
+				// Add quantities if product already exists
+				existingItem.quantity += quantity;
+			} else {
+				// Add new item to cart
+				user.cartItems.push({ product: productId, quantity });
+			}
+		}
+
+		await user.save();
+
+		// Return the merged cart with product details
+		const products = await Product.find({ _id: { $in: user.cartItems.map(item => item.product) } });
+		const cartItems = products.map((product) => {
+			const item = user.cartItems.find((cartItem) => cartItem.product.toString() === product._id.toString());
+			return { ...product.toJSON(), quantity: item.quantity };
+		});
+
+		res.json(cartItems);
+	} catch (error) {
+		console.log("Error in syncCart controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};

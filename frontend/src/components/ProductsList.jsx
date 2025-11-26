@@ -1,10 +1,8 @@
 import { motion } from "framer-motion";
-import { Trash, Star } from "lucide-react";
+import { Trash, Star, Package } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 const ProductsList = () => {
   const { deleteProduct, toggleFeaturedProduct, products } = useProductStore();
-
-  console.log("products", products);
   
   return (
     <motion.div
@@ -30,6 +28,12 @@ const ProductsList = () => {
                   className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
                 >
                   Price
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                >
+                  Stock
                 </th>
                 <th
                   scope="col"
@@ -73,6 +77,19 @@ const ProductsList = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-300">
                       ${Number(product.price ?? 0).toFixed(2)}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className={`text-sm font-medium ${
+                      product.stockQuantity === 0 
+                        ? 'text-red-400' 
+                        : product.stockQuantity < 10 
+                        ? 'text-yellow-400' 
+                        : 'text-green-400'
+                    }`}>
+                      {product.stockQuantity ?? 0}
+                      {product.stockQuantity === 0 && ' (Out of Stock)'}
+                      {product.stockQuantity > 0 && product.stockQuantity < 10 && ' (Low Stock)'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -127,6 +144,21 @@ const ProductsList = () => {
 
               <p className="text-sm text-gray-300 mt-1">
                 <span className="font-medium">Price:</span> ${Number(product.price ?? 0).toFixed(2)}
+              </p>
+
+              <p className="text-sm mt-1">
+                <span className="font-medium text-gray-300">Stock:</span>{' '}
+                <span className={`font-medium ${
+                  product.stockQuantity === 0 
+                    ? 'text-red-400' 
+                    : product.stockQuantity < 10 
+                    ? 'text-yellow-400' 
+                    : 'text-green-400'
+                }`}>
+                  {product.stockQuantity ?? 0}
+                  {product.stockQuantity === 0 && ' (Out)'}
+                  {product.stockQuantity > 0 && product.stockQuantity < 10 && ' (Low)'}
+                </span>
               </p>
 
               <p className="text-sm text-gray-300">

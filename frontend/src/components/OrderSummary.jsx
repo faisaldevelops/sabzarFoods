@@ -64,6 +64,12 @@ const OrderSummary = () => {
 		setShowAddressSelection(true);
 	};
 
+	const handleAuthSuccess = async () => {
+		// Close phone auth modal and immediately open address selection
+		setShowPhoneAuth(false);
+		setShowAddressSelection(true);
+	};
+
 	const handleAddressSelected = (address) => {
 		setSelectedAddress(address);
 		// Proceed to payment with selected address
@@ -207,10 +213,7 @@ const OrderSummary = () => {
 			<PhoneAuthModal 
 				isOpen={showPhoneAuth} 
 				onClose={() => setShowPhoneAuth(false)}
-				onSuccess={(data) => {
-					// After successful authentication, show address selection
-					setShowAddressSelection(true);
-				}}
+				onSuccess={handleAuthSuccess}
 			/>
 			
 			<AddressSelectionModal
