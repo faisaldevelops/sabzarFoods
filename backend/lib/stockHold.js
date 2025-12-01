@@ -37,15 +37,16 @@ export const checkStockAvailability = async (products) => {
       continue;
     }
     
-    // Available = stockQuantity - reservedQuantity
-    const availableStock = product.stockQuantity - (product.reservedQuantity || 0);
+    // Available = stockQuantity - reservedQuantity (handle null/undefined reservedQuantity)
+    const reservedQty = product.reservedQuantity || 0;
+    const availableStock = product.stockQuantity - reservedQty;
     
     if (availableStock < requestedQty) {
       insufficientItems.push({
         productId: product._id,
         name: product.name,
         requested: requestedQty,
-        available: availableStock,
+        available: Math.max(0, availableStock),
         error: "Insufficient stock"
       });
     }
@@ -69,13 +70,20 @@ export const reserveStock = async (products) => {
     const productId = item._id || item.id || item.product;
     const qty = item.quantity || 1;
     
+    // First, ensure reservedQuantity field exists (for older products)
+    await Product.updateOne(
+      { _id: productId, reservedQuantity: { $exists: false } },
+      { $set: { reservedQuantity: 0 } }
+    );
+    
     // Atomically increment reservedQuantity only if enough stock available
+    // Use $ifNull to handle cases where reservedQuantity might still be null
     const result = await Product.findOneAndUpdate(
       {
         _id: productId,
         $expr: {
           $gte: [
-            { $subtract: ["$stockQuantity", "$reservedQuantity"] },
+            { $subtract: ["$stockQuantity", { $ifNull: ["$reservedQuantity", 0] }] },
             qty
           ]
         }
@@ -191,18 +199,21 @@ export const finalizeOrder = async (orderId) => {
     const qty = item.quantity;
     
     // Atomically decrement stock only if sufficient quantity available
+    // Use aggregation pipeline to safely handle null reservedQuantity
     const result = await Product.findOneAndUpdate(
       {
         _id: productId,
         stockQuantity: { $gte: qty }
       },
-      {
-        $inc: {
-          stockQuantity: -qty,
-          reservedQuantity: -qty, // Also release the reservation
-          sold: qty
+      [
+        {
+          $set: {
+            stockQuantity: { $subtract: ["$stockQuantity", qty] },
+            reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ["$reservedQuantity", 0] }, qty] }] },
+            sold: { $add: [{ $ifNull: ["$sold", 0] }, qty] }
+          }
         }
-      },
+      ],
       { new: true }
     );
     
