@@ -84,11 +84,11 @@ class TestAuthentication:
         )
         assert signup_response.status_code == 201
         
-        # Create a new client for login (simulates different session)
-        login_client = APIClient()
+        # Logout to clear session before testing login
+        self.client.logout()
         
-        # Login with credentials
-        login_response = login_client.login(
+        # Login with same client (after logout clears session)
+        login_response = self.client.login(
             email=user_data['email'],
             password=user_data['password']
         )
