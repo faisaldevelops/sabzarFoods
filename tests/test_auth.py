@@ -84,11 +84,9 @@ class TestAuthentication:
         )
         assert signup_response.status_code == 201
         
-        # Logout to clear session before testing login
-        self.client.logout()
-        
-        # Login with same client (after logout clears session)
-        login_response = self.client.login(
+        # Use a fresh client to test login (avoids session cookie issues)
+        login_client = APIClient()
+        login_response = login_client.login(
             email=user_data['email'],
             password=user_data['password']
         )
