@@ -4,14 +4,30 @@ Fast reference for running browser automation tests.
 
 ## ⚡ Quick Start
 
-```bash
-# 1. Start servers (in separate terminals)
-npm run dev                    # Backend
-npm run dev --prefix frontend  # Frontend
+**IMPORTANT: Start servers FIRST before running tests!**
 
-# 2. Run tests (in another terminal)
-npm run test:e2e              # All tests
+```bash
+# Terminal 1: Start backend
+npm run dev
+
+# Terminal 2: Start frontend (new terminal)
+npm run dev --prefix frontend
+
+# Terminal 3: Run tests (new terminal, after servers are up)
+npm run test:e2e
 ```
+
+## 🚨 Common Error Fix
+
+**Error: "Process from config.webserver was not able to start"**
+
+This means servers are not running. Follow these steps:
+
+1. **Stop any test run** (Ctrl+C)
+2. **Start backend** in Terminal 1: `npm run dev`
+3. **Start frontend** in Terminal 2: `npm run dev --prefix frontend`
+4. **Wait** for both servers to fully start (you'll see "Server running" messages)
+5. **Run tests** in Terminal 3: `npm run test:e2e`
 
 ## 🎯 Run Specific Tests
 
@@ -114,13 +130,30 @@ Located in `playwright.config.js`:
 
 ## ✅ Prerequisites Checklist
 
+Before running tests, ensure:
 - [ ] Node.js installed
 - [ ] Dependencies installed (`npm install`)
 - [ ] Playwright browsers installed (`npx playwright install chromium`)
+- [ ] `.env` file configured in project root (see [ENV_SETUP_GUIDE.md](ENV_SETUP_GUIDE.md))
+- [ ] MongoDB connected and running
+- [ ] Redis running
 - [ ] Backend running on port 5000
 - [ ] Frontend running on port 5173
-- [ ] MongoDB connected
-- [ ] Redis running
+
+### Quick .env Setup
+
+Create `.env` file in project root with minimum:
+```env
+PORT=5000
+NODE_ENV=development
+MONGO_URI=mongodb://localhost:27017/ecommerce
+UPSTASH_REDIS_URL=redis://localhost:6379
+ACCESS_TOKEN_SECRET=your_secret_min_32_chars
+REFRESH_TOKEN_SECRET=another_secret_min_32_chars
+CLIENT_URL=http://localhost:5173
+```
+
+See [ENV_SETUP_GUIDE.md](ENV_SETUP_GUIDE.md) for complete setup instructions.
 
 ## 🚨 Common Issues
 

@@ -120,7 +120,17 @@ python run_tests.py -k "concurrent"
 ```
 
 ### Run Browser Tests
+
+**⚠️ IMPORTANT: You must start backend and frontend servers manually BEFORE running browser tests!**
+
 ```bash
+# Terminal 1: Start backend
+npm run dev
+
+# Terminal 2: Start frontend (in a new terminal)
+npm run dev --prefix frontend
+
+# Terminal 3: Run tests (in a new terminal, after servers are running)
 # All browser tests
 npm run test:e2e
 

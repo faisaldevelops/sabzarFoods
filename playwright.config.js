@@ -60,7 +60,9 @@ export default defineConfig({
   ],
 
   // Run your local dev server before starting the tests
-  webServer: process.env.SKIP_WEB_SERVER ? undefined : [
+  // By default, webServer is disabled. Start servers manually for better visibility.
+  // To enable auto-start, set environment variable: AUTO_START_SERVERS=true
+  webServer: process.env.AUTO_START_SERVERS === 'true' ? [
     {
       command: 'npm run dev',
       url: 'http://localhost:5000',
@@ -77,5 +79,5 @@ export default defineConfig({
       stdout: 'pipe',
       stderr: 'pipe',
     }
-  ],
+  ] : undefined,
 });

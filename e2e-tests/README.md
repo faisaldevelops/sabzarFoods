@@ -80,7 +80,23 @@ npm install
 npx playwright install chromium
 ```
 
+### ⚠️ IMPORTANT: Start Servers First
+
+**You MUST start the backend and frontend servers manually before running tests.**
+
+```bash
+# Terminal 1: Start backend server
+npm run dev
+
+# Terminal 2: Start frontend server (in a new terminal)
+npm run dev --prefix frontend
+
+# Wait for both servers to be fully running, then proceed to run tests
+```
+
 ### Running Tests
+
+**After servers are running**, run tests in a third terminal:
 
 #### Run All Tests
 ```bash
@@ -292,10 +308,35 @@ Tests run on multiple viewports:
 
 ## 🚨 Common Issues
 
+### ❌ Error: "Process from config.webserver was not able to start"
+
+**This is the most common error!** It means you need to start servers manually.
+
+**Solution:**
+1. Stop the test run (Ctrl+C)
+2. Open Terminal 1 and run: `npm run dev` (backend)
+3. Open Terminal 2 and run: `npm run dev --prefix frontend`
+4. Wait until you see both servers are running
+5. Open Terminal 3 and run: `npm run test:e2e`
+
+**Why this happens:** The test configuration expects servers to be already running. Auto-start is disabled by default for better visibility of server logs.
+
+### ❌ Browser Not Opening
+
+**Solution:**
+- Make sure Playwright browsers are installed: `npx playwright install chromium`
+- Tests run in headless mode by default. To see the browser:
+  ```bash
+  npm run test:e2e:headed
+  # or
+  npm run test:e2e:ui  # Interactive mode (recommended)
+  ```
+
 ### Tests Fail with "Connection Refused"
 - Ensure backend is running: `npm run dev`
 - Ensure frontend is running: `npm run dev --prefix frontend`
 - Check `BASE_URL` and `API_URL` in config
+- Verify both servers show "running" messages before starting tests
 
 ### Tests Timeout
 - Increase timeout in `playwright.config.js`
