@@ -276,25 +276,35 @@ export const releaseExpiredHolds = async () => {
   });
   
   let releasedCount = 0;
+  let errors = 0;
   
   for (const order of expiredOrders) {
-    // Release reserved stock
-    await releaseReservedStock(order.products);
-    
-    // Update order status
-    order.status = "expired";
-    order.trackingHistory.push({
-      status: "cancelled",
-      timestamp: new Date(),
-      note: "Order hold expired - payment not completed"
-    });
-    await order.save();
-    
-    releasedCount++;
+    try {
+      // Release reserved stock
+      await releaseReservedStock(order.products);
+      
+      // Update order status
+      order.status = "expired";
+      order.trackingHistory.push({
+        status: "cancelled",
+        timestamp: new Date(),
+        note: "Order hold expired - payment not completed"
+      });
+      await order.save();
+      
+      releasedCount++;
+    } catch (err) {
+      console.error(`Error releasing hold for order ${order._id}:`, err);
+      errors++;
+    }
   }
   
   if (releasedCount > 0) {
-    console.log(`Released ${releasedCount} expired hold orders`);
+    console.log(`✓ Released ${releasedCount} expired hold orders`);
+  }
+  
+  if (errors > 0) {
+    console.error(`✗ Failed to release ${errors} hold orders`);
   }
   
   return releasedCount;
@@ -353,21 +363,46 @@ export const cancelHoldOrder = async (orderId) => {
 
 // Start the hold expiry cleanup job (runs every minute)
 let holdExpiryIntervalId = null;
+let jobStats = {
+  startTime: null,
+  lastRunTime: null,
+  totalRuns: 0,
+  totalReleased: 0,
+  errors: 0
+};
 
 export const startHoldExpiryJob = () => {
-  console.log("Starting hold expiry cleanup job (runs every minute)");
+  jobStats.startTime = new Date();
+  console.log("🔄 Starting hold expiry cleanup job (runs every 60 seconds)");
   
-  // Run immediately on startup
-  releaseExpiredHolds().catch(err => {
-    console.error("Error in initial hold expiry cleanup:", err);
-  });
+  // Run immediately on startup to catch any holds that expired while server was down
+  releaseExpiredHolds()
+    .then(count => {
+      jobStats.lastRunTime = new Date();
+      jobStats.totalRuns++;
+      jobStats.totalReleased += count;
+      
+      if (count > 0) {
+        console.log(`🧹 Initial cleanup: Released ${count} expired holds from server downtime`);
+      } else {
+        console.log("✓ Initial cleanup: No expired holds found");
+      }
+    })
+    .catch(err => {
+      jobStats.errors++;
+      console.error("❌ Error in initial hold expiry cleanup:", err);
+    });
   
   // Then run every minute
   holdExpiryIntervalId = setInterval(async () => {
     try {
-      await releaseExpiredHolds();
+      const count = await releaseExpiredHolds();
+      jobStats.lastRunTime = new Date();
+      jobStats.totalRuns++;
+      jobStats.totalReleased += count;
     } catch (err) {
-      console.error("Error in hold expiry cleanup job:", err);
+      jobStats.errors++;
+      console.error("❌ Error in hold expiry cleanup job:", err);
     }
   }, 60 * 1000);
 };
@@ -379,4 +414,14 @@ export const stopHoldExpiryJob = () => {
     holdExpiryIntervalId = null;
     console.log("Hold expiry cleanup job stopped");
   }
+};
+
+// Get job statistics for monitoring
+export const getHoldExpiryJobStats = () => {
+  return {
+    ...jobStats,
+    isRunning: holdExpiryIntervalId !== null,
+    uptimeSeconds: jobStats.startTime ? Math.floor((Date.now() - jobStats.startTime) / 1000) : 0,
+    secondsSinceLastRun: jobStats.lastRunTime ? Math.floor((Date.now() - jobStats.lastRunTime) / 1000) : null
+  };
 };
