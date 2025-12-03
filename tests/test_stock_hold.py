@@ -22,6 +22,15 @@ class TestStockHoldBasics:
     
     def setup_method(self):
         self.client = APIClient()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                self.client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def test_create_hold_order(self):
         """Test creating a hold order reserves stock."""
@@ -74,6 +83,9 @@ class TestStockHoldBasics:
         assert 'expiresAt' in data, "Response should contain expiresAt"
         assert 'holdDurationSeconds' in data, "Response should contain holdDurationSeconds"
         
+        # Track for cleanup
+        self.created_order_ids.append(data['localOrderId'])
+        
     def test_hold_order_has_expiration(self):
         """Test that hold orders have correct expiration time."""
         products_response = self.client.get_products()
@@ -116,6 +128,9 @@ class TestStockHoldBasics:
         assert response.status_code == 200
         
         data = response.json()
+        
+        # Track for cleanup
+        self.created_order_ids.append(data['localOrderId'])
         
         # Hold duration should be 15 minutes (900 seconds)
         assert data.get('holdDurationSeconds') == 900, "Hold duration should be 15 minutes"
@@ -163,6 +178,9 @@ class TestStockHoldBasics:
         assert order_response.status_code == 200
         
         local_order_id = order_response.json().get('localOrderId')
+        
+        # Track for cleanup
+        self.created_order_ids.append(local_order_id)
         
         # Get hold status
         status_response = self.client.get_hold_status(local_order_id)
@@ -218,6 +236,9 @@ class TestStockHoldBasics:
         
         local_order_id = order_response.json().get('localOrderId')
         
+        # Track for cleanup (though this test cancels it explicitly)
+        self.created_order_ids.append(local_order_id)
+        
         # Cancel hold
         cancel_response = self.client.cancel_hold(local_order_id)
         
@@ -236,6 +257,15 @@ class TestStockAvailability:
     
     def setup_method(self):
         self.client = APIClient()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                self.client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def test_insufficient_stock_returns_error(self):
         """Test that ordering more than available stock returns error."""
@@ -281,6 +311,10 @@ class TestStockAvailability:
         data = response.json()
         assert data.get('insufficientStock') == True, "Should indicate insufficient stock"
         
+        # Track for cleanup if it somehow succeeded
+        if response.status_code == 200 and 'localOrderId' in data:
+            self.created_order_ids.append(data['localOrderId'])
+        
     def test_zero_stock_returns_error(self):
         """Test that ordering from zero-stock product returns error."""
         products_response = self.client.get_products()
@@ -318,6 +352,11 @@ class TestStockAvailability:
         response = self.client.create_razorpay_order(order_products, address)
         
         assert response.status_code == 400, f"Should reject zero stock: {response.text}"
+        
+        # Track for cleanup if it somehow succeeded
+        data = response.json() if response.status_code == 200 else {}
+        if response.status_code == 200 and 'localOrderId' in data:
+            self.created_order_ids.append(data['localOrderId'])
 
 
 class TestConcurrentCheckout:
@@ -325,6 +364,16 @@ class TestConcurrentCheckout:
     
     def setup_method(self):
         self.results = queue.Queue()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                client = APIClient()
+                client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def _create_checkout(
         self, 
@@ -415,9 +464,14 @@ class TestConcurrentCheckout:
         for thread in threads:
             thread.join(timeout=30)
             
-        # Analyze results
+        # Analyze results and track order IDs for cleanup
         successful = [r for r in results if r[1] == 'success']
         failed = [r for r in results if r[1] == 'failed']
+        
+        # Track successful orders for cleanup
+        for user_num, status, data in successful:
+            if 'localOrderId' in data:
+                self.created_order_ids.append(data['localOrderId'])
         
         # At most stock // qty_per_user users should succeed
         max_successful = stock // qty_per_user
@@ -481,7 +535,11 @@ class TestConcurrentCheckout:
             response = user_client.create_razorpay_order(order_products, address)
             
             if response.status_code == 200:
-                hold_orders.append(response.json())
+                order_data = response.json()
+                hold_orders.append(order_data)
+                # Track for cleanup
+                if 'localOrderId' in order_data:
+                    self.created_order_ids.append(order_data['localOrderId'])
             else:
                 # Should start failing after stock is exhausted
                 print(f"Order {i+1} failed (expected after stock exhausted): {response.text}")
@@ -496,6 +554,15 @@ class TestEdgeCases:
     
     def setup_method(self):
         self.client = APIClient()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                self.client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def test_empty_cart_checkout(self):
         """Test checkout with empty cart fails."""
@@ -511,6 +578,11 @@ class TestEdgeCases:
         response = self.client.create_razorpay_order([], address)
         
         assert response.status_code == 400, f"Empty cart should fail: {response.text}"
+        
+        # Track for cleanup if it somehow succeeded
+        data = response.json() if response.status_code == 200 else {}
+        if response.status_code == 200 and 'localOrderId' in data:
+            self.created_order_ids.append(data['localOrderId'])
         
     def test_missing_address_checkout(self):
         """Test checkout without address fails."""
@@ -543,6 +615,11 @@ class TestEdgeCases:
         
         assert response.status_code == 400, f"Missing address should fail: {response.text}"
         
+        # Track for cleanup if it somehow succeeded
+        data = response.json() if response.status_code == 200 else {}
+        if response.status_code == 200 and 'localOrderId' in data:
+            self.created_order_ids.append(data['localOrderId'])
+        
     def test_invalid_product_id_checkout(self):
         """Test checkout with invalid product ID fails."""
         user_data = generate_user_data()
@@ -567,6 +644,11 @@ class TestEdgeCases:
         # Should fail with 400 or 404
         assert response.status_code in [400, 404, 500], \
             f"Invalid product ID should fail: {response.text}"
+        
+        # Track for cleanup if it somehow succeeded
+        data = response.json() if response.status_code == 200 else {}
+        if response.status_code == 200 and 'localOrderId' in data:
+            self.created_order_ids.append(data['localOrderId'])
             
     def test_negative_quantity_checkout(self):
         """Test checkout with negative quantity fails."""
@@ -602,7 +684,9 @@ class TestEdgeCases:
         # Just ensure it doesn't succeed with negative
         if response.status_code == 200:
             # If it succeeds, verify the quantity was sanitized
-            pass
+            data = response.json()
+            if 'localOrderId' in data:
+                self.created_order_ids.append(data['localOrderId'])
             
     def test_get_hold_status_invalid_id(self):
         """Test getting hold status with invalid order ID."""
@@ -679,6 +763,9 @@ class TestEdgeCases:
         assert order_response.status_code == 200
         
         local_order_id = order_response.json().get('localOrderId')
+        
+        # Track for cleanup (though this test cancels it explicitly)
+        self.created_order_ids.append(local_order_id)
         
         # First cancel - should succeed
         cancel1 = self.client.cancel_hold(local_order_id)

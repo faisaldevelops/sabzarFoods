@@ -65,6 +65,15 @@ class TestOrderTracking:
     
     def setup_method(self):
         self.client = APIClient()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                self.client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def test_get_order_tracking(self):
         """Test getting tracking info for an order."""
@@ -107,6 +116,9 @@ class TestOrderTracking:
             pytest.skip("Could not create order for tracking test")
             
         local_order_id = order_response.json().get('localOrderId')
+        
+        # Track for cleanup
+        self.created_order_ids.append(local_order_id)
         
         # Get tracking
         tracking_response = self.client.get_order_tracking(local_order_id)
@@ -182,6 +194,15 @@ class TestOrderHistory:
     
     def setup_method(self):
         self.client = APIClient()
+        self.created_order_ids = []  # Track order IDs for cleanup
+        
+    def teardown_method(self):
+        """Clean up any hold orders created during test."""
+        for order_id in self.created_order_ids:
+            try:
+                self.client.cancel_hold(order_id)
+            except:
+                pass  # Ignore errors during cleanup
         
     def test_order_has_tracking_history(self):
         """Test that orders have tracking history."""
@@ -222,6 +243,9 @@ class TestOrderHistory:
             pytest.skip("Could not create order for history test")
             
         local_order_id = order_response.json().get('localOrderId')
+        
+        # Track for cleanup
+        self.created_order_ids.append(local_order_id)
         
         # Get tracking
         tracking_response = self.client.get_order_tracking(local_order_id)
