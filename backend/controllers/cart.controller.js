@@ -30,6 +30,16 @@ export const addToCart = async (req, res) => {
 		}
 
 		const { productId } = req.body;
+		const product = await Product.exists({ _id: productId });
+
+		if (!product) {
+			return res.status(404).json({
+				success: false,
+				message: "Product not found",
+			});
+		}
+
+		
 		const user = req.user;
 
 		const existingItem = user.cartItems.find((item) => item.id === productId);

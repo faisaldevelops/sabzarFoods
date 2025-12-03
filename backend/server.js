@@ -66,6 +66,7 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import otpRoutes from "./routes/otp.route.js";
 import addressRoutes from "./routes/address.route.js";
 import { connectDB } from "./lib/db.js";
+import { startHoldExpiryJob } from "./lib/stockHold.js";
 
 dotenv.config({ path: "./.env", debug: true });
 
@@ -111,4 +112,6 @@ if (process.env.NODE_ENV === "production") {
 app.listen(PORT, () => {
   console.log("Server is running on http://localhost:" + PORT);
   connectDB();
+  // Start the hold expiry cleanup job after DB connection
+  startHoldExpiryJob();
 });

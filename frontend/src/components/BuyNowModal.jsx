@@ -6,12 +6,17 @@ import { useUserStore } from "../stores/useUserStore";
 import axios from "../lib/axios";
 import PhoneAuthModal from "./PhoneAuthModal";
 import AddressSelectionModal from "./AddressSelectionModal";
+import InsufficientStockModal from "./InsufficientStockModal";
+import CountdownTimer from "./CountdownTimer";
 
 const BuyNowModal = ({ isOpen, onClose, product }) => {
   const [quantity, setQuantity] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPhoneAuth, setShowPhoneAuth] = useState(false);
   const [showAddressSelection, setShowAddressSelection] = useState(false);
+  const [showInsufficientStock, setShowInsufficientStock] = useState(false);
+  const [insufficientItems, setInsufficientItems] = useState([]);
+  const [holdInfo, setHoldInfo] = useState(null);
   const { user } = useUserStore();
 
   const handleIncrement = () => {
@@ -72,7 +77,10 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
         address: address,
       });
 
-      const { orderId, amount, currency, keyId, localOrderId } = res.data;
+      const { orderId, amount, currency, keyId, localOrderId, expiresAt, holdDurationSeconds } = res.data;
+
+      // Store hold info for countdown timer
+      setHoldInfo({ expiresAt, localOrderId, holdDurationSeconds });
 
       // dynamically load Razorpay script (if not loaded)
       const rzpScriptLoaded = await new Promise((resolve) => {
@@ -87,6 +95,7 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
       if (!rzpScriptLoaded) {
         toast.error("Failed to load Razorpay SDK");
         setIsProcessing(false);
+        setHoldInfo(null);
         return;
       }
 
@@ -108,22 +117,55 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
 
             if (verifyRes.data?.success) {
               toast.success("Payment successful!");
+              setHoldInfo(null);
               window.location.href = `/purchase-success?orderId=${encodeURIComponent(orderId)}`;
             } else {
-              toast.error(verifyRes.data?.message || "Verification failed");
+              // Check for insufficient stock error
+              if (verifyRes.data?.insufficientStock) {
+                setInsufficientItems(verifyRes.data.insufficientItems || []);
+                setShowInsufficientStock(true);
+              } else if (verifyRes.data?.holdExpired) {
+                toast.error("Your session expired. Please try again.");
+                setHoldInfo(null);
+              } else {
+                toast.error(verifyRes.data?.message || "Verification failed");
+              }
             }
           } catch (err) {
             console.error("verify error", err);
-            toast.error("Payment verification failed. Contact support.");
+            const errData = err?.response?.data;
+            if (errData?.insufficientStock) {
+              setInsufficientItems(errData.insufficientItems || []);
+              setShowInsufficientStock(true);
+            } else if (errData?.holdExpired) {
+              toast.error("Your session expired. Please try again.");
+              setHoldInfo(null);
+            } else {
+              toast.error("Payment verification failed. Contact support.");
+            }
           } finally {
             setIsProcessing(false);
-            onClose();
+          }
+        },
+        modal: {
+          ondismiss: async function () {
+            // User closed the payment modal without completing
+            setIsProcessing(false);
+            // Optionally cancel the hold
+            if (localOrderId) {
+              try {
+                await axios.post("/payments/cancel-hold", { localOrderId });
+              } catch {
+                // Silent fail - hold will expire automatically
+              }
+            }
+            setHoldInfo(null);
           }
         },
         prefill: {
           email: user?.email || "",
-          name: user?.name || "",
-          contact: user?.phoneNumber || "",
+          name: user?.name || address?.name || "",
+          contact: user?.phoneNumber || address?.phoneNumber || "",
         },
         theme: {
           color: "#44403c",
@@ -134,14 +176,52 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
       rzp.open();
     } catch (err) {
       console.error(err);
-      toast.error(err?.response?.data?.message || "Failed to create order");
+      const errData = err?.response?.data;
+      if (errData?.insufficientStock) {
+        setInsufficientItems(errData.insufficientItems || []);
+        setShowInsufficientStock(true);
+      } else {
+        toast.error(errData?.message || "Failed to create order");
+      }
       setIsProcessing(false);
+      setHoldInfo(null);
     }
+  };
+
+  // Handle reduce quantity action from insufficient stock modal
+  const handleReduceQuantity = async (items) => {
+    for (const item of items) {
+      if (item.available > 0) {
+        setQuantity(item.available);
+      }
+    }
+    setShowInsufficientStock(false);
+    toast.success("Quantity updated to available stock");
+  };
+
+  // Handle browse similar items
+  const handleBrowseSimilar = () => {
+    setShowInsufficientStock(false);
+    handleClose();
+  };
+
+  // Handle join waitlist (placeholder)
+  const handleJoinWaitlist = () => {
+    toast.success("You'll be notified when this item is back in stock");
+    setShowInsufficientStock(false);
+  };
+
+  // Handle hold expiration
+  const handleHoldExpire = () => {
+    toast.error("Your checkout session has expired. Please try again.");
+    setHoldInfo(null);
+    setIsProcessing(false);
   };
 
   const handleClose = () => {
     setQuantity(1);
     setIsProcessing(false);
+    setHoldInfo(null);
     onClose();
   };
 
@@ -197,6 +277,17 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
               </p>
             </div>
           </div>
+
+          {/* Countdown Timer when hold is active */}
+          {holdInfo && (
+            <div className="mb-6">
+              <CountdownTimer 
+                expiresAt={holdInfo.expiresAt}
+                durationSeconds={holdInfo.holdDurationSeconds}
+                onExpire={handleHoldExpire}
+              />
+            </div>
+          )}
 
           {/* Quantity Selector */}
           <div className="mb-6">
@@ -260,6 +351,15 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
         isOpen={showAddressSelection}
         onClose={() => setShowAddressSelection(false)}
         onSelectAddress={handleAddressSelected}
+      />
+
+      <InsufficientStockModal
+        isOpen={showInsufficientStock}
+        onClose={() => setShowInsufficientStock(false)}
+        insufficientItems={insufficientItems}
+        onReduceQuantity={handleReduceQuantity}
+        onBrowseSimilar={handleBrowseSimilar}
+        onJoinWaitlist={handleJoinWaitlist}
       />
     </>
   );

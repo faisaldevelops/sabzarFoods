@@ -65,7 +65,8 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
 	try {
 		const { email, password } = req.body;
-		const user = await User.findOne({ email });
+		// Include password field explicitly since it has select: false in the schema
+		const user = await User.findOne({ email }).select('+password');
 
 		if (user && (await user.comparePassword(password))) {
 			const { accessToken, refreshToken } = generateTokens(user._id);

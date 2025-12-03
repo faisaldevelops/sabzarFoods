@@ -123,7 +123,8 @@ const orderSchema = new mongoose.Schema(
     stripeSessionId: { type: String }, // keep field but do not make plain unique here
     razorpayOrderId: { type: String },    // new field for Razorpay
     razorpayPaymentId: { type: String },  // new field for Razorpay payment id
-    status: { type: String, enum: ["pending", "paid", "cancelled"], default: "pending" },
+    status: { type: String, enum: ["pending", "hold", "paid", "cancelled", "expired"], default: "pending" },
+    expiresAt: { type: Date, default: null }, // Hold expiration time (e.g., 15 minutes from creation)
     couponCode: { type: String, default: null },
     trackingStatus: {
       type: String,
