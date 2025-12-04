@@ -1,10 +1,14 @@
 import { motion } from "framer-motion";
-import { Trash, Star, Package } from "lucide-react";
+import { Trash, Star, Package, Edit } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
+import { useState } from "react";
+import EditProductModal from "./EditProductModal";
 const ProductsList = () => {
   const { deleteProduct, toggleFeaturedProduct, products } = useProductStore();
+  const [editingProduct, setEditingProduct] = useState(null);
   
   return (
+    <>
     <motion.div
       className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto"
       initial={{ opacity: 0, y: 20 }}
@@ -35,13 +39,6 @@ const ProductsList = () => {
                 >
                   Stock
                 </th>
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
-                >
-                  Category
-                </th>
-
                 <th
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
@@ -93,9 +90,6 @@ const ProductsList = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-300">{product.category}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => toggleFeaturedProduct(product._id)}
                       aria-pressed={product.isFeatured ? "true" : "false"}
@@ -108,13 +102,22 @@ const ProductsList = () => {
                     </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => deleteProduct(product._id)}
-                      aria-label={`Delete ${product.name}`}
-                      className="text-red-400 hover:text-red-300 focus:outline-none"
-                    >
-                      <Trash className="h-5 w-5" />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingProduct(product)}
+                        aria-label={`Edit ${product.name}`}
+                        className="text-blue-400 hover:text-blue-300 focus:outline-none"
+                      >
+                        <Edit className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => deleteProduct(product._id)}
+                        aria-label={`Delete ${product.name}`}
+                        className="text-red-400 hover:text-red-300 focus:outline-none"
+                      >
+                        <Trash className="h-5 w-5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -160,10 +163,6 @@ const ProductsList = () => {
                   {product.stockQuantity > 0 && product.stockQuantity < 10 && ' (Low)'}
                 </span>
               </p>
-
-              <p className="text-sm text-gray-300">
-                <span className="font-medium">Category:</span> {product.category}
-              </p>
             </div>
 
             <div className="flex flex-col items-end gap-2">
@@ -179,6 +178,14 @@ const ProductsList = () => {
               </button>
 
               <button
+                onClick={() => setEditingProduct(product)}
+                aria-label={`Edit ${product.name}`}
+                className="p-2 rounded-md bg-gray-700 text-blue-400 hover:text-blue-300 focus:outline-none"
+              >
+                <Edit className="h-5 w-5" />
+              </button>
+
+              <button
                 onClick={() => deleteProduct(product._id)}
                 aria-label={`Delete ${product.name}`}
                 className="p-2 rounded-md bg-gray-700 text-red-400 hover:text-red-300 focus:outline-none"
@@ -190,6 +197,14 @@ const ProductsList = () => {
         ))}
       </div>
     </motion.div>
+    
+    {editingProduct && (
+      <EditProductModal
+        product={editingProduct}
+        onClose={() => setEditingProduct(null)}
+      />
+    )}
+    </>
   );
 };
 
