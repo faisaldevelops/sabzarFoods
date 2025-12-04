@@ -21,7 +21,7 @@ const EditProductModal = ({ product, onClose }) => {
 			await updateProduct(product._id, editedProduct);
 			onClose();
 		} catch {
-			console.log("error updating a product");
+			console.log("Error updating product");
 		}
 	};
 

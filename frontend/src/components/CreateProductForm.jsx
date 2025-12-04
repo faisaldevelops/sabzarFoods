@@ -21,7 +21,7 @@ const CreateProductForm = () => {
 			await createProduct(newProduct);
 			setNewProduct({ name: "", description: "", price: "", image: "", stockQuantity: "" });
 		} catch {
-			console.log("error creating a product");
+			console.log("Error creating product");
 		}
 	};
 

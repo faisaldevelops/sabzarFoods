@@ -189,7 +189,7 @@ export const updateProduct = async (req, res) => {
 				try {
 					await cloudinary.uploader.destroy(`products/${publicId}`);
 				} catch (error) {
-					console.log("error deleting old image from cloudinary", error);
+					console.log("Error deleting old image from Cloudinary", error);
 				}
 			}
 			
