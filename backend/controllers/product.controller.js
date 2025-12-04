@@ -54,7 +54,7 @@ export const createProduct = async (req, res) => {
 			description,
 			price,
 			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
-			category,
+			category: category || "",
 			stockQuantity: stockQuantity || 0,
 		});
 
@@ -163,6 +163,46 @@ export const updateProductStock = async (req, res) => {
 		res.json(updatedProduct);
 	} catch (error) {
 		console.log("Error in updateProductStock controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+export const updateProduct = async (req, res) => {
+	try {
+		const { name, description, price, image, stockQuantity } = req.body;
+		const product = await Product.findById(req.params.id);
+		
+		if (!product) {
+			return res.status(404).json({ message: "Product not found" });
+		}
+
+		// Update basic fields
+		if (name !== undefined) product.name = name;
+		if (description !== undefined) product.description = description;
+		if (price !== undefined) product.price = price;
+		if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
+
+		// Handle image update
+		if (image && image !== product.image) {
+			// Delete old image from cloudinary if it exists
+			if (product.image) {
+				const publicId = product.image.split("/").pop().split(".")[0];
+				try {
+					await cloudinary.uploader.destroy(`products/${publicId}`);
+				} catch (error) {
+					console.log("error deleting old image from cloudinary", error);
+				}
+			}
+			
+			// Upload new image
+			const cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
+			product.image = cloudinaryResponse.secure_url;
+		}
+
+		const updatedProduct = await product.save();
+		res.json(updatedProduct);
+	} catch (error) {
+		console.log("Error in updateProduct controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };

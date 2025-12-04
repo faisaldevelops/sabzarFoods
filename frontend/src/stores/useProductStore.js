@@ -20,6 +20,23 @@ export const useProductStore = create((set) => ({
 			set({ loading: false });
 		}
 	},
+	updateProduct: async (productId, productData) => {
+		set({ loading: true });
+		try {
+			const res = await axios.put(`/products/${productId}`, productData);
+			set((prevState) => ({
+				products: prevState.products.map((product) =>
+					product._id === productId ? res.data : product
+				),
+				loading: false,
+			}));
+			toast.success("Product updated successfully");
+		} catch (error) {
+			toast.error(error.response?.data?.error || "Failed to update product");
+			set({ loading: false });
+			throw error;
+		}
+	},
 	fetchAllProducts: async () => {
 		set({ loading: true });
 		try {

@@ -15,6 +15,9 @@ const HomePage = () => {
 		return <LoadingSpinner />;
 	}
 
+	// Limit to first 12 products
+	const displayProducts = products?.slice(0, 12) || [];
+
 	return (
 		<div className='relative min-h-screen bg-stone-50 text-stone-900'>
 			<div className='relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16'>
@@ -32,12 +35,12 @@ const HomePage = () => {
 				</motion.div>
 
 				<motion.div
-					className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+					className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4'
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.4, delay: 0.1 }}
 				>
-					{products?.length === 0 && (
+					{displayProducts?.length === 0 && (
 						<div className='col-span-full text-center py-12'>
 							<p className='text-xl font-medium text-stone-600'>
 								No products available
@@ -45,7 +48,7 @@ const HomePage = () => {
 						</div>
 					)}
 
-					{products?.map((product) => (
+					{displayProducts?.map((product) => (
 						<ProductCard key={product._id} product={product} />
 					))}
 				</motion.div>
