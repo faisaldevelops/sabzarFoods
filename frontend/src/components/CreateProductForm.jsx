@@ -27,6 +27,22 @@ const CreateProductForm = () => {
 	const handleImageChange = (e) => {
 		const file = e.target.files[0];
 		if (file) {
+			// Validate file type
+			const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+			if (!validTypes.includes(file.type)) {
+				alert('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
+				e.target.value = '';
+				return;
+			}
+			
+			// Validate file size (max 5MB)
+			const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+			if (file.size > maxSize) {
+				alert('Image size must be less than 5MB');
+				e.target.value = '';
+				return;
+			}
+			
 			const reader = new FileReader();
 
 			reader.onloadend = () => {
