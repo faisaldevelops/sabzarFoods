@@ -1,6 +1,7 @@
 import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
+import { extractCloudinaryPublicId } from "../lib/cloudinaryUtils.js";
 
 export const getAllProducts = async (req, res) => {
 	try {
@@ -46,12 +47,14 @@ export const deleteProduct = async (req, res) => {
 		}
 
 		if (product.image) {
-			const publicId = product.image.split("/").pop().split(".")[0];
-			try {
-				await cloudinary.uploader.destroy(`products/${publicId}`);
-				console.log("deleted image from cloduinary");
-			} catch (error) {
-				console.log("error deleting image from cloduinary", error);
+			const publicId = extractCloudinaryPublicId(product.image);
+			if (publicId) {
+				try {
+					await cloudinary.uploader.destroy(publicId);
+					console.log("deleted image from cloudinary");
+				} catch (error) {
+					console.log("error deleting image from cloudinary", error);
+				}
 			}
 		}
 
@@ -124,18 +127,15 @@ export const updateProduct = async (req, res) => {
 		let cloudinaryResponse = null;
 		if (image && image !== product.image) {
 			// Delete old image from Cloudinary if it exists
-			if (product.image && product.image.includes('cloudinary.com')) {
-				try {
-					// Extract publicId from Cloudinary URL
-					// URL format: https://res.cloudinary.com/{cloud_name}/image/upload/{transformations}/{version}/{public_id}.{format}
-					const urlMatch = product.image.match(/\/products\/([^/.]+)/);
-					if (urlMatch && urlMatch[1]) {
-						const publicId = `products/${urlMatch[1]}`;
+			if (product.image) {
+				const publicId = extractCloudinaryPublicId(product.image);
+				if (publicId) {
+					try {
 						await cloudinary.uploader.destroy(publicId);
+					} catch (error) {
+						console.log("error deleting old image from cloudinary", error);
+						// Continue with upload even if delete fails
 					}
-				} catch (error) {
-					console.log("error deleting old image from cloudinary", error);
-					// Continue with upload even if delete fails
 				}
 			}
 			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
