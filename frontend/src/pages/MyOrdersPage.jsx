@@ -92,7 +92,7 @@ const MyOrdersPage = () => {
 
 	if (orders.length === 0) {
 		return (
-			<div className="min-h-screen flex items-center justify-center">
+			<div className="min-h-screen bg-stone-900 flex items-center justify-center">
 				<div className="text-center">
 					<Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
 					<h2 className="text-2xl font-semibold text-gray-300 mb-2">No Orders Yet</h2>
@@ -103,7 +103,7 @@ const MyOrdersPage = () => {
 	}
 
 	return (
-		<div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+		<div className="min-h-screen bg-stone-900 py-8 px-4 sm:px-6 lg:px-8">
 			<div className="max-w-5xl mx-auto">
 				<motion.div
 					initial={{ opacity: 0, y: -20 }}
