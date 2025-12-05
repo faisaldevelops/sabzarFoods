@@ -40,6 +40,16 @@ const ProductsList = () => {
 
   const handleEditSave = async () => {
     if (editingProduct) {
+      // Validate required fields
+      if (!editForm.name || !editForm.name.trim()) {
+        toast.error('Product name is required');
+        return;
+      }
+      if (!editForm.description || !editForm.description.trim()) {
+        toast.error('Product description is required');
+        return;
+      }
+      
       const price = parseFloat(editForm.price);
       const stockQuantity = parseInt(editForm.stockQuantity, 10);
       
@@ -54,8 +64,8 @@ const ProductsList = () => {
       }
       
       const updatedData = {
-        name: editForm.name,
-        description: editForm.description,
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
         price,
         stockQuantity,
         image: editForm.image,

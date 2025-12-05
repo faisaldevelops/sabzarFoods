@@ -125,7 +125,10 @@ export const updateProduct = async (req, res) => {
 
 		// If there's a new image, upload it to Cloudinary
 		let cloudinaryResponse = null;
-		if (image && image !== product.image) {
+		// Check if image is base64 (new upload) by checking if it starts with data:image
+		const isNewImage = image && image.startsWith('data:image');
+		
+		if (isNewImage) {
 			// Delete old image from Cloudinary if it exists
 			if (product.image) {
 				const publicId = extractCloudinaryPublicId(product.image);
