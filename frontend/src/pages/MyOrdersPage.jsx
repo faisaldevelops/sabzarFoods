@@ -54,14 +54,14 @@ const MyOrdersPage = () => {
 		return (
 			<div className="mt-4 space-y-3">
 				<h4 className="text-sm font-semibold text-gray-300">Tracking History</h4>
-				<div className="relative border-l-2 border-gray-700 pl-4 space-y-4">
+				<div className="relative border-l-2 border-gray-700 pl-6 space-y-4">
 					{history.map((item, index) => {
 						const config = getStatusConfig(item.status);
 						const Icon = config.icon;
 						
 						return (
 							<div key={index} className="relative">
-								<div className={`absolute -left-[1.35rem] w-6 h-6 rounded-full ${config.color} flex items-center justify-center`}>
+								<div className={`absolute -left-[1.75rem] w-6 h-6 rounded-full ${config.color} flex items-center justify-center`}>
 									<Icon className="w-3 h-3 text-white" />
 								</div>
 								<div className="text-xs text-gray-400">

@@ -326,6 +326,23 @@ export const razorpayWebhook = async (req, res) => {
         // optionally create order record here (if you didn't create pending before)
         console.warn("Webhook payment.captured: no local order found for", payment.order_id);
       }
+    } else if (event.event === "payment.failed") {
+      const payment = event.payload.payment.entity;
+      // find order by razorpay order id
+      const order = await Order.findOne({ razorpayOrderId: payment.order_id });
+      if (order && order.status === "hold") {
+        // Update order status to cancelled
+        order.status = "cancelled";
+        order.trackingStatus = "cancelled";
+        order.trackingHistory.push({
+          status: "cancelled",
+          timestamp: new Date(),
+          note: "Payment failed - order cancelled"
+        });
+        await order.save();
+        // Release reserved stock
+        await releaseReservedStock(order.products);
+      }
     }
 
     // respond quickly

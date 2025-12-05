@@ -252,8 +252,9 @@ export const finalizeOrder = async (orderId) => {
   
   // All stock decrements successful - mark order as paid
   order.status = "paid";
+  order.trackingStatus = "processing";
   order.trackingHistory.push({
-    status: "pending",
+    status: "processing",
     timestamp: new Date(),
     note: "Payment confirmed - order processing"
   });
