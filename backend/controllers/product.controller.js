@@ -126,14 +126,16 @@ export const updateProduct = async (req, res) => {
 			// Delete old image from Cloudinary if it exists
 			if (product.image && product.image.includes('cloudinary.com')) {
 				try {
-					const urlParts = product.image.split('/');
-					const fileNameWithExt = urlParts[urlParts.length - 1];
-					const publicId = fileNameWithExt.split('.')[0];
-					if (publicId) {
-						await cloudinary.uploader.destroy(`products/${publicId}`);
+					// Extract publicId from Cloudinary URL
+					// URL format: https://res.cloudinary.com/{cloud_name}/image/upload/{transformations}/{version}/{public_id}.{format}
+					const urlMatch = product.image.match(/\/products\/([^/.]+)/);
+					if (urlMatch && urlMatch[1]) {
+						const publicId = `products/${urlMatch[1]}`;
+						await cloudinary.uploader.destroy(publicId);
 					}
 				} catch (error) {
 					console.log("error deleting old image from cloudinary", error);
+					// Continue with upload even if delete fails
 				}
 			}
 			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });

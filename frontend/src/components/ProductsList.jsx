@@ -3,6 +3,7 @@ import { Trash, Edit } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { validateImageFile, readFileAsBase64 } from "../lib/imageValidation";
 
 const ProductsList = () => {
   const { deleteProduct, products, updateProduct } = useProductStore();
@@ -71,30 +72,18 @@ const ProductsList = () => {
     }
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-      if (!validTypes.includes(file.type)) {
-        toast.error('Please select a valid image file (JPEG, PNG, WebP, or GIF)');
+    const validatedFile = validateImageFile(file, e.target);
+    
+    if (validatedFile) {
+      try {
+        const base64 = await readFileAsBase64(validatedFile);
+        setEditForm({ ...editForm, image: base64 });
+      } catch (error) {
+        toast.error('Failed to read image file');
         e.target.value = '';
-        return;
       }
-      
-      // Validate file size (max 5MB)
-      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
-      if (file.size > maxSize) {
-        toast.error('Image size must be less than 5MB');
-        e.target.value = '';
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditForm({ ...editForm, image: reader.result });
-      };
-      reader.readAsDataURL(file);
     }
   };
   
