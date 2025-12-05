@@ -19,20 +19,6 @@ const HomePage = () => {
 		<div className='relative min-h-screen bg-stone-50 text-stone-900'>
 			<div className='relative z-10 max-w-7xl mx-auto sm:px-6 lg:px-8 py-16'>
 				<motion.div
-					initial={{ opacity: 0, y: -20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4 }}
-					className='px-4 sm:px-0'
-				>
-					<h1 className='text-4xl sm:text-5xl font-bold text-stone-900 mb-3 tracking-tight'>
-						All Products
-					</h1>
-					<p className='text-base text-stone-600 mb-12 font-light'>
-						Discover the latest trends in fashion
-					</p>
-				</motion.div>
-
-				<motion.div
 					className='grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-0 sm:gap-6'
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}

@@ -157,7 +157,7 @@ const ProductsList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-300">
-                      ${Number(product.price ?? 0).toFixed(2)}
+                      ₹{Number(product.price ?? 0).toFixed(2)}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -218,7 +218,7 @@ const ProductsList = () => {
               </h3>
 
               <p className="text-sm text-gray-300 mt-1">
-                <span className="font-medium">Price:</span> ${Number(product.price ?? 0).toFixed(2)}
+                <span className="font-medium">Price:</span> ₹{Number(product.price ?? 0).toFixed(2)}
               </p>
 
               <p className="text-sm mt-1">

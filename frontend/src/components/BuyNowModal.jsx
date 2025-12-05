@@ -270,7 +270,7 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
                 {product.name}
               </h4>
               <p className="text-lg font-bold text-stone-900 mt-1">
-                ${product.price}
+                ₹{product.price}
               </p>
               <p className="text-sm text-stone-600 mt-1">
                 {product.stockQuantity} in stock

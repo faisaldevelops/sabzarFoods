@@ -145,7 +145,7 @@ const MyOrdersPage = () => {
 									<div className="text-right">
 										<div className="text-sm text-gray-400 mb-1">Total Amount</div>
 										<div className="text-2xl font-bold text-emerald-400">
-											${order.totalAmount.toFixed(2)}
+											₹{order.totalAmount.toFixed(2)}
 										</div>
 									</div>
 								</div>

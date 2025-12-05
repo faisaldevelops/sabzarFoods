@@ -105,7 +105,7 @@ const OrderslistTab = () => {
                                 })}
                             </p>
                             <p className="text-lg font-semibold text-white">
-                                Total: ${order.totalAmount.toFixed(2)}
+                                Total: ₹{order.totalAmount.toFixed(2)}
                             </p>
                         </div>
                         
@@ -179,13 +179,13 @@ const OrderslistTab = () => {
                             </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-300">
-                            ${product.price.toFixed(2)}
+                            ₹{product.price.toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-300">
                             {product.quantity}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-300">
-                            ${(product.price * product.quantity).toFixed(2)}
+                            ₹{(product.price * product.quantity).toFixed(2)}
                         </td>
                         </tr>
                     ))}
@@ -206,13 +206,13 @@ const OrderslistTab = () => {
                     </h3>
                     <div className="mt-2 space-y-1">
                         <p className="text-sm text-gray-300">
-                            <span className="font-medium">Price:</span> ${product.price.toFixed(2)}
+                            <span className="font-medium">Price:</span> ₹{product.price.toFixed(2)}
                         </p>
                         <p className="text-sm text-gray-300">
                             <span className="font-medium">Quantity:</span> {product.quantity}
                         </p>
                         <p className="text-sm text-gray-300">
-                            <span className="font-medium">Subtotal:</span> ${(product.price * product.quantity).toFixed(2)}
+                            <span className="font-medium">Subtotal:</span> ₹{(product.price * product.quantity).toFixed(2)}
                         </p>
                     </div>
                 </article>
