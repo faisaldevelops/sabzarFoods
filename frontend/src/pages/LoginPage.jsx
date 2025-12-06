@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import axios from "../lib/axios";
@@ -11,6 +11,8 @@ const LoginPage = () => {
 	const [phoneNumber, setPhoneNumber] = useState("");
 	const [otp, setOtp] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [resendCooldown, setResendCooldown] = useState(0);
+	const [resendLoading, setResendLoading] = useState(false);
 	const { checkAuth } = useUserStore();
 	const { syncGuestCart } = useCartStore();
 
@@ -33,12 +35,53 @@ const LoginPage = () => {
 			}
 			
 			setStep("otp");
+			setResendCooldown(30); // Start 30-second cooldown
 		} catch (error) {
 			toast.error(error.response?.data?.message || "Failed to send OTP");
 		} finally {
 			setLoading(false);
 		}
 	};
+
+	const handleResendOTP = async () => {
+		if (resendCooldown > 0) {
+			return;
+		}
+
+		setResendLoading(true);
+		try {
+			const response = await axios.post("/otp/resend", { phoneNumber });
+			toast.success(response.data.message);
+			
+			// In development, show OTP in toast
+			if (response.data.otp) {
+				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
+			}
+			
+			setResendCooldown(30); // Reset 30-second cooldown
+		} catch (error) {
+			const errorData = error.response?.data;
+			if (errorData?.reason === "cooldown" && errorData?.waitTime) {
+				toast.error(`Please wait ${errorData.waitTime} seconds before resending`);
+			} else if (errorData?.reason === "limit_reached" && errorData?.resetInMinutes) {
+				toast.error(`Too many attempts. Try again in ${errorData.resetInMinutes} minute(s)`);
+			} else {
+				toast.error(errorData?.message || "Failed to resend OTP");
+			}
+		} finally {
+			setResendLoading(false);
+		}
+	};
+
+	// Countdown timer effect
+	useEffect(() => {
+		if (resendCooldown > 0) {
+			const timer = setTimeout(() => {
+				setResendCooldown(resendCooldown - 1);
+			}, 1000);
+			return () => clearTimeout(timer);
+		}
+	}, [resendCooldown]);
 
 	const handleVerifyOTP = async (e) => {
 		e.preventDefault();
@@ -153,17 +196,35 @@ const LoginPage = () => {
 								{loading ? 'Verifying...' : 'Verify & Login'}
 							</button>
 
-							<button
-								type="button"
-								onClick={() => {
-									setStep("phone");
-									setOtp("");
-								}}
-								className="w-full text-sm text-stone-600 hover:text-stone-900 transition-colors py-2 font-medium"
-								disabled={loading}
-							>
-								← Change phone number
-							</button>
+							<div className='flex items-center justify-between'>
+								<button
+									type="button"
+									onClick={() => {
+										setStep("phone");
+										setOtp("");
+										setResendCooldown(0);
+									}}
+									className="text-sm text-stone-600 hover:text-stone-900 transition-colors py-2 font-medium"
+									disabled={loading || resendLoading}
+								>
+									← Change phone number
+								</button>
+
+								<button
+									type="button"
+									onClick={handleResendOTP}
+									className="text-sm text-stone-800 hover:text-stone-900 transition-colors py-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+									disabled={loading || resendLoading || resendCooldown > 0}
+								>
+									{resendLoading ? (
+										"Sending..."
+									) : resendCooldown > 0 ? (
+										`Resend in ${resendCooldown}s`
+									) : (
+										"Resend Code"
+									)}
+								</button>
+							</div>
 						</form>
 					)}
 
