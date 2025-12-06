@@ -1,14 +1,18 @@
-import { ShoppingCart, AlertCircle, Tag, Zap } from "lucide-react";
+import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus } from "lucide-react";
 import { useCartStore } from "../stores/useCartStore";
 import toast from "react-hot-toast";
 import { useState } from "react";
 import BuyNowModal from "./BuyNowModal";
 
 const ProductCard = ({ product }) => {
-	const { addToCart } = useCartStore();
+	const { addToCart, cart, updateQuantity } = useCartStore();
 	const [showBuyNow, setShowBuyNow] = useState(false);
 	const isOutOfStock = !product.stockQuantity || product.stockQuantity === 0;
 	const isLowStock = product.stockQuantity > 0 && product.stockQuantity < 10;
+	
+	// Check if product is in cart and get its quantity
+	const cartItem = cart.find(item => item._id === product._id);
+	const quantityInCart = cartItem ? cartItem.quantity : 0;
 	
 	const handleAddToCart = () => {
 		if (isOutOfStock) {
@@ -16,6 +20,20 @@ const ProductCard = ({ product }) => {
 			return;
 		}
 		addToCart(product);
+	};
+
+	const handleIncreaseQuantity = () => {
+		if (isOutOfStock) {
+			toast.error("This item is currently out of stock");
+			return;
+		}
+		updateQuantity(product._id, quantityInCart + 1);
+	};
+
+	const handleDecreaseQuantity = () => {
+		if (quantityInCart > 0) {
+			updateQuantity(product._id, quantityInCart - 1);
+		}
 	};
 
 	const handleBuyNow = () => {
@@ -79,18 +97,40 @@ const ProductCard = ({ product }) => {
 						</div>
 						
 						<div className='flex sm:flex-row flex-col gap-2'>
-							<button
-								className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
-									isOutOfStock
-										? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-										: 'bg-stone-800 text-white hover:bg-stone-700 hover:shadow-md'
-								}`}
-								onClick={handleAddToCart}
-								disabled={isOutOfStock}
-							>
-								{!isOutOfStock && <ShoppingCart size={14} />}
-								{isOutOfStock ? 'OUT OF STOCK' : 'Add to Cart'}
-							</button>
+							{quantityInCart === 0 ? (
+								<button
+									className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
+										isOutOfStock
+											? 'bg-stone-200 text-stone-500 cursor-not-allowed'
+											: 'bg-stone-800 text-white hover:bg-stone-700 hover:shadow-md'
+									}`}
+									onClick={handleAddToCart}
+									disabled={isOutOfStock}
+								>
+									{!isOutOfStock && <ShoppingCart size={14} />}
+									{isOutOfStock ? 'OUT OF STOCK' : 'Add to Cart'}
+								</button>
+							) : (
+								<div className='flex-1 flex items-center justify-center gap-2 border border-stone-300 rounded-md bg-white px-2 py-2'>
+									<button
+										className='h-7 w-7 flex items-center justify-center border border-stone-300 rounded-md
+										bg-white hover:bg-stone-100 focus:outline-none transition-colors'
+										onClick={handleDecreaseQuantity}
+									>
+										<Minus className='text-stone-700' size={14} />
+									</button>
+									<span className='text-sm font-medium text-stone-900 min-w-[2rem] text-center'>
+										{quantityInCart}
+									</span>
+									<button
+										className='h-7 w-7 flex items-center justify-center border border-stone-300 rounded-md
+										bg-white hover:bg-stone-100 focus:outline-none transition-colors'
+										onClick={handleIncreaseQuantity}
+									>
+										<Plus className='text-stone-700' size={14} />
+									</button>
+								</div>
+							)}
 							
 							<button
 								className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
