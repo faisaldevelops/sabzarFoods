@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import AddressSelectionModal from "../components/AddressSelectionModal";
 import InsufficientStockModal from "../components/InsufficientStockModal";
 import CountdownTimer from "../components/CountdownTimer";
+import { SHOP_CONFIG, PAYMENT_CONFIG } from "../config/constants";
 
 const OrderSummaryPage = () => {
 	const [orderData, setOrderData] = useState(null);
@@ -96,7 +97,7 @@ const OrderSummaryPage = () => {
 				key: keyId,
 				amount: amount,
 				currency: currency || "INR",
-				name: "Your Shop Name",
+				name: SHOP_CONFIG.name,
 				description: "Order Payment",
 				order_id: orderId,
 				handler: async function (response) {
@@ -162,9 +163,7 @@ const OrderSummaryPage = () => {
 					name: user?.name || address?.name || "",
 					contact: user?.phoneNumber || address?.phoneNumber || "",
 				},
-				theme: {
-					color: "#44403c",
-				},
+				theme: PAYMENT_CONFIG.theme,
 			};
 
 			const rzp = new window.Razorpay(options);
@@ -223,7 +222,7 @@ const OrderSummaryPage = () => {
 	}
 
 	const totalPrice = (orderData.product.price * orderData.quantity).toFixed(2);
-	const extraCharges = 20;
+	const extraCharges = SHOP_CONFIG.extraCharges;
 	const finalTotal = (parseFloat(totalPrice) + extraCharges).toFixed(2);
 
 	return (

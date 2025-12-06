@@ -10,6 +10,7 @@ import PhoneAuthModal from "./PhoneAuthModal";
 import AddressSelectionModal from "./AddressSelectionModal";
 import InsufficientStockModal from "./InsufficientStockModal";
 import CountdownTimer from "./CountdownTimer";
+import { SHOP_CONFIG } from "../config/constants";
 
 const OrderSummary = () => {
 	const [isProcessing, setIsProcessing] = useState(false);
@@ -24,7 +25,7 @@ const OrderSummary = () => {
 
 	const savings = subtotal - total;
 	const formattedSubtotal = subtotal.toFixed(2);
-	const extraCharges = 20; // Extra charges in rupees
+	const extraCharges = SHOP_CONFIG.extraCharges; // Extra charges in rupees
 	const formattedTotal = (total + extraCharges).toFixed(2);
 	const formattedSavings = savings.toFixed(2);
 
@@ -89,7 +90,7 @@ const OrderSummary = () => {
 				key: keyId,
 				amount: amount,
 				currency: currency || "INR",
-				name: "Your Shop Name",
+				name: SHOP_CONFIG.name,
 				description: "Order Payment",
 				order_id: orderId,
 				handler: async function (response) {
