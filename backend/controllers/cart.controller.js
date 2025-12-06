@@ -124,7 +124,11 @@ export const syncCart = async (req, res) => {
 
 		const user = req.user;
 
-		// Merge guest cart with user's existing cart
+		// Overwrite DB cart with localStorage cart
+		// Clear existing cart
+		user.cartItems = [];
+
+		// Add all items from guest cart
 		for (const guestItem of guestCart) {
 			const { _id: productId, quantity } = guestItem;
 
@@ -132,21 +136,13 @@ export const syncCart = async (req, res) => {
 				continue; // Skip invalid items
 			}
 
-			// Check if product exists in user's cart
-			const existingItem = user.cartItems.find((item) => item.id === productId);
-
-			if (existingItem) {
-				// Add quantities if product already exists
-				existingItem.quantity += quantity;
-			} else {
-				// Add new item to cart
-				user.cartItems.push({ product: productId, quantity });
-			}
+			// Add item to cart
+			user.cartItems.push({ product: productId, quantity });
 		}
 
 		await user.save();
 
-		// Return the merged cart with product details
+		// Return the cart with product details
 		const products = await Product.find({ _id: { $in: user.cartItems.map(item => item.product) } });
 		const cartItems = products.map((product) => {
 			const item = user.cartItems.find((cartItem) => cartItem.product.toString() === product._id.toString());

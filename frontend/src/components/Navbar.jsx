@@ -68,30 +68,30 @@ const Navbar = () => {
 
 						{user ? (
 							<button
-								className='flex items-center gap-2 px-3 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+								className='flex items-center gap-2 px-3 py-2 bg-red-600 text-white hover:bg-red-700 rounded-md transition-colors'
 								onClick={logout}
 								title="Logout"
 							>
 								<LogOut size={20} />
-								<span className='text-sm font-medium hidden sm:inline'>Logout</span>
+								<span className='text-sm font-medium'>Logout</span>
 							</button>
 						) : (
 							<>
 								<Link
-									to={"/signup"}
-									className='flex items-center gap-2 px-3 py-2 bg-stone-800 text-white hover:bg-stone-700 rounded-md transition-colors'
-									title="Sign Up"
-								>
-									<UserPlus size={20} />
-									<span className='text-sm font-medium hidden sm:inline'>Sign Up</span>
-								</Link>
-								<Link
 									to={"/login"}
-									className='flex items-center gap-2 px-3 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-md transition-colors'
+									className='flex items-center gap-2 px-3 py-2 bg-stone-800 text-white hover:bg-stone-700 rounded-md transition-colors'
 									title="Login"
 								>
 									<LogIn size={20} />
-									<span className='text-sm font-medium hidden sm:inline'>Login</span>
+									<span className='text-sm font-medium'>Login</span>
+								</Link>
+								<Link
+									to={"/signup"}
+									className='flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white hover:bg-emerald-700 rounded-md transition-colors'
+									title="Sign Up"
+								>
+									<UserPlus size={20} />
+									<span className='text-sm font-medium'>Sign Up</span>
 								</Link>
 							</>
 						)}
