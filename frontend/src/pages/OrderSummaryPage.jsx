@@ -229,38 +229,8 @@ const OrderSummaryPage = () => {
 
 	return (
 		<div className='py-8 md:py-16 bg-stone-50 min-h-screen'>
-			<div className='mx-auto max-w-screen-xl px-4 2xl:px-0'>
-				<h1 className='text-3xl font-bold text-stone-900 mb-8 tracking-tight'>Order Summary</h1>
-				
+			<div className='mx-auto max-w-screen-xl px-4 2xl:px-0'>				
 				<div className='mt-6 sm:mt-8 md:gap-6 lg:flex lg:items-start xl:gap-8'>
-					{/* Left side - Product Details */}
-					<motion.div
-						className='mx-auto w-full flex-none lg:max-w-2xl xl:max-w-4xl'
-						initial={{ opacity: 0, x: -20 }}
-						animate={{ opacity: 1, x: 0 }}
-						transition={{ duration: 0.4, delay: 0.1 }}
-					>
-						<div className='bg-white rounded-lg border border-stone-200 shadow-sm p-6'>
-							<div className='flex gap-4'>
-								<img 
-									src={orderData.product.image} 
-									alt={orderData.product.name}
-									className='h-32 w-32 rounded-md object-cover border border-stone-200'
-								/>
-								<div className='flex-1'>
-									<h2 className='text-xl font-bold text-stone-900 mb-2'>
-										{orderData.product.name}
-									</h2>
-									<p className='text-lg font-medium text-stone-900 mb-1'>
-										₹{orderData.product.price} × {orderData.quantity}
-									</p>
-									<p className='text-sm text-stone-600'>
-										Total: ₹{totalPrice}
-									</p>
-								</div>
-							</div>
-						</div>
-					</motion.div>
 
 					{/* Right side - Order Summary */}
 					<motion.div
