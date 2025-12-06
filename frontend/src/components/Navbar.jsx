@@ -73,7 +73,7 @@ const Navbar = () => {
 								title="Logout"
 							>
 								<LogOut size={20} />
-								<span className='text-sm font-medium'>Logout</span>
+								<span className='text-sm font-medium hidden sm:inline'>Logout</span>
 							</button>
 						) : (
 							<>

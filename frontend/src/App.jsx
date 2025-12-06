@@ -5,6 +5,7 @@ import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import MyOrdersPage from "./pages/MyOrdersPage";
+import OrderSummaryPage from "./pages/OrderSummaryPage";
 
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
@@ -53,6 +54,7 @@ function App() {
 						element={user?.role === "admin" ? <AdminPage /> : <Navigate to='/login' />}
 					/>
 					<Route path='/cart' element={<CartPage />} />
+					<Route path='/order-summary' element={user ? <OrderSummaryPage /> : <Navigate to='/login' />} />
 					<Route path='/my-orders' element={user ? <MyOrdersPage /> : <Navigate to='/login' />} />
 					<Route path='/purchase-success' element={<PurchaseSuccessPage />} />
 					<Route path='/purchase-cancel' element={<PurchaseCancelPage />} />

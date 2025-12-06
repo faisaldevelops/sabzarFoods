@@ -84,8 +84,8 @@ const ProductCard = ({ product }) => {
 						{product.name}
 					</h5>
 					
-					<div className='mt-auto pt-3'>
-						<div className='flex items-baseline justify-between mb-3'>
+					<div className='mt-auto pt-2'>
+						<div className='flex items-baseline justify-between mb-2'>
 							<span className='text-xl font-bold text-stone-900'>
 								₹{product.price}
 							</span>
