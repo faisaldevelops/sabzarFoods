@@ -183,14 +183,16 @@ const OrderSummaryPage = () => {
 	};
 
 	// Handle reduce quantity action from insufficient stock modal
-	const handleReduceQuantity = async (items) => {
-		for (const item of items) {
-			if (item.available > 0) {
-				setOrderData(prev => ({ ...prev, quantity: item.available }));
-			}
+	const handleReduceQuantity = (items) => {
+		// Since this is a single product order, use the first item's available quantity
+		if (items.length > 0 && items[0].available > 0) {
+			setOrderData(prev => ({ ...prev, quantity: items[0].available }));
+			setShowInsufficientStock(false);
+			toast.success("Quantity updated to available stock");
+		} else {
+			setShowInsufficientStock(false);
+			toast.error("Product is out of stock");
 		}
-		setShowInsufficientStock(false);
-		toast.success("Quantity updated to available stock");
 	};
 
 	// Handle browse similar items
