@@ -177,8 +177,6 @@ export const sendOTP = async (req, res) => {
     res.json({
       message: "OTP sent successfully",
       userExists: !!userExists,
-      // In development, return OTP for testing (remove in production)
-      // ...(process.env.NODE_ENV === "development" && { otp }),
     });
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -310,8 +308,6 @@ export const resendOTP = async (req, res) => {
 
     res.json({
       message: "OTP resent successfully",
-      // In development, return OTP for testing (remove in production)
-      // ...(process.env.NODE_ENV === "development" && { otp }),
     });
   } catch (error) {
     console.error("Error resending OTP:", error);

@@ -9,6 +9,11 @@ import time
 from api_client import APIClient
 from test_data import generate_phone_number
 
+# Throttling constants (match backend configuration)
+RESEND_COOLDOWN_SECONDS = 30
+MAX_RESENDS_PER_WINDOW = 3
+THROTTLE_WINDOW_MINUTES = 15
+
 
 class TestOTPSendAndVerify:
     """Test suite for basic OTP send and verify functionality."""
@@ -57,8 +62,8 @@ class TestOTPSendAndVerify:
         })
         assert signup_response.status_code == 200
         
-        # Wait to avoid throttling
-        time.sleep(2)
+        # Wait to avoid throttling - use a shorter wait since we're just testing flow
+        time.sleep(5)
         
         # Now try to login with same number
         login_response = self.client.post('/otp/send', {
@@ -87,9 +92,9 @@ class TestOTPResend:
         })
         assert send_response.status_code == 200
         
-        # Wait for cooldown period (30 seconds)
-        print("Waiting 30 seconds for cooldown...")
-        time.sleep(30)
+        # Wait for cooldown period
+        print(f"Waiting {RESEND_COOLDOWN_SECONDS} seconds for cooldown...")
+        time.sleep(RESEND_COOLDOWN_SECONDS)
         
         # Resend OTP
         resend_response = self.client.post('/otp/resend', {
@@ -158,20 +163,20 @@ class TestOTPThrottling:
         })
         assert send_response.status_code == 200
         
-        # Try to resend 3 times (max limit)
-        for i in range(3):
-            print(f"Waiting 30 seconds for resend attempt {i+1}...")
-            time.sleep(30)
+        # Try to resend MAX_RESENDS_PER_WINDOW times
+        for i in range(MAX_RESENDS_PER_WINDOW):
+            print(f"Waiting {RESEND_COOLDOWN_SECONDS} seconds for resend attempt {i+1}...")
+            time.sleep(RESEND_COOLDOWN_SECONDS)
             
             resend_response = self.client.post('/otp/resend', {
                 'phoneNumber': self.phone_number
             })
             
-            if i < 2:
-                # First 2 resends should succeed
+            if i < MAX_RESENDS_PER_WINDOW - 1:
+                # First resends should succeed
                 assert resend_response.status_code == 200, f"Resend {i+1} failed: {resend_response.text}"
             else:
-                # 3rd resend should be throttled
+                # Last resend should be throttled (we've hit the limit)
                 assert resend_response.status_code == 429, f"Should be throttled on resend {i+1}"
                 data = resend_response.json()
                 assert 'reason' in data
@@ -229,8 +234,8 @@ class TestOTPIntegration:
         assert send_response.status_code == 200
         
         # 2. Wait and resend
-        print("Waiting 30 seconds for resend...")
-        time.sleep(30)
+        print(f"Waiting {RESEND_COOLDOWN_SECONDS} seconds for resend...")
+        time.sleep(RESEND_COOLDOWN_SECONDS)
         
         resend_response = self.client.post('/otp/resend', {
             'phoneNumber': phone_number
