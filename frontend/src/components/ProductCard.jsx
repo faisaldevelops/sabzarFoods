@@ -111,23 +111,23 @@ const ProductCard = ({ product }) => {
 									{isOutOfStock ? 'OUT OF STOCK' : 'Add to Cart'}
 								</button>
 							) : (
-								<div className='flex-1 flex items-center justify-center gap-2 border border-stone-300 rounded-md bg-white px-2 py-2'>
+								<div className='flex-1 flex items-center justify-center gap-2 rounded-md bg-stone-800 px-2 py-2'>
 									<button
-										className='h-7 w-7 flex items-center justify-center border border-stone-300 rounded-md
-										bg-white hover:bg-stone-100 focus:outline-none transition-colors'
+										className='h-7 w-7 flex items-center justify-center rounded-md
+										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors'
 										onClick={handleDecreaseQuantity}
 									>
-										<Minus className='text-stone-700' size={14} />
+										<Minus className='text-white' size={14} />
 									</button>
-									<span className='text-sm font-medium text-stone-900 min-w-[2rem] text-center'>
+									<span className='text-sm font-medium text-white min-w-[2rem] text-center'>
 										{quantityInCart}
 									</span>
 									<button
-										className='h-7 w-7 flex items-center justify-center border border-stone-300 rounded-md
-										bg-white hover:bg-stone-100 focus:outline-none transition-colors'
+										className='h-7 w-7 flex items-center justify-center rounded-md
+										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors'
 										onClick={handleIncreaseQuantity}
 									>
-										<Plus className='text-stone-700' size={14} />
+										<Plus className='text-white' size={14} />
 									</button>
 								</div>
 							)}
