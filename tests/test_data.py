@@ -29,6 +29,12 @@ def generate_guest_data() -> Dict:
     }
 
 
+def generate_phone_number() -> str:
+    """Generate a random 10-digit phone number."""
+    # Generate a valid 10-digit Indian phone number
+    return ''.join([str(random.randint(0, 9)) for _ in range(10)])
+
+
 def generate_address() -> Dict:
     """Generate a random shipping address."""
     return {
