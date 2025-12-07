@@ -8,6 +8,7 @@ import MyOrdersPage from "./pages/MyOrdersPage";
 import OrderSummaryPage from "./pages/OrderSummaryPage";
 
 import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
 import { Toaster } from "react-hot-toast";
 import { useUserStore } from "./stores/useUserStore";
 import { useEffect } from "react";
@@ -42,8 +43,8 @@ function App() {
 	if (checkingAuth) return <LoadingSpinner />;
 
 	return (
-		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden'>
-			<div className='relative z-50 pt-16'>
+		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden flex flex-col'>
+			<div className='relative z-50 pt-16 flex-1'>
 				<Navbar />
 				<Routes>
 					<Route path='/' element={<HomePage />} />
@@ -60,6 +61,7 @@ function App() {
 					<Route path='/purchase-cancel' element={<PurchaseCancelPage />} />
 				</Routes>
 			</div>
+			<Footer />
 			<Toaster 
 				toastOptions={{
 					style: {
