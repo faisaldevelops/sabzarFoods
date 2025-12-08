@@ -3,15 +3,40 @@ import Product from "../models/product.model.js";
 
 export const getOrdersData = async (req, res) => {
 	try {
-		// Find all orders and populate the user and product references.
-		// Select a few useful user fields and product fields to return.
-		const orders = await Order.find()
+		// Extract filter parameters from query
+		const { phoneNumber, orderId, status } = req.query;
+		
+		// Build filter object
+		let filter = {};
+		
+		// Filter by orderId
+		if (orderId) {
+			filter._id = orderId;
+		}
+		
+		// Filter by status (trackingStatus)
+		if (status && status !== 'all') {
+			filter.trackingStatus = status;
+		}
+		
+		// Find all orders with filters and populate the user and product references.
+		let query = Order.find(filter)
 			.populate('user', 'name email phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
 			})
 			.lean();
+		
+		let orders = await query;
+		
+		// Filter by phone number (post-query since it's in populated user data)
+		if (phoneNumber) {
+			orders = orders.filter(order => 
+				order.user?.phoneNumber?.includes(phoneNumber) ||
+				order.address?.phoneNumber?.includes(phoneNumber)
+			);
+		}
 
 		// Format each order to merge product details alongside quantity/price
 		const formatted = orders.map(order => {

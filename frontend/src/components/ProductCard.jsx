@@ -1,14 +1,19 @@
-import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus } from "lucide-react";
+import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus, Bell } from "lucide-react";
 import { useCartStore } from "../stores/useCartStore";
 import toast from "react-hot-toast";
 import { useState } from "react";
 import BuyNowModal from "./BuyNowModal";
+import WaitlistModal from "./WaitlistModal";
 
 const ProductCard = ({ product }) => {
 	const { addToCart, cart, updateQuantity } = useCartStore();
 	const [showBuyNow, setShowBuyNow] = useState(false);
-	const isOutOfStock = !product.stockQuantity || product.stockQuantity === 0;
-	const isLowStock = product.stockQuantity > 0 && product.stockQuantity < 10;
+	const [showWaitlist, setShowWaitlist] = useState(false);
+	
+	// Calculate available stock (stock - reserved)
+	const availableStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0);
+	const isOutOfStock = availableStock <= 0;
+	const isLowStock = availableStock > 0 && availableStock < 10;
 	
 	// Check if product is in cart and get its quantity
 	const cartItem = cart.find(item => item._id === product._id);
@@ -63,6 +68,13 @@ const ProductCard = ({ product }) => {
 								<span className='text-white text-sm font-medium'>
 									OUT OF STOCK
 								</span>
+								<button
+									onClick={() => setShowWaitlist(true)}
+									className='mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-full flex items-center gap-1 transition-colors'
+								>
+									<Bell size={12} />
+									Notify Me
+								</button>
 							</div>
 						</div>
 					)}
@@ -72,7 +84,7 @@ const ProductCard = ({ product }) => {
 						<div className='absolute top-3 right-3'>
 							<span className='bg-amber-500 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md'>
 								<Tag size={12} />
-								{product.stockQuantity} LEFT
+								{availableStock} LEFT
 							</span>
 						</div>
 					)}
@@ -91,7 +103,7 @@ const ProductCard = ({ product }) => {
 							</span>
 							{!isOutOfStock && (
 								<span className='text-xs text-stone-500'>
-									Qty: {product.stockQuantity}
+									Qty: {availableStock}
 								</span>
 							)}
 						</div>
@@ -152,6 +164,12 @@ const ProductCard = ({ product }) => {
 			<BuyNowModal 
 				isOpen={showBuyNow}
 				onClose={() => setShowBuyNow(false)}
+				product={product}
+			/>
+			
+			<WaitlistModal
+				isOpen={showWaitlist}
+				onClose={() => setShowWaitlist(false)}
 				product={product}
 			/>
 		</>

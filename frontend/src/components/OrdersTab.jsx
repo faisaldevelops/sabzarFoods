@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter } from "lucide-react";
 import axios from "../lib/axios";
 import { useState } from "react";
 import { useEffect } from "react";
@@ -9,11 +9,28 @@ const OrderslistTab = () => {
     const [ orders, setOrders ] = useState([])
     const [isLoading, setIsLoading] = useState(true);
     const [updatingOrder, setUpdatingOrder] = useState(null);
+    
+    // Filter states
+    const [filters, setFilters] = useState({
+        phoneNumber: '',
+        orderId: '',
+        status: 'all'
+    });
+    const [showFilters, setShowFilters] = useState(false);
 
     useEffect(() => {
         const fetchAllOrders = async () => {
             try {
-                const response = await axios.get("/orders");
+                // Build query parameters
+                const params = new URLSearchParams();
+                if (filters.phoneNumber) params.append('phoneNumber', filters.phoneNumber);
+                if (filters.orderId) params.append('orderId', filters.orderId);
+                if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+                
+                const queryString = params.toString();
+                const url = queryString ? `/orders?${queryString}` : '/orders';
+                
+                const response = await axios.get(url);
                 setOrders(response.data.data)
             } catch (error) {
                 console.error("Error fetching orders data:", error);
@@ -23,7 +40,7 @@ const OrderslistTab = () => {
             }
         };
 		fetchAllOrders();
-	}, []);
+	}, [filters]);
 
     const updateTrackingStatus = async (orderId, newStatus) => {
         setUpdatingOrder(orderId);
@@ -75,8 +92,111 @@ const OrderslistTab = () => {
     if (isLoading) {
 		return <div className="text-center text-gray-300 py-8">Loading...</div>;
 	}
+    
+    const handleFilterChange = (field, value) => {
+        setFilters(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+    
+    const handleClearFilters = () => {
+        setFilters({
+            phoneNumber: '',
+            orderId: '',
+            status: 'all'
+        });
+    };
 
     return <>    
+    {/* Filter Section */}
+    <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-semibold text-white">Filter Orders</h3>
+            </div>
+            <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="text-sm text-emerald-400 hover:text-emerald-300"
+            >
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </button>
+        </div>
+        
+        {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Phone Number
+                    </label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by phone..."
+                            value={filters.phoneNumber}
+                            onChange={(e) => handleFilterChange('phoneNumber', e.target.value)}
+                            className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Order ID
+                    </label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by order ID..."
+                            value={filters.orderId}
+                            onChange={(e) => handleFilterChange('orderId', e.target.value)}
+                            className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Status
+                    </label>
+                    <select
+                        value={filters.status}
+                        onChange={(e) => handleFilterChange('status', e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+        )}
+        
+        {showFilters && (filters.phoneNumber || filters.orderId || filters.status !== 'all') && (
+            <div className="mt-4 flex justify-end">
+                <button
+                    onClick={handleClearFilters}
+                    className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors text-sm"
+                >
+                    Clear Filters
+                </button>
+            </div>
+        )}
+    </div>
+    
+    {/* Orders Count */}
+    <div className="mb-4">
+        <p className="text-gray-400 text-sm">
+            Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
+        </p>
+    </div>
+    
     <div className="space-y-8">
         {orders.map((order, orderIndex) => (
             <motion.div
