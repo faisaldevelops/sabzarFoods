@@ -26,24 +26,19 @@ export const getOrdersData = async (req, res) => {
 			filter.trackingStatus = status;
 		}
 		
+		// Filter by phone number in address (database-level filtering)
+		if (phoneNumber) {
+			filter['address.phoneNumber'] = { $regex: phoneNumber, $options: 'i' };
+		}
+		
 		// Find all orders with filters and populate the user and product references.
-		let query = Order.find(filter)
+		const orders = await Order.find(filter)
 			.populate('user', 'name email phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
 			})
 			.lean();
-		
-		let orders = await query;
-		
-		// Filter by phone number (post-query since it's in populated user data)
-		if (phoneNumber) {
-			orders = orders.filter(order => 
-				order.user?.phoneNumber?.includes(phoneNumber) ||
-				order.address?.phoneNumber?.includes(phoneNumber)
-			);
-		}
 
 		// Format each order to merge product details alongside quantity/price
 		const formatted = orders.map(order => {
