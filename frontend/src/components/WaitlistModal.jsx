@@ -27,10 +27,13 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 			return;
 		}
 
-		// Basic phone validation (at least 10 digits)
-		if (contactMethod === "phone" && !/^\d{10,}$/.test(phoneNumber.replace(/[^\d]/g, ""))) {
-			toast.error("Please enter a valid phone number (at least 10 digits)");
-			return;
+		// Phone validation - allow various formats (digits, spaces, dashes, parentheses, plus sign)
+		if (contactMethod === "phone") {
+			const cleanedPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, "");
+			if (!/^\d{10,15}$/.test(cleanedPhone)) {
+				toast.error("Please enter a valid phone number (10-15 digits)");
+				return;
+			}
 		}
 
 		setIsSubmitting(true);

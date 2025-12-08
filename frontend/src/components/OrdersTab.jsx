@@ -1,8 +1,7 @@
 import { motion } from "framer-motion";
 import { Truck, Package, CheckCircle, XCircle, Search, Filter } from "lucide-react";
 import axios from "../lib/axios";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 
 const OrderslistTab = () => {
@@ -17,15 +16,30 @@ const OrderslistTab = () => {
         status: 'all'
     });
     const [showFilters, setShowFilters] = useState(false);
+    
+    // Debounced filters for API calls
+    const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+    // Debounce filter changes to avoid excessive API calls
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedFilters(filters);
+        }, 500); // 500ms debounce
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [filters]);
 
     useEffect(() => {
         const fetchAllOrders = async () => {
             try {
+                setIsLoading(true);
                 // Build query parameters
                 const params = new URLSearchParams();
-                if (filters.phoneNumber) params.append('phoneNumber', filters.phoneNumber);
-                if (filters.orderId) params.append('orderId', filters.orderId);
-                if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+                if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
+                if (debouncedFilters.orderId) params.append('orderId', debouncedFilters.orderId);
+                if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
                 
                 const queryString = params.toString();
                 const url = queryString ? `/orders?${queryString}` : '/orders';
@@ -34,13 +48,13 @@ const OrderslistTab = () => {
                 setOrders(response.data.data)
             } catch (error) {
                 console.error("Error fetching orders data:", error);
-                toast.error("Failed to fetch orders");
+                toast.error(error.response?.data?.message || "Failed to fetch orders");
             } finally {
                 setIsLoading(false);
             }
         };
 		fetchAllOrders();
-	}, [filters]);
+	}, [debouncedFilters]);
 
     const updateTrackingStatus = async (orderId, newStatus) => {
         setUpdatingOrder(orderId);

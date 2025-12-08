@@ -167,8 +167,12 @@ export const notifyWaitlist = async (productId) => {
 		console.log(`📧 Notifying ${waitlist.length} users about ${product.name} being back in stock`);
 		
 		// TODO: Implement actual notification logic here
-		// This could be email, SMS, or push notifications
-		// For now, we'll just log the notifications
+		// This could be integrated with email services (SendGrid, AWS SES, Nodemailer)
+		// or SMS services (Twilio - already available in the project)
+		// Example implementations:
+		// - Email: await sendEmail(user.email, 'Back in Stock', template)
+		// - SMS: await twilioClient.messages.create({ to: user.phoneNumber, body: message })
+		// For now, we log the notifications and clear the waitlist
 		
 		for (const user of waitlist) {
 			if (user.email) {

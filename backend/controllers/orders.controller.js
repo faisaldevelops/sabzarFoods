@@ -1,5 +1,6 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import mongoose from "mongoose";
 
 export const getOrdersData = async (req, res) => {
 	try {
@@ -9,8 +10,14 @@ export const getOrdersData = async (req, res) => {
 		// Build filter object
 		let filter = {};
 		
-		// Filter by orderId
+		// Filter by orderId (validate it's a valid ObjectId first)
 		if (orderId) {
+			if (!mongoose.Types.ObjectId.isValid(orderId)) {
+				return res.status(400).json({ 
+					success: false, 
+					message: 'Invalid order ID format' 
+				});
+			}
 			filter._id = orderId;
 		}
 		
