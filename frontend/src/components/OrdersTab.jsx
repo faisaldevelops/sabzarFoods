@@ -8,7 +8,7 @@ const OrderslistTab = () => {
     const [ orders, setOrders ] = useState([])
     const [isLoading, setIsLoading] = useState(true);
     const [updatingOrder, setUpdatingOrder] = useState(null);
-    
+    // Store display IDs for orders
     // Filter states
     const [filters, setFilters] = useState({
         phoneNumber: '',
@@ -38,14 +38,13 @@ const OrderslistTab = () => {
                 // Build query parameters
                 const params = new URLSearchParams();
                 if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
-                if (debouncedFilters.orderId) params.append('orderId', debouncedFilters.orderId);
+                    if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
                 if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
-                
                 const queryString = params.toString();
                 const url = queryString ? `/orders?${queryString}` : '/orders';
-                
                 const response = await axios.get(url);
-                setOrders(response.data.data)
+                const ordersData = response.data.data || [];
+                setOrders(ordersData);
             } catch (error) {
                 console.error("Error fetching orders data:", error);
                 toast.error(error.response?.data?.message || "Failed to fetch orders");
@@ -55,6 +54,7 @@ const OrderslistTab = () => {
         };
 		fetchAllOrders();
 	}, [debouncedFilters]);
+// Removed duplicate/broken useEffect and setDisplayOrderIds calls
 
     const updateTrackingStatus = async (orderId, newStatus) => {
         setUpdatingOrder(orderId);
@@ -225,7 +225,7 @@ const OrderslistTab = () => {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
                         <h2 className="text-lg font-semibold text-white">
-                            Order for {order.user.name}
+                            Order #{order.publicOrderId || order.orderId} for {order.user.name}
                         </h2>
                         <p className="text-sm text-gray-400">{order.user.email || order.user.phoneNumber}</p>
                     </div>

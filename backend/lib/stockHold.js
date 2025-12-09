@@ -8,6 +8,14 @@
  */
 
 import Order from "../models/order.model.js";
+import crypto from "crypto";
+
+// Helper: hash + base62 encode
+function generatePublicOrderId(orderData) {
+  const hash = crypto.createHash('sha256').update(JSON.stringify(orderData) + Date.now()).digest();
+  const base62 = hash.toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
+  return base62;
+}
 import Product from "../models/product.model.js";
 
 // Hold duration in milliseconds (15 minutes)
@@ -143,9 +151,10 @@ export const releaseReservedStock = async (products) => {
  */
 export const createHoldOrder = async (orderData) => {
   const expiresAt = new Date(Date.now() + HOLD_DURATION_MS);
-  
+  const publicOrderId = generatePublicOrderId(orderData);
   const holdOrder = new Order({
     ...orderData,
+    publicOrderId,
     status: "hold",
     expiresAt,
     trackingStatus: "pending",
@@ -155,7 +164,6 @@ export const createHoldOrder = async (orderData) => {
       note: "Order hold created - awaiting payment"
     }]
   });
-  
   await holdOrder.save();
   return holdOrder;
 };

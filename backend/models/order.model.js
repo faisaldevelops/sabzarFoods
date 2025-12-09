@@ -119,6 +119,7 @@ const orderSchema = new mongoose.Schema(
       },
     ],
     totalAmount: { type: Number, required: true, min: 0 },
+    publicOrderId: { type: String, unique: true, required: true },
     address: { type: addressSchema, required: true },
     stripeSessionId: { type: String }, // keep field but do not make plain unique here
     razorpayOrderId: { type: String },    // new field for Razorpay

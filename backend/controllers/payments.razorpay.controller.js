@@ -126,6 +126,7 @@ export const createRazorpayOrder = async (req, res) => {
       currency: razorpayOrder.currency,
       keyId: process.env.RAZORPAY_KEY_ID,
       localOrderId: holdOrder._id,
+      publicOrderId: holdOrder.publicOrderId,
       expiresAt: holdOrder.expiresAt,
       holdDurationSeconds: HOLD_DURATION_SECONDS,
     });
@@ -228,6 +229,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     return res.json({ 
       success: true, 
       orderId: finalizedOrder._id, 
+      publicOrderId: finalizedOrder.publicOrderId, 
       message: "Payment verified & order confirmed" 
     });
   } catch (err) {

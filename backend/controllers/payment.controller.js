@@ -1,3 +1,11 @@
+import crypto from "crypto";
+
+// Helper: hash + base62 encode
+function generatePublicOrderId(orderData) {
+	const hash = crypto.createHash('sha256').update(JSON.stringify(orderData) + Date.now()).digest();
+	const base62 = hash.toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
+	return base62;
+}
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
@@ -137,6 +145,13 @@ export const checkoutSuccess = async (req, res) => {
 				address,
 				status: "paid",
 				trackingStatus: "pending",
+				publicOrderId: generatePublicOrderId({
+					user: session.metadata.userId,
+					products,
+					totalAmount: session.amount_total / 100,
+					address,
+					created: Date.now()
+				}),
 			});
 
 			await newOrder.save();
@@ -145,6 +160,7 @@ export const checkoutSuccess = async (req, res) => {
 				success: true,
 				message: "Payment successful, order created, and coupon deactivated if used.",
 				orderId: newOrder._id,
+				publicOrderId: newOrder.publicOrderId,
 			});
 		}
 	} catch (error) {
