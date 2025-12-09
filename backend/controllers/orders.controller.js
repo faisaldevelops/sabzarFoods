@@ -10,15 +10,9 @@ export const getOrdersData = async (req, res) => {
 		// Build filter object
 		let filter = {};
 		
-		// Filter by orderId (validate it's a valid ObjectId first)
+		// Filter by publicOrderId
 		if (orderId) {
-			if (!mongoose.Types.ObjectId.isValid(orderId)) {
-				return res.status(400).json({ 
-					success: false, 
-					message: 'Invalid order ID format' 
-				});
-			}
-			filter._id = orderId;
+			filter.publicOrderId = orderId;
 		}
 		
 		// Filter by status (trackingStatus)
@@ -34,12 +28,11 @@ export const getOrdersData = async (req, res) => {
 			filter.trackingStatus = status;
 		}
 		
-		// Filter by phone number in address (database-level filtering)
+		// Filter by user phone number (not address)
 		if (phoneNumber) {
-			// Escape special regex characters and limit to alphanumeric, spaces, dashes, plus
 			const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
 			if (sanitizedPhone) {
-				filter['address.phoneNumber'] = { $regex: sanitizedPhone, $options: 'i' };
+				filter['user.phoneNumber'] = { $regex: sanitizedPhone, $options: 'i' };
 			}
 		}
 		
