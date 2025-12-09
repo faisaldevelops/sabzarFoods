@@ -21,7 +21,6 @@ const MyOrdersPage = () => {
 				setIsLoading(false);
 			}
 		};
-
 		fetchOrders();
 	}, []);
 
@@ -183,7 +182,7 @@ const MyOrdersPage = () => {
 									<div>
 										<div className="flex items-center gap-3 mb-2">
 											<h3 className="text-lg font-semibold text-white">
-												Order #{order.orderId.slice(-8).toUpperCase()}
+												Order #{order.publicOrderId || order.orderId}
 											</h3>
 											<StatusBadge status={order.trackingStatus} />
 										</div>

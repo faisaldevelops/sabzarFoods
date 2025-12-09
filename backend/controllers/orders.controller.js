@@ -67,6 +67,7 @@ export const getOrdersData = async (req, res) => {
 
 			return {
 				orderId: order._id,
+				publicOrderId: order.publicOrderId,
 				totalAmount: order.totalAmount ?? null,
 				createdAt: order.createdAt,
 				updatedAt: order.updatedAt,
@@ -104,6 +105,7 @@ export const getUserOrders = async (req, res) => {
 
 		const formatted = orders.map(order => ({
 			orderId: order._id,
+			publicOrderId: order.publicOrderId,
 			totalAmount: order.totalAmount,
 			createdAt: order.createdAt,
 			products: order.products.map(p => ({
@@ -161,6 +163,7 @@ export const updateOrderTracking = async (req, res) => {
 			message: "Order tracking updated successfully",
 			order: {
 				orderId: order._id,
+				publicOrderId: order.publicOrderId,
 				trackingStatus: order.trackingStatus,
 				trackingNumber: order.trackingNumber,
 				estimatedDelivery: order.estimatedDelivery,
@@ -191,6 +194,7 @@ export const getOrderTracking = async (req, res) => {
 			success: true,
 			data: {
 				orderId: order._id,
+				publicOrderId: order.publicOrderId,
 				trackingStatus: order.trackingStatus,
 				trackingNumber: order.trackingNumber,
 				estimatedDelivery: order.estimatedDelivery,
