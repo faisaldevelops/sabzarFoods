@@ -1,6 +1,49 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
+import twilio from "twilio";
+
+// Twilio configuration
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient = null;
+if (accountSid && authToken) {
+	twilioClient = twilio(accountSid, authToken);
+}
+
+// Helper function to send SMS notification
+const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
+	if (!twilioClient || !twilioPhoneNumber) {
+		console.log(`SMS not sent (Twilio not configured) - Order ${orderPublicId} status: ${status}`);
+		return { success: false, reason: "Twilio not configured" };
+	}
+
+	try {
+		let message = "";
+		if (status === "shipped") {
+			message = `Your order #${orderPublicId} has been shipped! Track your order to see delivery updates.`;
+		} else if (status === "delivered") {
+			message = `Your order #${orderPublicId} has been delivered! Thank you for shopping with us.`;
+		} else {
+			// Don't send SMS for other statuses
+			return { success: false, reason: "Status not eligible for SMS" };
+		}
+
+		await twilioClient.messages.create({
+			body: message,
+			from: twilioPhoneNumber,
+			to: `+91${phoneNumber}`, // Assuming Indian phone numbers
+		});
+
+		console.log(`SMS sent to ${phoneNumber} for order ${orderPublicId} - Status: ${status}`);
+		return { success: true };
+	} catch (error) {
+		console.error(`Failed to send SMS to ${phoneNumber}:`, error.message);
+		return { success: false, reason: error.message };
+	}
+};
 
 export const getOrdersData = async (req, res) => {
 	try {
@@ -135,10 +178,12 @@ export const updateOrderTracking = async (req, res) => {
 		const { orderId } = req.params;
 		const { trackingStatus, trackingNumber, estimatedDelivery, note } = req.body;
 
-		const order = await Order.findById(orderId);
+		const order = await Order.findById(orderId).populate('user', 'phoneNumber');
 		if (!order) {
 			return res.status(404).json({ message: "Order not found" });
 		}
+
+		const previousStatus = order.trackingStatus;
 
 		// Update tracking fields if provided
 		if (trackingStatus && trackingStatus !== order.trackingStatus) {
@@ -148,6 +193,13 @@ export const updateOrderTracking = async (req, res) => {
 				timestamp: new Date(),
 				note: note || `Status updated to ${trackingStatus}`,
 			});
+
+			// Send SMS notification only for shipped and delivered statuses
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
+				// Send SMS asynchronously (don't wait for it to complete)
+				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
+					.catch(error => console.error("SMS notification error:", error));
+			}
 		}
 
 		if (trackingNumber !== undefined) {
