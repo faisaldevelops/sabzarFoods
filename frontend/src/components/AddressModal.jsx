@@ -27,11 +27,44 @@ const emptyAddress = {
 const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
   const [form, setForm] = useState(initial ?? emptyAddress);
   const [errors, setErrors] = useState({});
+  const [pincodeLoading, setPincodeLoading] = useState(false);
 
   useEffect(() => {
     setForm(initial ?? emptyAddress);
     setErrors({});
   }, [initial, isOpen]);
+
+  // Fetch city and state from pincode
+  const fetchPincodeDetails = async (pincode) => {
+    if (!/^\d{6}$/.test(pincode)) return;
+    
+    setPincodeLoading(true);
+    try {
+      // Using India Post API
+      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      const data = await response.json();
+      
+      if (data && data[0]?.Status === "Success" && data[0]?.PostOffice?.length > 0) {
+        const postOffice = data[0].PostOffice[0];
+        setForm((s) => ({
+          ...s,
+          city: postOffice.District || s.city,
+          state: postOffice.State || s.state,
+        }));
+        // Clear any previous errors for city and state
+        setErrors((e) => {
+          const newErrors = { ...e };
+          delete newErrors.city;
+          delete newErrors.state;
+          return newErrors;
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching pincode details:", error);
+    } finally {
+      setPincodeLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -43,6 +76,10 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     if (name === "pincode") {
       const digits = value.replace(/\D/g, "").slice(0, 6);
       setForm((s) => ({ ...s, [name]: digits }));
+      // Auto-fetch city and state when pincode is 6 digits
+      if (digits.length === 6) {
+        fetchPincodeDetails(digits);
+      }
       return;
     }
     setForm((s) => ({ ...s, [name]: value }));
@@ -145,6 +182,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               placeholder="6 digits"
             />
+            {pincodeLoading && <p className="text-xs text-blue-600 mt-1">Fetching location details...</p>}
             {errors.pincode && <p className="text-xs text-red-600">{errors.pincode}</p>}
           </div>
 
@@ -156,6 +194,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               onChange={handleChange}
               className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
             />
+            {errors.houseNumber && <p className="text-xs text-red-600">{errors.houseNumber}</p>}
           </div>
 
           <div>
@@ -166,6 +205,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               onChange={handleChange}
               className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
             />
+            {errors.streetAddress && <p className="text-xs text-red-600">{errors.streetAddress}</p>}
           </div>
 
           <div>
@@ -187,6 +227,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                 onChange={handleChange}
                 className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               />
+              {errors.city && <p className="text-xs text-red-600">{errors.city}</p>}
             </div>
 
             <div>
@@ -202,6 +243,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                   <option key={s}>{s}</option>
                 ))}
               </select>
+              {errors.state && <p className="text-xs text-red-600">{errors.state}</p>}
             </div>
           </div>
 
