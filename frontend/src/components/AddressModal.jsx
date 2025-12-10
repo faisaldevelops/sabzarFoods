@@ -40,8 +40,19 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     
     setPincodeLoading(true);
     try {
-      // Using India Post API
-      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+      // Using India Post API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch pincode details');
+      }
+      
       const data = await response.json();
       
       if (data && data[0]?.Status === "Success" && data[0]?.PostOffice?.length > 0) {
@@ -60,6 +71,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
         });
       }
     } catch (error) {
+      // Silently fail - user can still manually enter city and state
       console.error("Error fetching pincode details:", error);
     } finally {
       setPincodeLoading(false);

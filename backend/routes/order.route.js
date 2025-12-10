@@ -1,9 +1,9 @@
-import expresss from "express";
+import express from "express";
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
 import { getOrdersData, getUserOrders, updateOrderTracking, getOrderTracking, exportOrdersCSV, getAddressSheet } from "../controllers/orders.controller.js";
 
 
-const router = expresss.Router();
+const router = express.Router();
 
 router.get("/", protectRoute, adminRoute, getOrdersData);
 router.get("/export/csv", protectRoute, adminRoute, exportOrdersCSV);
