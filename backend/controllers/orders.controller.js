@@ -1,6 +1,49 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
+import twilio from "twilio";
+
+// Twilio configuration
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+let twilioClient = null;
+if (accountSid && authToken) {
+	twilioClient = twilio(accountSid, authToken);
+}
+
+// Helper function to send SMS notification
+const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
+	if (!twilioClient || !twilioPhoneNumber) {
+		console.log(`SMS not sent (Twilio not configured) - Order ${orderPublicId} status: ${status}`);
+		return { success: false, reason: "Twilio not configured" };
+	}
+
+	try {
+		let message = "";
+		if (status === "shipped") {
+			message = `Your order #${orderPublicId} has been shipped! Track your order to see delivery updates.`;
+		} else if (status === "delivered") {
+			message = `Your order #${orderPublicId} has been delivered! Thank you for shopping with us.`;
+		} else {
+			// Don't send SMS for other statuses
+			return { success: false, reason: "Status not eligible for SMS" };
+		}
+
+		await twilioClient.messages.create({
+			body: message,
+			from: twilioPhoneNumber,
+			to: `+91${phoneNumber}`, // Assuming Indian phone numbers
+		});
+
+		console.log(`SMS sent to ${phoneNumber} for order ${orderPublicId} - Status: ${status}`);
+		return { success: true };
+	} catch (error) {
+		console.error(`Failed to send SMS to ${phoneNumber}:`, error.message);
+		return { success: false, reason: error.message };
+	}
+};
 
 export const getOrdersData = async (req, res) => {
 	try {
@@ -135,10 +178,12 @@ export const updateOrderTracking = async (req, res) => {
 		const { orderId } = req.params;
 		const { trackingStatus, trackingNumber, estimatedDelivery, note } = req.body;
 
-		const order = await Order.findById(orderId);
+		const order = await Order.findById(orderId).populate('user', 'phoneNumber');
 		if (!order) {
 			return res.status(404).json({ message: "Order not found" });
 		}
+
+		const previousStatus = order.trackingStatus;
 
 		// Update tracking fields if provided
 		if (trackingStatus && trackingStatus !== order.trackingStatus) {
@@ -148,6 +193,13 @@ export const updateOrderTracking = async (req, res) => {
 				timestamp: new Date(),
 				note: note || `Status updated to ${trackingStatus}`,
 			});
+
+			// Send SMS notification only for shipped and delivered statuses
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
+				// Send SMS asynchronously (don't wait for it to complete)
+				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
+					.catch(error => console.error("SMS notification error:", error));
+			}
 		}
 
 		if (trackingNumber !== undefined) {
@@ -207,5 +259,272 @@ export const getOrderTracking = async (req, res) => {
 	} catch (error) {
 		console.error('Error fetching order tracking:', error);
 		res.status(500).json({ success: false, message: 'Server error fetching order tracking' });
+	}
+};
+
+export const getAddressSheet = async (req, res) => {
+	try {
+		const { orderId } = req.params;
+		
+		const order = await Order.findById(orderId)
+			.populate('user', 'name phoneNumber')
+			.lean();
+
+		if (!order) {
+			return res.status(404).json({ success: false, message: "Order not found" });
+		}
+
+		const address = order.address || {};
+		const user = order.user || {};
+
+		// Generate HTML for printable address sheet
+		const html = `
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Address Sheet - Order #${order.publicOrderId}</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+		body {
+			font-family: Arial, sans-serif;
+			padding: 20px;
+		}
+		.address-sheet {
+			width: 400px;
+			border: 2px solid #000;
+			padding: 20px;
+			margin: 0 auto;
+		}
+		.header {
+			text-align: center;
+			border-bottom: 2px solid #000;
+			padding-bottom: 10px;
+			margin-bottom: 15px;
+		}
+		.order-id {
+			font-size: 18px;
+			font-weight: bold;
+			margin-bottom: 5px;
+		}
+		.section {
+			margin-bottom: 15px;
+		}
+		.label {
+			font-weight: bold;
+			font-size: 12px;
+			color: #666;
+			text-transform: uppercase;
+			margin-bottom: 3px;
+		}
+		.value {
+			font-size: 16px;
+			margin-bottom: 8px;
+			line-height: 1.4;
+		}
+		.name {
+			font-size: 20px;
+			font-weight: bold;
+		}
+		.phone {
+			font-size: 18px;
+			font-weight: bold;
+		}
+		.address-line {
+			margin-bottom: 5px;
+		}
+		@media print {
+			body {
+				padding: 0;
+			}
+			.address-sheet {
+				border: 2px solid #000;
+			}
+		}
+	</style>
+</head>
+<body>
+	<div class="address-sheet">
+		<div class="header">
+			<div class="order-id">Order #${order.publicOrderId || order._id}</div>
+			<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+		</div>
+		
+		<div class="section">
+			<div class="label">Deliver To:</div>
+			<div class="value name">${address.name || user.name || 'N/A'}</div>
+		</div>
+		
+		<div class="section">
+			<div class="label">Phone:</div>
+			<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
+		</div>
+		
+		<div class="section">
+			<div class="label">Address:</div>
+			<div class="value">
+				<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
+				${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
+				<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
+				<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
+			</div>
+		</div>
+	</div>
+	
+	<script>
+		// Auto-print when page loads
+		window.onload = function() {
+			window.print();
+		};
+	</script>
+</body>
+</html>
+		`;
+
+		res.setHeader('Content-Type', 'text/html');
+		res.send(html);
+	} catch (err) {
+		console.error('Error generating address sheet:', err);
+		return res.status(500).json({ success: false, message: 'Server error generating address sheet' });
+	}
+};
+
+export const exportOrdersCSV = async (req, res) => {
+	try {
+		// Extract filter parameters from query
+		const { phoneNumber, publicOrderId, status } = req.query;
+		
+		// Build filter object (same as getOrdersData)
+		let filter = {};
+		
+		if (publicOrderId) {
+			filter.publicOrderId = publicOrderId;
+		}
+		
+		if (status && status !== 'all') {
+			const allowedStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+			if (!allowedStatuses.includes(status)) {
+				return res.status(400).json({ 
+					success: false, 
+					message: 'Invalid status value' 
+				});
+			}
+			filter.trackingStatus = status;
+		}
+		
+		if (phoneNumber) {
+			const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
+			if (sanitizedPhone) {
+				const User = mongoose.model('User');
+				const users = await User.find({ phoneNumber: { $regex: sanitizedPhone, $options: 'i' } }, '_id');
+				const userIds = users.map(u => u._id);
+				if (userIds.length > 0) {
+					filter.user = { $in: userIds };
+				} else {
+					filter.user = null;
+				}
+			}
+		}
+		
+		// Find orders with filters
+		const orders = await Order.find(filter)
+			.populate('user', 'name email phoneNumber')
+			.populate({
+				path: 'products.product',
+				select: 'name price category',
+			})
+			.lean();
+
+		// Generate CSV content
+		const csvRows = [];
+		
+		// CSV Header
+		csvRows.push([
+			'Order ID',
+			'Order Date',
+			'Customer Name',
+			'Customer Phone',
+			'Customer Email',
+			'Product Name',
+			'Quantity',
+			'Price',
+			'Total Amount',
+			'Status',
+			'Tracking Number',
+			'House Number',
+			'Street Address',
+			'Landmark',
+			'City',
+			'State',
+			'Pincode'
+		].join(','));
+
+		// CSV Data
+		orders.forEach(order => {
+			const products = order.products || [];
+			const address = order.address || {};
+			const user = order.user || {};
+			
+			if (products.length === 0) {
+				// Order with no products
+				csvRows.push([
+					`"${order.publicOrderId || order._id}"`,
+					`"${new Date(order.createdAt).toLocaleDateString()}"`,
+					`"${user.name || 'N/A'}"`,
+					`"${user.phoneNumber || 'N/A'}"`,
+					`"${user.email || 'N/A'}"`,
+					'',
+					'',
+					'',
+					`"${order.totalAmount}"`,
+					`"${order.trackingStatus}"`,
+					`"${order.trackingNumber || 'N/A'}"`,
+					`"${address.houseNumber || ''}"`,
+					`"${address.streetAddress || ''}"`,
+					`"${address.landmark || ''}"`,
+					`"${address.city || ''}"`,
+					`"${address.state || ''}"`,
+					`"${address.pincode || ''}"`
+				].join(','));
+			} else {
+				products.forEach((p, index) => {
+					const prod = p.product;
+					csvRows.push([
+						`"${order.publicOrderId || order._id}"`,
+						`"${new Date(order.createdAt).toLocaleDateString()}"`,
+						`"${user.name || 'N/A'}"`,
+						`"${user.phoneNumber || 'N/A'}"`,
+						`"${user.email || 'N/A'}"`,
+						`"${prod?.name || 'PRODUCT_REMOVED'}"`,
+						`"${p.quantity}"`,
+						`"${prod?.price || p.price}"`,
+						index === 0 ? `"${order.totalAmount}"` : '""', // Only show total amount on first product row
+						index === 0 ? `"${order.trackingStatus}"` : '""',
+						index === 0 ? `"${order.trackingNumber || 'N/A'}"` : '""',
+						index === 0 ? `"${address.houseNumber || ''}"` : '""',
+						index === 0 ? `"${address.streetAddress || ''}"` : '""',
+						index === 0 ? `"${address.landmark || ''}"` : '""',
+						index === 0 ? `"${address.city || ''}"` : '""',
+						index === 0 ? `"${address.state || ''}"` : '""',
+						index === 0 ? `"${address.pincode || ''}"` : '""'
+					].join(','));
+				});
+			}
+		});
+
+		const csv = csvRows.join('\n');
+
+		// Set headers for CSV download
+		res.setHeader('Content-Type', 'text/csv');
+		res.setHeader('Content-Disposition', `attachment; filename="orders-${Date.now()}.csv"`);
+		
+		res.send(csv);
+	} catch (err) {
+		console.error('Error exporting orders to CSV:', err);
+		return res.status(500).json({ success: false, message: 'Server error exporting orders' });
 	}
 };

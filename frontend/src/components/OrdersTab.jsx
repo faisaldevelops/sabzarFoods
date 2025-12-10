@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -122,6 +122,45 @@ const OrderslistTab = () => {
         });
     };
 
+    const handleExportCSV = async () => {
+        try {
+            // Build query parameters
+            const params = new URLSearchParams();
+            if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
+            if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
+            if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
+            const queryString = params.toString();
+            const url = queryString ? `/orders/export/csv?${queryString}` : '/orders/export/csv';
+            
+            // Make the request with responseType blob
+            const response = await axios.get(url, {
+                responseType: 'blob'
+            });
+            
+            // Create a download link and trigger download
+            const blob = new Blob([response.data], { type: 'text/csv' });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `orders-${Date.now()}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            toast.success('Orders exported successfully');
+        } catch (error) {
+            console.error('Error exporting orders:', error);
+            toast.error(error.response?.data?.message || 'Failed to export orders');
+        }
+    };
+
+    const handlePrintAddressSheet = (orderId) => {
+        // Open the address sheet in a new window for printing
+        const url = `/api/orders/${orderId}/address-sheet`;
+        window.open(url, '_blank');
+    };
+
     return <>    
     {/* Filter Section */}
     <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-gray-700">
@@ -204,11 +243,20 @@ const OrderslistTab = () => {
         )}
     </div>
     
-    {/* Orders Count */}
-    <div className="mb-4">
+    {/* Orders Count and Export Button */}
+    <div className="mb-4 flex items-center justify-between">
         <p className="text-gray-400 text-sm">
             Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
         </p>
+        <motion.button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+        >
+            <Download className="w-4 h-4" />
+            Export CSV
+        </motion.button>
     </div>
     
     <div className="space-y-8">
@@ -252,13 +300,25 @@ const OrderslistTab = () => {
                 
                 {/* Shipping Address */}
                 <div className="mt-4 pt-4 border-t border-gray-700">
-                    <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
-                    <p className="text-sm text-gray-400">
-                        {order.address.name} • {order.address.phoneNumber}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                        {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
-                    </p>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
+                            <p className="text-sm text-gray-400">
+                                {order.address.name} • {order.address.phoneNumber}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => handlePrintAddressSheet(order.orderId)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                            title="Print Address Sheet"
+                        >
+                            <Printer className="w-3 h-3" />
+                            Print Label
+                        </button>
+                    </div>
                 </div>
                 
                 {/* Admin Tracking Controls */}
