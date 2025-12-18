@@ -54,6 +54,7 @@
 import dotenv from "dotenv";
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import path from "path";
 
 import authRoutes from "./routes/auth.route.js";
@@ -73,6 +74,13 @@ dotenv.config({ path: "./.env", debug: true });
 const app = express();
 const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();
+
+// CORS configuration for separate frontend deployment
+const corsOptions = {
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true, // Allow cookies to be sent
+};
+app.use(cors(corsOptions));
 
 // RAW parser for webhook route ONLY (before express.json)
 app.post(
