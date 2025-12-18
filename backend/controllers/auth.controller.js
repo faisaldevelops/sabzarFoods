@@ -3,6 +3,8 @@ import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+const isProd = process.env.NODE_ENV === "production";
+
 const generateTokens = (userId) => {
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
 		expiresIn: "15m",
@@ -22,14 +24,15 @@ const storeRefreshToken = async (userId, refreshToken) => {
 const setCookies = (res, accessToken, refreshToken) => {
 	res.cookie("accessToken", accessToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
+		secure: isProd,
+		sameSite: isProd ? "none" : "lax", 
 		maxAge: 15 * 60 * 1000, // 15 minutes
 	});
 	res.cookie("refreshToken", refreshToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
+		secure: isProd,
+		sameSite: isProd ? "none" : "lax", 
+		path: "/api/auth/refresh-token",
 		maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 	});
 };
@@ -96,8 +99,17 @@ export const logout = async (req, res) => {
 			await redis.del(`refresh_token:${decoded.userId}`);
 		}
 
-		res.clearCookie("accessToken");
-		res.clearCookie("refreshToken");
+		res.clearCookie("accessToken", {
+			httpOnly: true,
+			secure: isProd,
+			sameSite: isProd ? "none" : "lax"
+		});
+		res.clearCookie("refreshToken", {
+			httpOnly: true,
+			secure: isProd,
+			sameSite: isProd ? "none" : "lax",
+			path: "/api/auth/refresh-token"
+		});
 		res.json({ message: "Logged out successfully" });
 	} catch (error) {
 		console.log("Error in logout controller", error.message);
