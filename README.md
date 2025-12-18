@@ -24,6 +24,8 @@ Features of this App
 
 ### Setup .env file
 
+Create a `.env` file in the `backend` directory with the following variables:
+
 ```bash
 PORT=5000
 MONGO_URI=your_mongo_uri
@@ -44,12 +46,28 @@ NODE_ENV=development
 
 ### Run this app locally
 
+**Backend:**
 ```shell
-npm run build
+cd backend
+npm install
+npm run dev
 ```
 
-### Start the app
-
+**Frontend:**
 ```shell
-npm run start
+cd frontend
+npm install
+npm run dev
 ```
+
+### Production Deployment
+
+**Backend (DigitalOcean App Platform):**
+- Deploy from the `backend` directory
+- Set environment variables in the app configuration
+- Run command: `npm install && npm start`
+
+**Frontend (DigitalOcean Static Site):**
+- Deploy from the `frontend` directory
+- Build command: `npm install && npm run build`
+- Output directory: `dist`
