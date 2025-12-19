@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { X, Phone, KeyRound } from "lucide-react";
 import axios from "../lib/axios";
@@ -10,13 +10,15 @@ import { useCartStore } from "../stores/useCartStore";
 const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [step, setStep] = useState("phone"); // "phone" or "otp"
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
   const [phoneError, setPhoneError] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpSuccess, setOtpSuccess] = useState("");
+  const [nameError, setNameError] = useState("");
   const { checkAuth } = useUserStore();
   const { fetchAddresses } = useAddressStore();
   const { syncGuestCart } = useCartStore();
@@ -102,22 +104,12 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
     }
   }, [resendCooldown]);
 
-  // Auto-focus first OTP input when step changes to OTP
-  useEffect(() => {
-    if (step === "otp") {
-      setTimeout(() => {
-        otpInputRefs.current[0]?.focus();
-      }, 0);
-    }
-  }, [step]);
-
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setOtpError("");
     setOtpSuccess("");
     
-    const otpString = otp.join("");
-    if (!otpString || otpString.length !== 6) {
+    if (!otp || otp.length !== 6) {
       setOtpError("Please enter the 6-digit OTP");
       return;
     }
@@ -126,7 +118,8 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       const response = await axios.post("/otp/verify", {
         phoneNumber,
-        otp: otpString,
+        otp,
+        name: name || "User", // Default name if not provided
       });
       
       setOtpSuccess(response.data.message);
@@ -161,40 +154,17 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
-  // OTP Input handlers
-  const otpInputRefs = useRef([]);
-
-  const handleOTPChange = (index, value) => {
-    // Only allow digits
-    if (!/^\d*$/.test(value)) return;
-    
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    setOtpError("");
-    setOtpSuccess("");
-
-    // Auto-focus to next input
-    if (value && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOTPKeyDown = (index, e) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handleClose = () => {
     setStep("phone");
     setPhoneNumber("");
-    setOtp(["", "", "", "", "", ""]);
+    setOtp("");
+    setName("");
     setLoading(false);
     setResendCooldown(0);
     setPhoneError("");
     setOtpError("");
     setOtpSuccess("");
+    setNameError("");
     onClose();
   };
 
@@ -271,41 +241,49 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
         ) : (
           <form onSubmit={handleVerifyOTP} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-stone-700 mb-4">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
                 Enter OTP sent to +91{phoneNumber}
               </label>
-              
-              {/* Box-based OTP Input */}
-              <div className="flex gap-2 justify-center mb-4">
-                {otp.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={(el) => (otpInputRefs.current[index] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOTPChange(index, e.target.value)}
-                    onKeyDown={(e) => handleOTPKeyDown(index, e)}
-                    className={`w-12 h-12 text-center text-xl font-bold rounded-lg border-2 transition-colors ${
-                      otpError
-                        ? "border-red-500 bg-red-50 text-red-900 focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                        : otpSuccess
-                        ? "border-green-500 bg-green-50 text-green-900 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                        : "border-stone-300 bg-white text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
-                    }`}
-                    disabled={loading}
-                    placeholder="0"
-                  />
-                ))}
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" size={20} />
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => {
+                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setOtpError("");
+                    setOtpSuccess("");
+                  }}
+                  placeholder="Enter 6-digit OTP"
+                  className={`w-full rounded-md border px-10 py-2.5 text-center text-2xl tracking-widest focus:ring-2 focus:border-transparent ${otpError ? 'border-red-500 bg-red-50 text-red-900 focus:ring-red-500' : otpSuccess ? 'border-green-500 bg-green-50 text-green-900 focus:ring-green-500' : 'border-stone-300 bg-white text-stone-900 focus:ring-stone-800'}`}
+                  required
+                  disabled={loading}
+                  maxLength={6}
+                />
               </div>
-
               {otpError && (
-                <p className="text-center text-xs text-red-600">{otpError}</p>
+                <p className="mt-1 text-xs text-red-600">{otpError}</p>
               )}
               {otpSuccess && (
-                <p className="text-center text-xs text-green-600">{otpSuccess}</p>
+                <p className="mt-1 text-xs text-green-600">{otpSuccess}</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Your Name (optional for returning users)
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full rounded-md border border-stone-300 bg-white px-4 py-2.5 text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+                disabled={loading}
+              />
+              <p className="mt-1 text-xs text-stone-500">
+                Required for new users only
+              </p>
             </div>
 
             <motion.button
@@ -323,7 +301,7 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
                 type="button"
                 onClick={() => {
                   setStep("phone");
-                  setOtp(["", "", "", "", "", ""]);
+                  setOtp("");
                   setResendCooldown(0);
                   setOtpError("");
                   setOtpSuccess("");

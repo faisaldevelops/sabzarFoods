@@ -316,9 +316,13 @@ export const verifyOTP = async (req, res) => {
     let isNewUser = false;
 
     if (!user) {
-      // Create new user with default name based on phone number if not provided
+      // Create new user
+      if (!name) {
+        return res.status(400).json({ message: "Name is required for new users" });
+      }
+
       user = await User.create({
-        name: name || `User_${phoneNumber.slice(-4)}`,
+        name,
         phoneNumber,
         isGuest: false, // Not a guest since they authenticated
       });
