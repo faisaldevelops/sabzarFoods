@@ -11,32 +11,6 @@ const PurchaseSuccessPage = () => {
 	const [error, setError] = useState(null);
 	const [id, setId] = useState(null)
 
-	// useEffect(() => {
-	// 	const handleCheckoutSuccess = async (sessionId) => {
-	// 		try {
-	// 			await axios.post("/payments/checkout-success", {
-	// 				sessionId,
-	// 			});
-	// 			clearCart();
-	// 		} catch (error) {
-	// 			console.log(error);
-	// 		} finally {
-	// 			setIsProcessing(false);
-	// 		}
-	// 	};
-
-	// 	// const sessionId = new URLSearchParams(window.location.search).get("session_id");
-	// 	const sessionId = new URLSearchParams(window.location.search).get("orderId");
-	// 	console.log(sessionId);
-		
-	// 	if (sessionId) {
-	// 		handleCheckoutSuccess(sessionId);
-	// 	} else {
-	// 		setIsProcessing(false);
-	// 		setError("No session ID found in the URL");
-	// 	}
-	// }, [clearCart]);
-
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const orderId = params.get("orderId") || params.get("order_id");
@@ -50,11 +24,6 @@ const PurchaseSuccessPage = () => {
 
 		(async () => {
 			try {
-			// If you want to fetch order details from backend (recommended)
-			// make sure axios.baseURL points to your backend or you use full URL
-			// const res = await axios.get(`/orders/${orderId}`);
-			// setOrderInfo(res.data);
-
 			clearCart();
 			
 			} catch (err) {

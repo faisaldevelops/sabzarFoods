@@ -33,15 +33,12 @@ const LoginPage = () => {
 			const response = await axios.post("/otp/send", { phoneNumber, isSignup: false });
 			setOtpSuccess("OTP sent successfully");
 			
-			// In development, show OTP in toast
 			if (response.data.otp) {
 				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
 			}
 			
 			setStep("otp");
-			setResendCooldown(60); // Start 60-second cooldown
-			
-			// Clear success message after 3 seconds
+			setResendCooldown(60);
 			setTimeout(() => setOtpSuccess(""), 3000);
 		} catch (error) {
 			const errorData = error.response?.data;
@@ -67,14 +64,11 @@ const LoginPage = () => {
 			const response = await axios.post("/otp/resend", { phoneNumber });
 			setOtpSuccess("OTP resent successfully");
 			
-			// In development, show OTP in toast
 			if (response.data.otp) {
 				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
 			}
 			
-			setResendCooldown(60); // Reset 60-second cooldown
-			
-			// Clear success message after 3 seconds
+			setResendCooldown(60);
 			setTimeout(() => setOtpSuccess(""), 3000);
 		} catch (error) {
 			const errorData = error.response?.data;
@@ -90,7 +84,6 @@ const LoginPage = () => {
 		}
 	};
 
-	// Countdown timer effect
 	useEffect(() => {
 		if (resendCooldown > 0) {
 			const timer = setTimeout(() => {
@@ -119,10 +112,7 @@ const LoginPage = () => {
 			
 			setOtpSuccess(response.data.message);
 			
-			// Refresh auth state
 			await checkAuth();
-			
-			// Sync guest cart to database after successful login
 			await syncGuestCart();
 		} catch (error) {
 			const errorData = error.response?.data;

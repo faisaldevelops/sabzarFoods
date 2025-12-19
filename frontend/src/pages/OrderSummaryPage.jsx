@@ -21,7 +21,6 @@ const OrderSummaryPage = () => {
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		// Retrieve pending order from localStorage
 		const pendingOrder = localStorage.getItem("pendingBuyNowOrder");
 		if (pendingOrder) {
 			try {
@@ -33,18 +32,15 @@ const OrderSummaryPage = () => {
 				navigate("/");
 			}
 		} else {
-			// No pending order, redirect to home
 			navigate("/");
 		}
 	}, [navigate]);
 
 	const handlePlaceOrder = () => {
-		// Show address selection modal
 		setShowAddressSelection(true);
 	};
 
 	const handleAddressSelected = (address) => {
-		// Proceed to payment with selected address
 		handlePayment(address);
 	};
 
@@ -54,7 +50,6 @@ const OrderSummaryPage = () => {
 
 		setIsProcessing(true);
 		try {
-			// Create order with single product
 			const orderProducts = [{
 				product: orderData.product._id,
 				quantity: orderData.quantity,
@@ -73,10 +68,8 @@ const OrderSummaryPage = () => {
 
 			const { orderId, amount, currency, keyId, localOrderId, expiresAt, holdDurationSeconds } = res.data;
 
-			// Store hold info for countdown timer
 			setHoldInfo({ expiresAt, localOrderId, holdDurationSeconds });
 
-			// dynamically load Razorpay script (if not loaded)
 			const rzpScriptLoaded = await new Promise((resolve) => {
 				if (window.Razorpay) return resolve(true);
 				const script = document.createElement("script");
@@ -112,11 +105,9 @@ const OrderSummaryPage = () => {
 						if (verifyRes.data?.success) {
 							toast.success("Payment successful!");
 							setHoldInfo(null);
-							// Clear pending order
 							localStorage.removeItem("pendingBuyNowOrder");
 							window.location.href = `/purchase-success?orderId=${encodeURIComponent(orderId)}`;
 						} else {
-							// Check for insufficient stock error
 							if (verifyRes.data?.insufficientStock) {
 								setInsufficientItems(verifyRes.data.insufficientItems || []);
 								setShowInsufficientStock(true);
@@ -145,15 +136,11 @@ const OrderSummaryPage = () => {
 				},
 				modal: {
 					ondismiss: async function () {
-						// User closed the payment modal without completing
 						setIsProcessing(false);
-						// Optionally cancel the hold
 						if (localOrderId) {
 							try {
 								await axios.post("/payments/cancel-hold", { localOrderId });
-							} catch {
-								// Silent fail - hold will expire automatically
-							}
+							} catch {}
 						}
 						setHoldInfo(null);
 					}
@@ -182,9 +169,7 @@ const OrderSummaryPage = () => {
 		}
 	};
 
-	// Handle reduce quantity action from insufficient stock modal
 	const handleReduceQuantity = (items) => {
-		// Since this is a single product order, use the first item's available quantity
 		if (items.length > 0 && items[0].available > 0) {
 			setOrderData(prev => ({ ...prev, quantity: items[0].available }));
 			setShowInsufficientStock(false);
@@ -195,20 +180,17 @@ const OrderSummaryPage = () => {
 		}
 	};
 
-	// Handle browse similar items
 	const handleBrowseSimilar = () => {
 		setShowInsufficientStock(false);
 		localStorage.removeItem("pendingBuyNowOrder");
 		navigate("/");
 	};
 
-	// Handle join waitlist (placeholder)
 	const handleJoinWaitlist = () => {
 		toast.success("You'll be notified when this item is back in stock");
 		setShowInsufficientStock(false);
 	};
 
-	// Handle hold expiration
 	const handleHoldExpire = () => {
 		toast.error("Your checkout session has expired. Please try again.");
 		setHoldInfo(null);

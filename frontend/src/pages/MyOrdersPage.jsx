@@ -52,7 +52,6 @@ const MyOrdersPage = () => {
 		
 		if (!history || history.length === 0) return null;
 
-		// Get the most recent status (last item in array)
 		const currentStatus = history[history.length - 1];
 		const config = getStatusConfig(currentStatus.status);
 		const Icon = config.icon;
