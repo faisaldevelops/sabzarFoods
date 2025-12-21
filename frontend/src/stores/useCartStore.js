@@ -3,7 +3,33 @@ import axios from "../lib/axios";
 import { toast } from "react-hot-toast";
 
 const CART_STORAGE_KEY = "guest_cart";
+const CART_CACHE_KEY = "cart_cache";
 const MAX_QUANTITY_PER_ITEM = 5; // Maximum quantity allowed per item in cart
+let cartInitPromise = null;
+
+// Helper to get cached cart
+const getCachedCart = () => {
+	try {
+		const cached = localStorage.getItem(CART_CACHE_KEY);
+		return cached ? JSON.parse(cached) : [];
+	} catch (error) {
+		console.error("Error reading cart from cache:", error);
+		return [];
+	}
+};
+
+// Helper to cache cart
+const setCachedCart = (cart) => {
+	try {
+		if (cart && cart.length > 0) {
+			localStorage.setItem(CART_CACHE_KEY, JSON.stringify(cart));
+		} else {
+			localStorage.removeItem(CART_CACHE_KEY);
+		}
+	} catch (error) {
+		console.error("Error caching cart:", error);
+	}
+};
 
 // Helper functions for localStorage
 const getLocalCart = () => {
@@ -48,15 +74,42 @@ const clearLocalCart = () => {
 };
 
 export const useCartStore = create((set, get) => ({
-	cart: [],
+	cart: getCachedCart(), // Initialize with cached cart
 	total: 0,
 	subtotal: 0,
+
+	initCart: async () => {
+		// Prevent multiple simultaneous cart initialization
+		if (cartInitPromise) {
+			return cartInitPromise;
+		}
+
+		cartInitPromise = (async () => {
+			try {
+				const res = await axios.get("/cart");
+				// If response is successful, use server cart
+				set({ cart: res.data });
+				setCachedCart(res.data);
+				get().calculateTotals();
+			} catch (error) {
+				// If not authenticated or error, load from localStorage
+				const localCart = getLocalCart();
+				set({ cart: localCart });
+				get().calculateTotals();
+			} finally {
+				cartInitPromise = null;
+			}
+		})();
+
+		return cartInitPromise;
+	},
 
 	getCartItems: async () => {
 		try {
 			const res = await axios.get("/cart");
 			// If response is successful, use server cart
 			set({ cart: res.data });
+			setCachedCart(res.data);
 			get().calculateTotals();
 		} catch (error) {
 			// If not authenticated or error, load from localStorage
@@ -73,6 +126,7 @@ export const useCartStore = create((set, get) => ({
 			// Ignore error if not authenticated
 		}
 		clearLocalCart();
+		localStorage.removeItem(CART_CACHE_KEY);
 		set({ cart: [], coupon: null, total: 0, subtotal: 0 });
 	},
 	
@@ -99,6 +153,7 @@ export const useCartStore = create((set, get) => ({
 						  )
 						: [...prevState.cart, { ...product, quantity: 1 }];
 					setLocalCart(newCart);
+					setCachedCart(newCart);
 					return { cart: newCart };
 				});
 				get().calculateTotals();
@@ -113,6 +168,7 @@ export const useCartStore = create((set, get) => ({
 								item._id === product._id ? { ...item, quantity: Math.min(item.quantity + 1, MAX_QUANTITY_PER_ITEM) } : item
 						  )
 						: [...prevState.cart, { ...product, quantity: 1 }];
+					setCachedCart(newCart);
 					return { cart: newCart };
 				});
 				get().calculateTotals();
@@ -132,6 +188,7 @@ export const useCartStore = create((set, get) => ({
 		set((prevState) => {
 			const newCart = prevState.cart.filter((item) => item._id !== productId);
 			setLocalCart(newCart);
+			setCachedCart(newCart);
 			return { cart: newCart };
 		});
 		get().calculateTotals();

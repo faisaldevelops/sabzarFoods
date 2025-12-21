@@ -2,26 +2,65 @@ import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { create } from "zustand";
 
-export const useAddressStore = create((set, get) => ({
+const ADDRESS_CACHE_KEY = "address_cache";
+let addressFetchPromise = null;
+
+// Helper to get cached addresses
+const getCachedAddresses = () => {
+	try {
+		const cached = localStorage.getItem(ADDRESS_CACHE_KEY);
+		return cached ? JSON.parse(cached) : [];
+	} catch (error) {
+		console.error("Error reading addresses from cache:", error);
+		return [];
+	}
+};
+
+// Helper to cache addresses
+const setCachedAddresses = (addresses) => {
+	try {
+		if (addresses && addresses.length > 0) {
+			localStorage.setItem(ADDRESS_CACHE_KEY, JSON.stringify(addresses));
+		} else {
+			localStorage.removeItem(ADDRESS_CACHE_KEY);
+		}
+	} catch (error) {
+		console.error("Error caching addresses:", error);
+	}
+};
+
+export const useAddressStore = create((set, get) => ({{
   // keep this as an array (multiple addresses)
-  address: [],
+  address: getCachedAddresses(), // Initialize with cached addresses
   loading: false,
 
   // Fetch all addresses for authenticated user
   fetchAddresses: async () => {
-    set({ loading: true });
-    try {
-      const response = await axios.get("/address");
-      set({ address: response.data, loading: false });
-      return response.data;
-    } catch (error) {
-      const message =
-        error?.response?.data?.message || error.message || "Failed to fetch addresses";
-      console.error("Error fetching addresses:", error);
-      set({ loading: false });
-      // Don't show error toast for fetch - it's expected on first load
-      return [];
+    // Prevent multiple simultaneous fetch attempts
+    if (addressFetchPromise) {
+      return addressFetchPromise;
     }
+
+    addressFetchPromise = (async () => {
+      set({ loading: true });
+      try {
+        const response = await axios.get("/address");
+        set({ address: response.data, loading: false });
+        setCachedAddresses(response.data);
+        return response.data;
+      } catch (error) {
+        const message =
+          error?.response?.data?.message || error.message || "Failed to fetch addresses";
+        console.error("Error fetching addresses:", error);
+        set({ loading: false });
+        // Don't show error toast for fetch - it's expected on first load
+        return [];
+      } finally {
+        addressFetchPromise = null;
+      }
+    })();
+
+    return addressFetchPromise;
   },
 
   // optional: setter to replace all addresses
@@ -35,10 +74,14 @@ export const useAddressStore = create((set, get) => ({
       const created = response.data;
 
       // append created address to existing addresses array
-      set((state) => ({
-        address: Array.isArray(state.address) ? [...state.address, created] : [created],
-        loading: false,
-      }));
+      set((state) => {
+        const newAddresses = Array.isArray(state.address) ? [...state.address, created] : [created];
+        setCachedAddresses(newAddresses);
+        return {
+          address: newAddresses,
+          loading: false,
+        };
+      });
 
       console.log("created:", created);
       console.log("store address:", get().address);
@@ -62,10 +105,14 @@ export const useAddressStore = create((set, get) => ({
       await axios.delete(`/address/${addressId}`);
       
       // Remove from local state
-      set((state) => ({
-        address: state.address.filter(addr => addr._id !== addressId),
-        loading: false,
-      }));
+      set((state) => {
+        const newAddresses = state.address.filter(addr => addr._id !== addressId);
+        setCachedAddresses(newAddresses);
+        return {
+          address: newAddresses,
+          loading: false,
+        };
+      });
 
       toast.success("Address deleted");
     } catch (error) {
@@ -86,12 +133,16 @@ export const useAddressStore = create((set, get) => ({
       const updated = response.data;
 
       // Update in local state
-      set((state) => ({
-        address: state.address.map(addr => 
+      set((state) => {
+        const newAddresses = state.address.map(addr => 
           addr._id === addressId ? updated : addr
-        ),
-        loading: false,
-      }));
+        );
+        setCachedAddresses(newAddresses);
+        return {
+          address: newAddresses,
+          loading: false,
+        };
+      });
 
       toast.success("Address updated");
       return updated;

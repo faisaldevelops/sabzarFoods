@@ -24,25 +24,26 @@ import { useCartStore } from "./stores/useCartStore";
 import { useAddressStore } from "./stores/useAddressStore";
 
 function App() {
-	const { user, checkAuth, checkingAuth } = useUserStore();
+	const { user, checkAuth } = useUserStore();
 	const { initCart } = useCartStore();
 	const { fetchAddresses } = useAddressStore();
 	
 	useEffect(() => {
+		// Fire off auth check in background, don't block render
 		checkAuth();
 	}, [checkAuth]);
 
 	useEffect(() => {
+		// Initialize cart in background, don't block render
 		initCart();
 	}, [initCart]);
 
 	useEffect(() => {
+		// Fetch addresses only when user is authenticated
 		if (user) {
 			fetchAddresses();
 		}
 	}, [user, fetchAddresses]);
-
-	if (checkingAuth) return <LoadingSpinner />;
 
 	return (
 		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden flex flex-col'>
