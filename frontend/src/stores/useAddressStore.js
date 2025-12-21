@@ -29,7 +29,7 @@ const setCachedAddresses = (addresses) => {
 	}
 };
 
-export const useAddressStore = create((set, get) => ({{
+export const useAddressStore = create((set, get) => ({
   // keep this as an array (multiple addresses)
   address: getCachedAddresses(), // Initialize with cached addresses
   loading: false,
