@@ -12,7 +12,7 @@ const TermsOfServicePage = () => {
 					<p className='text-xs uppercase tracking-[0.2em] text-stone-500'>Customer Care</p>
 					<h1 className='text-3xl md:text-4xl font-semibold'>Terms of Service</h1>
 					<p className='text-base text-stone-600'>
-						These terms govern your use of our website and services. Please read them carefully. By accessing or using the site, you agree to these terms and any referenced policies. Our store is hosted on Shopify Inc.
+						These terms govern your use of our website and services. Please read them carefully. By accessing or using the site, you agree to these terms and any referenced policies.
 					</p>
 				</header>
 
