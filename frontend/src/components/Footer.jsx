@@ -33,8 +33,8 @@ const Footer = () => {
 								</Link>
 							</li>
 							<li>
-								<Link to='#' className='text-sm text-stone-600 hover:text-stone-900 transition-colors'>
-									Terms of Service (Coming Soon)
+								<Link to='/terms-of-service' className='text-sm text-stone-600 hover:text-stone-900 transition-colors'>
+									Terms of Service
 								</Link>
 							</li>
 						</ul>
