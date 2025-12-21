@@ -10,6 +10,7 @@ const OrderSummaryPage = lazy(() => import("./pages/OrderSummaryPage"));
 const CartPage = lazy(() => import("./pages/CartPage"));
 const PurchaseSuccessPage = lazy(() => import("./pages/PurchaseSuccessPage"));
 const PurchaseCancelPage = lazy(() => import("./pages/PurchaseCancelPage"));
+const RefundPolicyPage = lazy(() => import("./pages/RefundPolicyPage"));
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -47,15 +48,16 @@ function App() {
 				<Suspense fallback={<LoadingSpinner />}>
 					<Routes>
 						<Route path='/' element={<HomePage />} />
-					<Route path='/signup' element={!user ? <SignUpPage /> : <Navigate to='/' />} />
-					<Route path='/login' element={!user ? <LoginPage /> : <Navigate to='/' />} />
-					<Route
-						path='/secret-dashboard'
-						element={user?.role === "admin" ? <AdminPage /> : <Navigate to='/login' />}
-					/>
-					<Route path='/cart' element={<CartPage />} />
-					<Route path='/order-summary' element={user ? <OrderSummaryPage /> : <Navigate to='/login' />} />
-					<Route path='/my-orders' element={user ? <MyOrdersPage /> : <Navigate to='/login' />} />
+						<Route path='/signup' element={!user ? <SignUpPage /> : <Navigate to='/' />} />
+						<Route path='/login' element={!user ? <LoginPage /> : <Navigate to='/' />} />
+						<Route
+							path='/secret-dashboard'
+							element={user?.role === "admin" ? <AdminPage /> : <Navigate to='/login' />}
+						/>
+						<Route path='/cart' element={<CartPage />} />
+						<Route path='/order-summary' element={user ? <OrderSummaryPage /> : <Navigate to='/login' />} />
+						<Route path='/my-orders' element={user ? <MyOrdersPage /> : <Navigate to='/login' />} />
+						<Route path='/refund-policy' element={<RefundPolicyPage />} />
 						<Route path='/purchase-success' element={<PurchaseSuccessPage />} />
 						<Route path='/purchase-cancel' element={<PurchaseCancelPage />} />
 					</Routes>

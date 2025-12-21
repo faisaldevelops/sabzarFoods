@@ -18,8 +18,8 @@ const Footer = () => {
 						<h3 className='text-base font-semibold text-stone-900 mb-3'>Policies</h3>
 						<ul className='space-y-2'>
 							<li>
-								<Link to='#' className='text-sm text-stone-600 hover:text-stone-900 transition-colors'>
-									Refund & Return Policy (Coming Soon)
+								<Link to='/refund-policy' className='text-sm text-stone-600 hover:text-stone-900 transition-colors'>
+									Refund & Return Policy
 								</Link>
 							</li>
 							<li>
