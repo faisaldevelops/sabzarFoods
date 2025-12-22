@@ -24,8 +24,12 @@ export default defineConfig({
 				manualChunks: (id) => {
 					// Split node_modules into separate chunks
 					if (id.includes('node_modules')) {
-						// Core React libraries - loaded on every page
-						if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+						// Core React libraries - be very specific to avoid matching other packages
+						if (id.includes('node_modules/react/') || 
+						    id.includes('node_modules/react-dom/') || 
+						    id.includes('node_modules/react-router-dom/') ||
+						    id.includes('node_modules/react-router/') ||
+						    id.includes('node_modules/scheduler/')) {
 							return 'react-vendor';
 						}
 						// Large animation library - lazy loaded
