@@ -7,11 +7,8 @@ export default defineConfig({
 	build: {
 		// Increase chunk size warning limit
 		chunkSizeWarningLimit: 600,
-		// Use esbuild for minification (faster than terser)
+		// Use esbuild for minification (default)
 		minify: 'esbuild',
-		esbuild: {
-			drop: ['console', 'debugger']
-		},
 		// Disable source maps in production to reduce bundle size
 		sourcemap: false,
 		// Optimize asset inlining threshold (4KB is good balance)
