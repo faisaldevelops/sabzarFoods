@@ -7,30 +7,68 @@ export default defineConfig({
 	build: {
 		// Increase chunk size warning limit
 		chunkSizeWarningLimit: 600,
-		// Use esbuild for minification
+		// Use esbuild for minification (faster than terser)
 		minify: 'esbuild',
 		esbuild: {
 			drop: ['console', 'debugger']
 		},
-		// Disable source maps in production
+		// Disable source maps in production to reduce bundle size
 		sourcemap: false,
-		// Optimize asset inlining threshold
+		// Optimize asset inlining threshold (4KB is good balance)
 		assetsInlineLimit: 4096,
-		// Manual chunk splitting for better caching
+		// Target modern browsers for smaller output
+		target: 'es2015',
+		// Manual chunk splitting for better caching and parallel loading
 		rollupOptions: {
 			output: {
-				manualChunks: {
-					// Split vendor libraries into separate chunks
-					'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-					'framer-motion': ['framer-motion'],
-					'recharts': ['recharts'],
-					'ui-vendor': ['lucide-react', 'react-hot-toast', 'react-confetti'],
-				}
+				manualChunks: (id) => {
+					// Split node_modules into separate chunks
+					if (id.includes('node_modules')) {
+						// Core React libraries - loaded on every page
+						if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+							return 'react-vendor';
+						}
+						// Large animation library - lazy loaded
+						if (id.includes('framer-motion')) {
+							return 'framer-motion';
+						}
+						// Large chart library - only used on admin page
+						if (id.includes('recharts')) {
+							return 'recharts';
+						}
+						// UI libraries
+						if (id.includes('lucide-react') || id.includes('react-hot-toast') || id.includes('react-confetti')) {
+							return 'ui-vendor';
+						}
+						// Stripe - only loaded on checkout
+						if (id.includes('@stripe')) {
+							return 'stripe';
+						}
+						// State management and HTTP
+						if (id.includes('zustand') || id.includes('axios')) {
+							return 'core-utils';
+						}
+						// Other node_modules go into a separate chunk
+						return 'vendor';
+					}
+				},
+				// Optimize chunk file names for better caching
+				chunkFileNames: 'assets/[name]-[hash].js',
+				entryFileNames: 'assets/[name]-[hash].js',
+				assetFileNames: 'assets/[name]-[hash].[ext]'
 			}
 		}
 	},
-	// Optimize dependencies
+	// Optimize dependencies for faster cold starts
 	optimizeDeps: {
-		include: ['react', 'react-dom', 'react-router-dom']
+		include: [
+			'react', 
+			'react-dom', 
+			'react-router-dom',
+			'zustand',
+			'axios'
+		],
+		// Force optimize these deps
+		force: true
 	}
 });

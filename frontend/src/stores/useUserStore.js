@@ -81,15 +81,18 @@ export const useUserStore = create((set, get) => ({
 			return authCheckPromise;
 		}
 
-		// Skip API call if user is already cached
+		// Check if we have a cached user
 		const cachedUser = getCachedUser();
-		if (cachedUser) {
-			set({ user: cachedUser, checkingAuth: false });
-			return cachedUser;
+		
+		// If no cached user, assume not logged in and skip API call
+		// This prevents unnecessary profile endpoint calls for unauthenticated users
+		if (!cachedUser) {
+			set({ user: null, checkingAuth: false });
+			return null;
 		}
 
-		// Only set checkingAuth if not already set (first time)
-		set({ checkingAuth: true });
+		// If we have a cached user, verify with the backend
+		set({ user: cachedUser, checkingAuth: true });
 
 		authCheckPromise = (async () => {
 			try {
@@ -98,6 +101,7 @@ export const useUserStore = create((set, get) => ({
 				set({ user: response.data, checkingAuth: false });
 				return response.data;
 			} catch (error) {
+				// If verification fails (e.g., token expired), clear cache
 				console.log(error.message);
 				setCachedUser(null);
 				set({ checkingAuth: false, user: null });
