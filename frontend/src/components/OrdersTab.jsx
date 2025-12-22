@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer } from "lucide-react";
 import axios from "../lib/axios";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
 const OrderslistTab = () => {
