@@ -15,7 +15,19 @@ export default defineConfig({
 		// Disable source maps in production
 		sourcemap: false,
 		// Optimize asset inlining threshold
-		assetsInlineLimit: 4096
+		assetsInlineLimit: 4096,
+		// Manual chunk splitting for better caching
+		rollupOptions: {
+			output: {
+				manualChunks: {
+					// Split vendor libraries into separate chunks
+					'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+					'framer-motion': ['framer-motion'],
+					'recharts': ['recharts'],
+					'ui-vendor': ['lucide-react', 'react-hot-toast', 'react-confetti'],
+				}
+			}
+		}
 	},
 	// Optimize dependencies
 	optimizeDeps: {

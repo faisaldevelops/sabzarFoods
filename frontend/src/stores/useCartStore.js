@@ -217,6 +217,7 @@ export const useCartStore = create((set, get) => ({
 				(item._id === productId ? { ...item, quantity } : item)
 			);
 			setLocalCart(newCart);
+			setCachedCart(newCart);
 			return { cart: newCart };
 		});
 		get().calculateTotals();
@@ -249,20 +250,12 @@ export const useCartStore = create((set, get) => ({
 			
 			// Update state with merged cart from server
 			set({ cart: response.data });
+			setCachedCart(response.data);
 			get().calculateTotals();
 		} catch (error) {
 			console.error("Error syncing cart:", error);
 			// If sync fails, just fetch server cart
 			await get().getCartItems();
-		}
-	},
-	
-	// Initialize cart on app load
-	initCart: () => {
-		const localCart = getLocalCart();
-		if (localCart.length > 0) {
-			set({ cart: localCart });
-			get().calculateTotals();
 		}
 	},
 }));
