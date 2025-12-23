@@ -30,10 +30,10 @@ function App() {
 
 	useEffect(() => {
 		// Defer cart hydration until after first paint
-		if (typeof requestIdleCallback !== 'undefined') {
+		if (typeof requestIdleCallback === 'function') {
 			requestIdleCallback(() => {
 				initCart();
-			}, { timeout: 2000 });
+			}, { timeout: 500 });
 		} else {
 			// Fallback for browsers without requestIdleCallback
 			setTimeout(() => {
