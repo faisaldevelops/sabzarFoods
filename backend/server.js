@@ -79,6 +79,7 @@ app.use("/api/analytics", analyticsRoutes);
    Start Server
 ======================= */
 app.listen(PORT, async () => {
+  console.log(`Server running on port ${PORT}`);
   await connectDB();
   startHoldExpiryJob();
 });

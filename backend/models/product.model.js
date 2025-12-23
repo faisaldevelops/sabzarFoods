@@ -43,6 +43,10 @@ const productSchema = new mongoose.Schema(
 	{ timestamps: true }
 );
 
+productSchema.index({ name: 1 });
+productSchema.index({ category: 1 });
+productSchema.index({ stockQuantity: 1 });
+
 const Product = mongoose.model("Product", productSchema);
 
 export default Product;
