@@ -170,8 +170,6 @@ const sendOTPMessage = async (phoneNumber, otp) => {
       return false;
     }
   } else {
-    // For development/testing without Twilio
-    // console.log(`OTP for ${phoneNumber}: ${otp} (Development mode - not sent via SMS)`);
     return true;
   }
 };

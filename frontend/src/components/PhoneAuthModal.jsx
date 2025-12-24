@@ -35,13 +35,8 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
       const response = await axios.post("/otp/send", { phoneNumber });
       setOtpSuccess("OTP sent successfully");
       
-      // In development, show OTP in toast
-      // if (response.data.otp) {
-      //   toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
-      // }
-      
       setStep("otp");
-      setResendCooldown(60); // Start 60-second cooldown
+      setResendCooldown(60);
       
       // Clear success message after 3 seconds
       setTimeout(() => setOtpSuccess(""), 3000);
@@ -69,12 +64,11 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
       const response = await axios.post("/otp/resend", { phoneNumber });
       setOtpSuccess("OTP resent successfully");
       
-      // In development, show OTP in toast
       if (response.data.otp) {
         toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
       }
       
-      setResendCooldown(60); // Reset 60-second cooldown
+      setResendCooldown(60);
       
       // Clear success message after 3 seconds
       setTimeout(() => setOtpSuccess(""), 3000);

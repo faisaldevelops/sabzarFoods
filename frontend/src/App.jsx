@@ -25,7 +25,7 @@ function App() {
 	const { fetchAddresses } = useAddressStore();
 	
 	useEffect(() => {
-		checkAuth();
+		checkAuth(true);
 	}, [checkAuth]);
 
 	useEffect(() => {

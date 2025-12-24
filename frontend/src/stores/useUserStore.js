@@ -18,6 +18,7 @@ export const useUserStore = create((set, get) => ({
 		try {
 			const res = await axios.post("/auth/signup", { name, email, password });
 			set({ user: res.data, loading: false });
+			localStorage.setItem("isAuthenticated", "true");
 		} catch (error) {
 			set({ loading: false });
 			toast.error(error.response.data.message || "An error occurred");
@@ -30,6 +31,7 @@ export const useUserStore = create((set, get) => ({
 			const res = await axios.post("/auth/login", { email, password });
 
 			set({ user: res.data, loading: false });
+			localStorage.setItem("isAuthenticated", "true");
 		} catch (error) {
 			set({ loading: false });
 			toast.error(error.response.data.message || "An error occurred");
@@ -40,24 +42,35 @@ export const useUserStore = create((set, get) => ({
 		try {
 			await axios.post("/auth/logout");
 			set({ user: null });
+			localStorage.removeItem("isAuthenticated");
 		} catch (error) {
 			toast.error(error.response?.data?.message || "An error occurred during logout");
 		}
 	},
 
-	checkAuth: async () => {
+	checkAuth: async (skipIfUnauthenticated = false) => {
 		set({ checkingAuth: true });
+		
+		if (skipIfUnauthenticated) {
+			const isAuthenticated = localStorage.getItem("isAuthenticated");
+			if (!isAuthenticated) {
+				set({ checkingAuth: false, user: null });
+				return;
+			}
+		}
+		
 		try {
 			const response = await axios.get("/auth/profile");
 			set({ user: response.data, checkingAuth: false });
+			localStorage.setItem("isAuthenticated", "true");
 		} catch (error) {
 			console.log(error.message);
 			set({ checkingAuth: false, user: null });
+			localStorage.removeItem("isAuthenticated");
 		}
 	},
 
 	refreshToken: async () => {
-		// Prevent multiple simultaneous refresh attempts
 		if (get().checkingAuth) return;
 
 		set({ checkingAuth: true });
@@ -67,14 +80,12 @@ export const useUserStore = create((set, get) => ({
 			return response.data;
 		} catch (error) {
 			set({ user: null, checkingAuth: false });
+			localStorage.removeItem("isAuthenticated");
 			throw error;
 		}
 	},
 }));
 
-// TODO: Implement the axios interceptors for refreshing access token
-
-// Axios interceptor for token refresh
 let refreshPromise = null;
 
 axios.interceptors.response.use(
