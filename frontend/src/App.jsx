@@ -6,6 +6,9 @@ import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/AdminPage";
 import MyOrdersPage from "./pages/MyOrdersPage";
 import OrderSummaryPage from "./pages/OrderSummaryPage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
+import RefundReturnPolicyPage from "./pages/RefundReturnPolicyPage";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -59,6 +62,9 @@ function App() {
 					<Route path='/my-orders' element={user ? <MyOrdersPage /> : <Navigate to='/login' />} />
 					<Route path='/purchase-success' element={<PurchaseSuccessPage />} />
 					<Route path='/purchase-cancel' element={<PurchaseCancelPage />} />
+					<Route path='/privacy-policy' element={<PrivacyPolicyPage />} />
+					<Route path='/terms-of-service' element={<TermsOfServicePage />} />
+					<Route path='/refund-return-policy' element={<RefundReturnPolicyPage />} />
 				</Routes>
 			</div>
 			<Footer />
