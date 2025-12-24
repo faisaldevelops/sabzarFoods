@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -17,6 +17,17 @@ const OrderslistTab = () => {
     });
     const [showFilters, setShowFilters] = useState(false);
     
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize] = useState(10); // Items per page
+    const [pagination, setPagination] = useState({
+        totalOrders: 0,
+        totalPages: 0,
+        currentPage: 1,
+        hasNextPage: false,
+        hasPrevPage: false
+    });
+    
     // Debounced filters for API calls
     const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
@@ -24,6 +35,7 @@ const OrderslistTab = () => {
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedFilters(filters);
+            setCurrentPage(1); // Reset to first page when filters change
         }, 500); // 500ms debounce
 
         return () => {
@@ -38,13 +50,20 @@ const OrderslistTab = () => {
                 // Build query parameters
                 const params = new URLSearchParams();
                 if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
-                    if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
+                if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
                 if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
+                // Add pagination parameters
+                params.append('page', currentPage.toString());
+                params.append('limit', pageSize.toString());
                 const queryString = params.toString();
-                const url = queryString ? `/orders?${queryString}` : '/orders';
+                const url = `/orders?${queryString}`;
                 const response = await axios.get(url);
                 const ordersData = response.data.data || [];
                 setOrders(ordersData);
+                // Update pagination metadata
+                if (response.data.pagination) {
+                    setPagination(response.data.pagination);
+                }
             } catch (error) {
                 console.error("Error fetching orders data:", error);
                 toast.error(error.response?.data?.message || "Failed to fetch orders");
@@ -53,7 +72,7 @@ const OrderslistTab = () => {
             }
         };
 		fetchAllOrders();
-	}, [debouncedFilters]);
+	}, [debouncedFilters, currentPage, pageSize]);
 // Removed duplicate/broken useEffect and setDisplayOrderIds calls
 
     const updateTrackingStatus = async (orderId, newStatus) => {
@@ -157,8 +176,106 @@ const OrderslistTab = () => {
 
     const handlePrintAddressSheet = (orderId) => {
         // Open the address sheet in a new window for printing
-        const url = `/api/orders/${orderId}/address-sheet`;
+        const baseURL = import.meta.env.VITE_API_URL || '';
+        const url = `${baseURL}/orders/${orderId}/address-sheet`;
         window.open(url, '_blank');
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= pagination.totalPages) {
+            setCurrentPage(newPage);
+            // Scroll to top when page changes
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const renderPaginationControls = () => {
+        if (pagination.totalPages <= 1) return null;
+
+        const pages = [];
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+
+        return (
+            <div className="flex items-center justify-center gap-2 mt-6">
+                <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={!pagination.hasPrevPage}
+                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        pagination.hasPrevPage
+                            ? 'bg-gray-700 text-white hover:bg-gray-600'
+                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                    }`}
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                </button>
+
+                {startPage > 1 && (
+                    <>
+                        <button
+                            onClick={() => handlePageChange(1)}
+                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                        >
+                            1
+                        </button>
+                        {startPage > 2 && (
+                            <span className="px-2 text-gray-400">...</span>
+                        )}
+                    </>
+                )}
+
+                {pages.map((page) => (
+                    <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                            page === currentPage
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-gray-700 text-white hover:bg-gray-600'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                ))}
+
+                {endPage < pagination.totalPages && (
+                    <>
+                        {endPage < pagination.totalPages - 1 && (
+                            <span className="px-2 text-gray-400">...</span>
+                        )}
+                        <button
+                            onClick={() => handlePageChange(pagination.totalPages)}
+                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                        >
+                            {pagination.totalPages}
+                        </button>
+                    </>
+                )}
+
+                <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={!pagination.hasNextPage}
+                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        pagination.hasNextPage
+                            ? 'bg-gray-700 text-white hover:bg-gray-600'
+                            : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                    }`}
+                >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                </button>
+            </div>
+        );
     };
 
     return <>    
@@ -245,9 +362,16 @@ const OrderslistTab = () => {
     
     {/* Orders Count and Export Button */}
     <div className="mb-4 flex items-center justify-between">
-        <p className="text-gray-400 text-sm">
-            Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
-        </p>
+        <div>
+            <p className="text-gray-400 text-sm">
+                Showing {orders.length} of {pagination.totalOrders} order{pagination.totalOrders !== 1 ? 's' : ''}
+            </p>
+            {pagination.totalPages > 1 && (
+                <p className="text-gray-500 text-xs mt-1">
+                    Page {pagination.currentPage} of {pagination.totalPages}
+                </p>
+            )}
+        </div>
         <motion.button
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
@@ -415,6 +539,9 @@ const OrderslistTab = () => {
             </motion.div>
         ))}
     </div>
+
+    {/* Pagination Controls */}
+    {renderPaginationControls()}
 
     </>
     
