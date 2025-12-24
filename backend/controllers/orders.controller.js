@@ -48,7 +48,12 @@ const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
 export const getOrdersData = async (req, res) => {
 	try {
 		// Extract filter parameters from query
-		const { phoneNumber, publicOrderId, status } = req.query;
+		const { phoneNumber, publicOrderId, status, page, limit } = req.query;
+		
+		// Pagination parameters
+		const pageNumber = parseInt(page) || 1;
+		const pageSize = parseInt(limit) || 10;
+		const skip = (pageNumber - 1) * pageSize;
 		
 		// Build filter object
 		let filter = {};
@@ -88,13 +93,20 @@ export const getOrdersData = async (req, res) => {
 			}
 		}
 		
-		// Find all orders with filters and populate the user and product references.
+		// Get total count for pagination
+		const totalOrders = await Order.countDocuments(filter);
+		const totalPages = Math.ceil(totalOrders / pageSize);
+		
+		// Find orders with filters, pagination, and populate the user and product references.
 		const orders = await Order.find(filter)
 			.populate('user', 'name email phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
 			})
+			.sort({ createdAt: -1 }) // Sort by newest first
+			.skip(skip)
+			.limit(pageSize)
 			.lean();
 
 		// Format each order to merge product details alongside quantity/price
@@ -131,7 +143,18 @@ export const getOrdersData = async (req, res) => {
 			};
 		});
 
-		return res.json({ success: true, data: formatted });
+		return res.json({ 
+			success: true, 
+			data: formatted,
+			pagination: {
+				currentPage: pageNumber,
+				pageSize: pageSize,
+				totalOrders: totalOrders,
+				totalPages: totalPages,
+				hasNextPage: pageNumber < totalPages,
+				hasPrevPage: pageNumber > 1
+			}
+		});
 	} catch (err) {
 		console.error('Error fetching orders:', err);
 		return res.status(500).json({ success: false, message: 'Server error fetching orders' });
