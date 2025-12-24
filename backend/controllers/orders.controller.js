@@ -13,13 +13,8 @@ if (accountSid && authToken) {
 	twilioClient = twilio(accountSid, authToken);
 }
 
-// Helper function to send SMS notification
+// Helper function to send SMS notification (currently logging instead of sending)
 const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
-	if (!twilioClient || !twilioPhoneNumber) {
-		console.log(`SMS not sent (Twilio not configured) - Order ${orderPublicId} status: ${status}`);
-		return { success: false, reason: "Twilio not configured" };
-	}
-
 	try {
 		let message = "";
 		if (status === "shipped") {
@@ -31,16 +26,21 @@ const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
 			return { success: false, reason: "Status not eligible for SMS" };
 		}
 
-		await twilioClient.messages.create({
-			body: message,
-			from: twilioPhoneNumber,
-			to: `+91${phoneNumber}`, // Assuming Indian phone numbers
-		});
+		// Log SMS instead of sending (SMS sending disabled)
+		console.log(`[SMS LOG] Would send SMS to ${phoneNumber} for order ${orderPublicId}`);
+		console.log(`[SMS LOG] Message: ${message}`);
+		console.log(`[SMS LOG] Status: ${status}`);
+		
+		// Original SMS sending code (commented out):
+		// await twilioClient.messages.create({
+		// 	body: message,
+		// 	from: twilioPhoneNumber,
+		// 	to: `+91${phoneNumber}`,
+		// });
 
-		console.log(`SMS sent to ${phoneNumber} for order ${orderPublicId} - Status: ${status}`);
-		return { success: true };
+		return { success: true, logged: true };
 	} catch (error) {
-		console.error(`Failed to send SMS to ${phoneNumber}:`, error.message);
+		console.error(`[SMS LOG] Error logging SMS for ${phoneNumber}:`, error.message);
 		return { success: false, reason: error.message };
 	}
 };
@@ -217,11 +217,11 @@ export const updateOrderTracking = async (req, res) => {
 				note: note || `Status updated to ${trackingStatus}`,
 			});
 
-			// Send SMS notification only for shipped and delivered statuses
+			// Log SMS notification (instead of sending) for shipped and delivered statuses
 			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
-				// Send SMS asynchronously (don't wait for it to complete)
+				// Log SMS instead of sending (asynchronously, don't wait for it to complete)
 				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
-					.catch(error => console.error("SMS notification error:", error));
+					.catch(error => console.error("[SMS LOG] SMS notification error:", error));
 			}
 		}
 

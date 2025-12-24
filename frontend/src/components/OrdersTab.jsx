@@ -101,11 +101,9 @@ const OrderslistTab = () => {
                             : order
                     )
                 );
-                toast.success("Order status updated successfully");
             }
         } catch (error) {
             console.error("Error updating order status:", error);
-            toast.error(error.response?.data?.message || "Failed to update order status");
         } finally {
             setUpdatingOrder(null);
         }
