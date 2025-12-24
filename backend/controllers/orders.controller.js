@@ -418,30 +418,20 @@ export const getAddressSheet = async (req, res) => {
 
 export const getBulkAddressSheets = async (req, res) => {
 	try {
-		// Extract filter parameters from query (same as getOrdersData)
-		const { phoneNumber, publicOrderId, status } = req.query;
+		// Extract filter parameters from query
+		const { phoneNumber, publicOrderId } = req.query;
 		
-		// Build filter object
-		let filter = {};
+		// Build filter object - ALWAYS filter by processing status only
+		let filter = {
+			trackingStatus: 'processing'
+		};
 		
-		// Filter by publicOrderId
+		// Filter by publicOrderId (optional, but still only shows processing orders)
 		if (publicOrderId) {
 			filter.publicOrderId = publicOrderId;
 		}
 		
-		// Filter by status (trackingStatus)
-		if (status && status !== 'all') {
-			const allowedStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-			if (!allowedStatuses.includes(status)) {
-				return res.status(400).json({ 
-					success: false, 
-					message: 'Invalid status value' 
-				});
-			}
-			filter.trackingStatus = status;
-		}
-		
-		// Filter by user phone number
+		// Filter by user phone number (optional)
 		if (phoneNumber) {
 			const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
 			if (sanitizedPhone) {
@@ -480,40 +470,56 @@ export const getBulkAddressSheets = async (req, res) => {
 			`);
 		}
 
-		// Generate HTML for all address sheets
-		const addressSheetsHTML = orders.map(order => {
-			const address = order.address || {};
-			const user = order.user || {};
+		// Generate HTML for all address sheets, grouped into pages of 6
+		const labelsPerPage = 6;
+		const pages = [];
+		
+		for (let i = 0; i < orders.length; i += labelsPerPage) {
+			const pageOrders = orders.slice(i, i + labelsPerPage);
+			const isLastPage = i + labelsPerPage >= orders.length;
 			
-			return `
-		<div class="address-sheet" style="page-break-after: always;">
-			<div class="header">
-				<div class="order-id">Order #${order.publicOrderId || order._id}</div>
-				<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
-			</div>
-			
-			<div class="section">
-				<div class="label">Deliver To:</div>
-				<div class="value name">${address.name || user.name || 'N/A'}</div>
-			</div>
-			
-			<div class="section">
-				<div class="label">Phone:</div>
-				<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
-			</div>
-			
-			<div class="section">
-				<div class="label">Address:</div>
-				<div class="value">
-					<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
-					${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
-					<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
-					<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
+			const pageHTML = pageOrders.map(order => {
+				const address = order.address || {};
+				const user = order.user || {};
+				
+				return `
+			<div class="address-sheet">
+				<div class="header">
+					<div class="order-id">Order #${order.publicOrderId || order._id}</div>
+					<div style="font-size: 10px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+				</div>
+				
+				<div class="section">
+					<div class="label">Deliver To:</div>
+					<div class="value name">${address.name || user.name || 'N/A'}</div>
+				</div>
+				
+				<div class="section">
+					<div class="label">Phone:</div>
+					<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
+				</div>
+				
+				<div class="section">
+					<div class="label">Address:</div>
+					<div class="value">
+						<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
+						${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
+						<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
+						<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
+					</div>
 				</div>
 			</div>
+				`;
+			}).join('');
+			
+			pages.push(`
+		<div class="page-container" ${!isLastPage ? 'style="page-break-after: always;"' : ''}>
+			${pageHTML}
 		</div>
-			`;
-		}).join('');
+			`);
+		}
+		
+		const addressSheetsHTML = pages.join('');
 
 		const html = `
 <!DOCTYPE html>
@@ -529,61 +535,96 @@ export const getBulkAddressSheets = async (req, res) => {
 		}
 		body {
 			font-family: Arial, sans-serif;
-			padding: 20px;
+			padding: 10px;
+		}
+		.page-container {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			grid-template-rows: repeat(2, 1fr);
+			gap: 10px;
+			width: 100%;
+			height: 100vh;
+			padding: 10px;
+			page-break-inside: avoid;
 		}
 		.address-sheet {
-			width: 400px;
 			border: 2px solid #000;
-			padding: 20px;
-			margin: 0 auto 30px;
+			padding: 12px;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			height: 100%;
+			overflow: hidden;
 		}
 		.header {
 			text-align: center;
-			border-bottom: 2px solid #000;
-			padding-bottom: 10px;
-			margin-bottom: 15px;
+			border-bottom: 1px solid #000;
+			padding-bottom: 6px;
+			margin-bottom: 8px;
 		}
 		.order-id {
-			font-size: 18px;
+			font-size: 14px;
 			font-weight: bold;
-			margin-bottom: 5px;
+			margin-bottom: 2px;
 		}
 		.section {
-			margin-bottom: 15px;
+			margin-bottom: 6px;
 		}
 		.label {
 			font-weight: bold;
-			font-size: 12px;
+			font-size: 9px;
 			color: #666;
 			text-transform: uppercase;
-			margin-bottom: 3px;
+			margin-bottom: 2px;
 		}
 		.value {
-			font-size: 16px;
-			margin-bottom: 8px;
-			line-height: 1.4;
+			font-size: 11px;
+			margin-bottom: 4px;
+			line-height: 1.3;
 		}
 		.name {
-			font-size: 20px;
+			font-size: 13px;
 			font-weight: bold;
 		}
 		.phone {
-			font-size: 18px;
+			font-size: 12px;
 			font-weight: bold;
 		}
 		.address-line {
-			margin-bottom: 5px;
+			margin-bottom: 2px;
+			font-size: 10px;
 		}
 		@media print {
 			body {
 				padding: 0;
+				margin: 0;
+			}
+			.page-container {
+				width: 100%;
+				height: 100vh;
+				page-break-after: always;
+				page-break-inside: avoid;
+				margin: 0;
+				padding: 8mm;
+				gap: 5mm;
+			}
+			.page-container:last-child {
+				page-break-after: auto;
 			}
 			.address-sheet {
-				border: 2px solid #000;
-				margin-bottom: 20px;
+				border: 1.5px solid #000;
+				padding: 8px;
+				page-break-inside: avoid;
 			}
-			.address-sheet:last-child {
-				margin-bottom: 0;
+			@page {
+				size: A4;
+				margin: 0;
+			}
+		}
+		@media screen {
+			.page-container {
+				min-height: 100vh;
+				margin-bottom: 20px;
 			}
 		}
 	</style>
