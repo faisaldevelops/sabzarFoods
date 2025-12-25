@@ -43,7 +43,7 @@ const orderSchema = new mongoose.Schema(
     couponCode: { type: String, default: null },
     trackingStatus: {
       type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+      enum: ["pending", "processing", "ready", "shipped", "delivered", "cancelled"],
       default: "pending",
     },
     trackingNumber: {
@@ -58,7 +58,7 @@ const orderSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+          enum: ["pending", "processing", "ready", "shipped", "delivered", "cancelled"],
           required: true,
         },
         timestamp: {

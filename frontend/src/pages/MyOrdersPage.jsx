@@ -28,6 +28,7 @@ const MyOrdersPage = () => {
 		const configs = {
 			pending: { color: "bg-yellow-500", icon: Clock, text: "Pending", textColor: "text-yellow-400" },
 			processing: { color: "bg-blue-500", icon: Package, text: "Processing", textColor: "text-blue-400" },
+			ready: { color: "bg-cyan-500", icon: Package, text: "Ready", textColor: "text-cyan-400" },
 			shipped: { color: "bg-purple-500", icon: Truck, text: "Shipped", textColor: "text-purple-400" },
 			delivered: { color: "bg-green-500", icon: CheckCircle, text: "Delivered", textColor: "text-green-400" },
 			cancelled: { color: "bg-red-500", icon: XCircle, text: "Cancelled", textColor: "text-red-400" },
@@ -88,7 +89,8 @@ const MyOrdersPage = () => {
 							<Icon className="w-3 h-3 text-white" />
 						</div>
 						<div className="text-xs text-gray-400">
-							{new Date(currentStatus.timestamp).toLocaleString(undefined, {
+							{new Date(currentStatus.timestamp).toLocaleString('en-IN', {
+								timeZone: 'Asia/Kolkata',
 								dateStyle: "medium",
 								timeStyle: "short",
 							})}
@@ -116,7 +118,8 @@ const MyOrdersPage = () => {
 											<ItemIcon className="w-3 h-3 text-white" />
 										</div>
 										<div className="text-xs text-gray-400">
-											{new Date(item.timestamp).toLocaleString(undefined, {
+											{new Date(item.timestamp).toLocaleString('en-IN', {
+												timeZone: 'Asia/Kolkata',
 												dateStyle: "medium",
 												timeStyle: "short",
 											})}
@@ -188,7 +191,8 @@ const MyOrdersPage = () => {
 										</div>
 										<div className="flex items-center text-sm text-gray-400">
 											<Calendar className="w-4 h-4 mr-1" />
-											{new Date(order.createdAt).toLocaleString(undefined, {
+											{new Date(order.createdAt).toLocaleString('en-IN', {
+												timeZone: 'Asia/Kolkata',
 												dateStyle: "medium",
 												timeStyle: "short",
 											})}
@@ -221,7 +225,8 @@ const MyOrdersPage = () => {
 											<Clock className="w-4 h-4 mr-2 text-blue-400" />
 											<span className="text-gray-400">Estimated Delivery:</span>
 											<span className="ml-2 text-blue-400">
-												{new Date(order.estimatedDelivery).toLocaleDateString(undefined, {
+												{new Date(order.estimatedDelivery).toLocaleDateString('en-IN', {
+													timeZone: 'Asia/Kolkata',
 													dateStyle: "medium",
 												})}
 											</span>

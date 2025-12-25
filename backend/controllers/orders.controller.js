@@ -66,7 +66,7 @@ export const getOrdersData = async (req, res) => {
 		// Filter by status (trackingStatus)
 		if (status && status !== 'all') {
 			// Validate status is one of the allowed values
-			const allowedStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+			const allowedStatuses = ['pending', 'processing', 'ready', 'shipped', 'delivered', 'cancelled'];
 			if (!allowedStatuses.includes(status)) {
 				return res.status(400).json({ 
 					success: false, 
@@ -98,13 +98,14 @@ export const getOrdersData = async (req, res) => {
 		const totalPages = Math.ceil(totalOrders / pageSize);
 		
 		// Find orders with filters, pagination, and populate the user and product references.
+		// Sort by createdAt in ascending order (oldest first)
 		const orders = await Order.find(filter)
 			.populate('user', 'name email phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
 			})
-			.sort({ createdAt: -1 }) // Sort by newest first
+			.sort({ createdAt: 1 }) // Sort by oldest first (ascending order)
 			.skip(skip)
 			.limit(pageSize)
 			.lean();
@@ -374,7 +375,7 @@ export const getAddressSheet = async (req, res) => {
 	<div class="address-sheet">
 		<div class="header">
 			<div class="order-id">Order #${order.publicOrderId || order._id}</div>
-			<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+			<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
 		</div>
 		
 		<div class="section">
@@ -447,9 +448,10 @@ export const getBulkAddressSheets = async (req, res) => {
 		}
 		
 		// Find all orders matching filters (no pagination)
+		// Sort by createdAt in ascending order (oldest first)
 		const orders = await Order.find(filter)
 			.populate('user', 'name phoneNumber')
-			.sort({ createdAt: -1 })
+			.sort({ createdAt: 1 })
 			.lean();
 
 		if (orders.length === 0) {
@@ -486,7 +488,7 @@ export const getBulkAddressSheets = async (req, res) => {
 			<div class="address-sheet">
 				<div class="header">
 					<div class="order-id">Order #${order.publicOrderId || order._id}</div>
-					<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString()}</div>
+					<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
 				</div>
 				
 				<div class="section">
@@ -660,7 +662,7 @@ export const exportOrdersCSV = async (req, res) => {
 		}
 		
 		if (status && status !== 'all') {
-			const allowedStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+			const allowedStatuses = ['pending', 'processing', 'ready', 'shipped', 'delivered', 'cancelled'];
 			if (!allowedStatuses.includes(status)) {
 				return res.status(400).json({ 
 					success: false, 
@@ -727,7 +729,7 @@ export const exportOrdersCSV = async (req, res) => {
 				// Order with no products
 				csvRows.push([
 					`"${order.publicOrderId || order._id}"`,
-					`"${new Date(order.createdAt).toLocaleDateString()}"`,
+					`"${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
 					`"${user.name || 'N/A'}"`,
 					`"${user.phoneNumber || 'N/A'}"`,
 					`"${user.email || 'N/A'}"`,
@@ -749,7 +751,7 @@ export const exportOrdersCSV = async (req, res) => {
 					const prod = p.product;
 					csvRows.push([
 						`"${order.publicOrderId || order._id}"`,
-						`"${new Date(order.createdAt).toLocaleDateString()}"`,
+						`"${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
 						`"${user.name || 'N/A'}"`,
 						`"${user.phoneNumber || 'N/A'}"`,
 						`"${user.email || 'N/A'}"`,

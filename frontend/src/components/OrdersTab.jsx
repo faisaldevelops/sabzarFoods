@@ -113,6 +113,7 @@ const OrderslistTab = () => {
         const statusConfig = {
             pending: { color: "bg-yellow-500", icon: Package, text: "Payment pending" },
             processing: { color: "bg-blue-500", icon: Package, text: "Processing" },
+            ready: { color: "bg-cyan-500", icon: Package, text: "Ready" },
             shipped: { color: "bg-purple-500", icon: Truck, text: "Shipped" },
             delivered: { color: "bg-green-500", icon: CheckCircle, text: "Delivered" },
             cancelled: { color: "bg-red-500", icon: XCircle, text: "Cancelled" },
@@ -133,6 +134,7 @@ const OrderslistTab = () => {
         const statusNames = {
             pending: "Payment pending",
             processing: "Processing",
+            ready: "Ready",
             shipped: "Shipped",
             delivered: "Delivered",
             cancelled: "Cancelled"
@@ -403,6 +405,7 @@ const OrderslistTab = () => {
                         <option value="all">All Statuses</option>
                         <option value="pending">Payment pending</option>
                         <option value="processing">Processing</option>
+                        <option value="ready">Ready</option>
                         <option value="shipped">Shipped</option>
                         <option value="delivered">Delivered</option>
                         <option value="cancelled">Cancelled</option>
@@ -480,7 +483,8 @@ const OrderslistTab = () => {
                     <div className="flex flex-col gap-2">
                         <div className="text-right">
                             <p className="text-sm text-gray-400">
-                                {new Date(order.createdAt).toLocaleString(undefined, {
+                                {new Date(order.createdAt).toLocaleString('en-IN', {
+                                timeZone: 'Asia/Kolkata',
                                 dateStyle: "medium",
                                 timeStyle: "short",
                                 })}
@@ -524,7 +528,7 @@ const OrderslistTab = () => {
                 <div className="mt-4 pt-4 border-t border-gray-700">
                     <p className="text-sm font-medium text-gray-300 mb-2">Update Order Status:</p>
                     <div className="flex flex-wrap gap-2">
-                        {['pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
+                        {['pending', 'processing', 'ready', 'shipped', 'delivered', 'cancelled'].map((status) => (
                             <button
                                 key={status}
                                 onClick={() => handleStatusChangeClick(order.orderId, status, order.publicOrderId || order.orderId, order.trackingStatus)}
