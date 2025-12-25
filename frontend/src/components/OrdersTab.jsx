@@ -52,36 +52,62 @@ const OrderslistTab = () => {
         };
     }, [filters]);
 
-    useEffect(() => {
-        const fetchAllOrders = async () => {
-            try {
-                setIsLoading(true);
-                // Build query parameters
-                const params = new URLSearchParams();
-                if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
-                if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
-                if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
-                // Add pagination parameters
-                params.append('page', currentPage.toString());
-                params.append('limit', pageSize.toString());
-                const queryString = params.toString();
-                const url = `/orders?${queryString}`;
-                const response = await axios.get(url);
-                const ordersData = response.data.data || [];
-                setOrders(ordersData);
-                // Update pagination metadata
-                if (response.data.pagination) {
-                    setPagination(response.data.pagination);
+    // Extract fetchAllOrders function so it can be reused
+    const fetchAllOrders = useCallback(async (pageToFetch = null) => {
+        try {
+            setIsLoading(true);
+            // Build query parameters
+            const params = new URLSearchParams();
+            if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
+            if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
+            if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
+            // Add pagination parameters - use provided page or current page
+            const page = pageToFetch !== null ? pageToFetch : currentPage;
+            params.append('page', page.toString());
+            params.append('limit', pageSize.toString());
+            const queryString = params.toString();
+            const url = `/orders?${queryString}`;
+            const response = await axios.get(url);
+            const ordersData = response.data.data || [];
+            
+            // Update pagination metadata
+            if (response.data.pagination) {
+                const paginationData = response.data.pagination;
+                setPagination(paginationData);
+                
+                // If current page is empty and not page 1, adjust to last available page
+                if (ordersData.length === 0 && page > 1 && paginationData.totalPages > 0) {
+                    const lastPage = paginationData.totalPages;
+                    // Fetch the last page instead
+                    params.set('page', lastPage.toString());
+                    const newQueryString = params.toString();
+                    const newUrl = `/orders?${newQueryString}`;
+                    const newResponse = await axios.get(newUrl);
+                    const newOrdersData = newResponse.data.data || [];
+                    setOrders(newOrdersData);
+                    setCurrentPage(lastPage);
+                    if (newResponse.data.pagination) {
+                        setPagination(newResponse.data.pagination);
+                    }
+                    return;
+                } else if (pageToFetch !== null && pageToFetch !== currentPage) {
+                    // Update current page if we fetched a different page
+                    setCurrentPage(page);
                 }
-            } catch (error) {
-                console.error("Error fetching orders data:", error);
-                toast.error(error.response?.data?.message || "Failed to fetch orders");
-            } finally {
-                setIsLoading(false);
             }
-        };
+            
+            setOrders(ordersData);
+        } catch (error) {
+            console.error("Error fetching orders data:", error);
+            toast.error(error.response?.data?.message || "Failed to fetch orders");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [debouncedFilters, currentPage, pageSize]);
+
+    useEffect(() => {
 		fetchAllOrders();
-	}, [debouncedFilters, currentPage, pageSize]);
+	}, [fetchAllOrders]);
 // Removed duplicate/broken useEffect and setDisplayOrderIds calls
 
     const updateTrackingStatus = async (orderId, newStatus) => {
@@ -93,17 +119,14 @@ const OrderslistTab = () => {
             });
             
             if (response.data.success) {
-                // Update local state
-                setOrders(prevOrders => 
-                    prevOrders.map(order => 
-                        order.orderId === orderId 
-                            ? { ...order, trackingStatus: newStatus, trackingHistory: response.data.order.trackingHistory }
-                            : order
-                    )
-                );
+                // Refetch orders to respect current filters
+                // This ensures orders that no longer match the filter are removed
+                await fetchAllOrders();
+                toast.success(`Order status updated to ${getStatusDisplayName(newStatus)}`);
             }
         } catch (error) {
             console.error("Error updating order status:", error);
+            toast.error(error.response?.data?.message || "Failed to update order status");
         } finally {
             setUpdatingOrder(null);
         }
