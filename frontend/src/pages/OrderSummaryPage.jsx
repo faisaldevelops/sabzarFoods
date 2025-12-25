@@ -469,7 +469,7 @@ const OrderSummaryPage = () => {
 									) : pricingBreakdown ? (
 										<>
 											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Delivery Charges ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
+												<dt className='text-base font-normal text-gray-300'>Shipping ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
 												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
 											</dl>
 											<dl className='flex items-center justify-between gap-4'>
@@ -478,10 +478,16 @@ const OrderSummaryPage = () => {
 											</dl>
 										</>
 									) : (
-										<dl className='flex items-center justify-between gap-4'>
-											<dt className='text-base font-normal text-gray-300'>Extra Charges (Shipping + Platform Fee)</dt>
-											<dd className='text-base font-medium text-white'>₹199.00</dd>
-										</dl>
+										<>
+											<dl className='flex items-center justify-between gap-4'>
+												<dt className='text-base font-normal text-gray-300'>Shipping</dt>
+												<dd className='text-base font-medium text-white'>₹0.00</dd>
+											</dl>
+											<dl className='flex items-center justify-between gap-4'>
+												<dt className='text-base font-normal text-gray-300'>Platform Fee</dt>
+												<dd className='text-base font-medium text-white'>₹0.00</dd>
+											</dl>
+										</>
 									)}
 									
 									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
