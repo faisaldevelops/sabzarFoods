@@ -215,7 +215,13 @@ export const finalizeOrder = async (orderId) => {
     order.status = "expired";
     await order.save();
     // Release reserved stock
-    await releaseReservedStock(order.products);
+    console.log(`⏰ Order ${orderId} expired during finalization, releasing stock`);
+    const releaseResult = await releaseReservedStock(order.products);
+    
+    if (!releaseResult.success) {
+      console.warn(`⚠️  Some items failed to release stock for expired order ${orderId}:`, releaseResult.errors);
+    }
+    
     return { success: false, error: "Order hold has expired" };
   }
   
@@ -311,7 +317,11 @@ export const releaseExpiredHolds = async () => {
   for (const order of expiredOrders) {
     try {
       // Release reserved stock
-      await releaseReservedStock(order.products);
+      const releaseResult = await releaseReservedStock(order.products);
+      
+      if (!releaseResult.success) {
+        console.warn(`⚠️  Some items failed to release stock for expired order ${order._id}:`, releaseResult.errors);
+      }
       
       // Update order status
       order.status = "expired";

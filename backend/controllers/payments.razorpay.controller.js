@@ -119,10 +119,16 @@ export const createRazorpayOrder = async (req, res) => {
       razorpayOrder = await razorpay.orders.create(options);
     } catch (rzpError) {
       // If Razorpay order creation fails, release reserved stock
-      await releaseReservedStock(products.map(p => ({
+      console.log(`❌ Razorpay order creation failed, releasing reserved stock`);
+      const releaseResult = await releaseReservedStock(products.map(p => ({
         product: p._id || p.id,
         quantity: p.quantity
       })));
+      
+      if (!releaseResult.success) {
+        console.error(`⚠️  Failed to release some reserved stock after Razorpay error:`, releaseResult.errors);
+      }
+      
       throw rzpError;
     }
 

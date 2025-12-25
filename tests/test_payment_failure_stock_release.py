@@ -28,8 +28,12 @@ class TestPaymentFailureStockRelease:
         for order_id in self.created_order_ids:
             try:
                 self.client.cancel_hold(order_id)
-            except:
-                pass  # Ignore errors during cleanup
+            except Exception as e:
+                # Ignore 400/404 errors (order not found or not in hold status)
+                # but log other errors for debugging
+                error_msg = str(e).lower()
+                if '400' not in error_msg and '404' not in error_msg:
+                    print(f"Warning: Failed to cleanup order {order_id}: {e}")
     
     def test_stock_released_on_hold_cancellation(self):
         """
