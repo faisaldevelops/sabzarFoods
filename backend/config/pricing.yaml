@@ -1,0 +1,34 @@
+# Pricing Configuration
+# This file defines delivery charges and platform fees
+
+delivery:
+  # Local delivery charges (J&K pincodes)
+  local:
+    price: 79  # in rupees
+  
+  # National delivery charges (other states/regions)
+  national:
+    price:  149 # in rupees
+  
+  # Local delivery is determined by pincode
+  # All pincodes from Jammu & Kashmir (J&K) are considered local
+  # J&K pincodes typically start with: 180xxx, 190xxx, 191xxx, 192xxx, 193xxx, 194xxx
+  # Also includes Ladakh pincodes: 194xxx (some areas)
+  # 
+  # Configuration: Use pincode-based logic for J&K
+  usePincodeLogic: true
+  localPincodePrefixes:
+    - "180"  # Jammu region
+    - "190"  # Srinagar/Kashmir region
+    - "191"  # Kashmir region
+    - "192"  # Kashmir region
+    - "193"  # Kashmir region
+    - "194"  # Kashmir/Ladakh region
+
+platformFee:
+  # Constant platform fee (in rupees)
+  constant: 5
+  
+  # Razorpay percentage fee (e.g., 2.0 means 2%)
+  razorpayPercentage: 2.0
+

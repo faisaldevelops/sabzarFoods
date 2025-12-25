@@ -13,6 +13,8 @@ import {
   getHoldOrderInfo,
   cancelHoldOrder
 } from "../lib/stockHold.js";
+import { calculatePricingBreakdown } from "../lib/pricing.js";
+import { validateIndianAddress } from "../lib/addressValidation.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -34,6 +36,15 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ message: "Cart empty" });
     }
     if (!address) return res.status(400).json({ message: "Address required" });
+
+    // Validate that address is from India
+    const validation = validateIndianAddress(address);
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        message: "Invalid address. Only Indian addresses are allowed.",
+        errors: validation.errors 
+      });
+    }
 
     // Check stock availability (considering reserved quantities)
     const stockCheck = await checkStockAvailability(products);
@@ -80,13 +91,21 @@ export const createRazorpayOrder = async (req, res) => {
       });
     }
 
-    // compute total in paise (integer)
-    let totalPaise = 0;
+    // Calculate subtotal in rupees
+    let subtotal = 0;
     for (const p of products) {
-      const pricePaise = Math.round(Number(p.price) * 100); // rupees -> paise
+      const price = Number(p.price);
       const qty = Number(p.quantity || 1);
-      totalPaise += pricePaise * qty;
+      subtotal += price * qty;
     }
+
+    // Calculate pricing breakdown (delivery + platform fee)
+    const pricingBreakdown = calculatePricingBreakdown(subtotal, address);
+    
+    // Total amount includes subtotal + delivery + platform fee
+    // Platform fee already accounts for Razorpay percentage
+    const totalAmount = pricingBreakdown.total;
+    const totalPaise = Math.round(totalAmount * 100); // Convert to paise
 
     const options = {
       amount: totalPaise,
@@ -115,9 +134,16 @@ export const createRazorpayOrder = async (req, res) => {
         quantity: p.quantity,
         price: p.price,
       })),
-      totalAmount: totalPaise / 100,
+      totalAmount: totalAmount,
       razorpayOrderId: razorpayOrder.id,
       address,
+      // Store pricing breakdown in order for reference
+      pricingBreakdown: {
+        subtotal: pricingBreakdown.subtotal,
+        deliveryCharge: pricingBreakdown.deliveryCharge,
+        deliveryType: pricingBreakdown.deliveryType,
+        platformFee: pricingBreakdown.platformFee,
+      },
     });
 
     return res.json({
@@ -129,6 +155,7 @@ export const createRazorpayOrder = async (req, res) => {
       publicOrderId: holdOrder.publicOrderId,
       expiresAt: holdOrder.expiresAt,
       holdDurationSeconds: HOLD_DURATION_SECONDS,
+      pricingBreakdown: pricingBreakdown,
     });
   } catch (err) {
     console.error("createRazorpayOrder:", err);

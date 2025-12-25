@@ -57,18 +57,33 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
       
       if (data && data[0]?.Status === "Success" && data[0]?.PostOffice?.length > 0) {
         const postOffice = data[0].PostOffice[0];
-        setForm((s) => ({
-          ...s,
-          city: postOffice.District || s.city,
-          state: postOffice.State || s.state,
-        }));
-        // Clear any previous errors for city and state
-        setErrors((e) => {
-          const newErrors = { ...e };
-          delete newErrors.city;
-          delete newErrors.state;
-          return newErrors;
-        });
+        const fetchedState = postOffice.State || "";
+        
+        // Validate that the fetched state is an Indian state
+        const isValidState = INDIAN_STATES.some(
+          state => state.toLowerCase() === fetchedState.toLowerCase()
+        );
+        
+        if (isValidState) {
+          setForm((s) => ({
+            ...s,
+            city: postOffice.District || s.city,
+            state: fetchedState,
+          }));
+          // Clear any previous errors for city and state
+          setErrors((e) => {
+            const newErrors = { ...e };
+            delete newErrors.city;
+            delete newErrors.state;
+            return newErrors;
+          });
+        } else {
+          // If state is not valid, show error
+          setErrors((e) => ({
+            ...e,
+            state: "Pincode does not belong to India. Please enter a valid Indian pincode.",
+          }));
+        }
       }
     } catch (error) {
       // Silently fail - user can still manually enter city and state
@@ -109,7 +124,11 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     if (!form.houseNumber.trim()) e.houseNumber = "House number required";
     if (!form.streetAddress.trim()) e.streetAddress = "Street address required";
     if (!form.city.trim()) e.city = "City is required";
-    if (!form.state.trim()) e.state = "Select a state";
+    if (!form.state.trim()) {
+      e.state = "Select a state";
+    } else if (!INDIAN_STATES.includes(form.state)) {
+      e.state = "Please select a valid Indian state";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };

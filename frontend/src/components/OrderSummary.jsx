@@ -27,11 +27,21 @@ const OrderSummary = () => {
 	const { address: addresses, fetchAddresses, createAddress, loading: addressLoading } = useAddressStore();
 	const navigate = useNavigate();
 
+	const [pricingBreakdown, setPricingBreakdown] = useState(null);
+	const [loadingPricing, setLoadingPricing] = useState(false);
+
 	const savings = subtotal - total;
 	const formattedSubtotal = subtotal.toFixed(2);
-	const extraCharges = 199; // Extra charges (Shipping + Platform Fee) in rupees - constant for now
-	const formattedTotal = (total + extraCharges).toFixed(2);
 	const formattedSavings = savings.toFixed(2);
+	
+	// Calculate total with pricing breakdown if available
+	// The backend calculates platform fee based on the subtotal we pass
+	// If we pass the discounted total, the breakdown.total will be correct
+	// But we need to adjust: breakdown.total = subtotal + delivery + platformFee
+	// We want: discountedTotal + delivery + platformFee (calculated on discountedTotal)
+	const formattedTotal = pricingBreakdown 
+		? pricingBreakdown.total.toFixed(2)
+		: (total + 199).toFixed(2); // Fallback to old calculation
 
 	// Fetch addresses when user is logged in
 	useEffect(() => {
@@ -39,6 +49,42 @@ const OrderSummary = () => {
 			fetchAddresses();
 		}
 	}, [user, fetchAddresses]);
+
+	// Fetch pricing breakdown when address is selected
+	useEffect(() => {
+		const fetchPricing = async () => {
+			if (!addresses || addresses.length === 0 || !subtotal) {
+				setPricingBreakdown(null);
+				return;
+			}
+
+			const selectedAddress = addresses[selectedAddressIndex];
+			if (!selectedAddress) {
+				setPricingBreakdown(null);
+				return;
+			}
+
+			setLoadingPricing(true);
+			try {
+				// Use discounted subtotal (total) for platform fee calculation
+				// Platform fee should be calculated on the amount actually being charged
+				const res = await axios.post("/payments/calculate-pricing", {
+					subtotal: total, // Use cart total (after discounts) for fee calculation
+					address: selectedAddress,
+				});
+				if (res.data.success) {
+					setPricingBreakdown(res.data);
+				}
+			} catch (error) {
+				console.error("Error fetching pricing:", error);
+				// Silently fail - will use fallback
+			} finally {
+				setLoadingPricing(false);
+			}
+		};
+
+		fetchPricing();
+	}, [addresses, selectedAddressIndex, total]);
 
 	// Set first address as selected by default when addresses are loaded
 	useEffect(() => {
@@ -407,10 +453,28 @@ const OrderSummary = () => {
 							<dd className='text-base font-medium text-stone-900'>-₹{formattedSavings}</dd>
 						</dl>
 					)}
-					<dl className='flex items-center justify-between gap-4'>
-						<dt className='text-base font-normal text-stone-700'>Extra Charges (Shipping + Platform Fee)</dt>
-						<dd className='text-base font-medium text-stone-900'>₹{extraCharges.toFixed(2)}</dd>
-					</dl>
+					{loadingPricing ? (
+						<dl className='flex items-center justify-between gap-4'>
+							<dt className='text-base font-normal text-stone-700'>Calculating charges...</dt>
+							<dd className='text-base font-medium text-stone-900'>...</dd>
+						</dl>
+					) : pricingBreakdown ? (
+						<>
+							<dl className='flex items-center justify-between gap-4'>
+								<dt className='text-base font-normal text-stone-700'>Delivery Charges ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
+								<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
+							</dl>
+							<dl className='flex items-center justify-between gap-4'>
+								<dt className='text-base font-normal text-stone-700'>Platform Fee</dt>
+								<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
+							</dl>
+						</>
+					) : (
+						<dl className='flex items-center justify-between gap-4'>
+							<dt className='text-base font-normal text-stone-700'>Extra Charges (Shipping + Platform Fee)</dt>
+							<dd className='text-base font-medium text-stone-900'>₹199.00</dd>
+						</dl>
+					)}
 					<dl className='flex items-center justify-between gap-4 border-t border-stone-300 pt-2'>
 						<dt className='text-base font-bold text-stone-900'>Total</dt>
 						<dd className='text-base font-bold text-stone-900'>₹{formattedTotal}</dd>

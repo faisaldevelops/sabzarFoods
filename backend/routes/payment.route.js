@@ -7,10 +7,12 @@ import {
   getHoldStatus,
   cancelHold,
 } from "../controllers/payments.razorpay.controller.js";
+import { calculatePricing } from "../controllers/pricing.controller.js";
 import { getHoldExpiryJobStats } from "../lib/stockHold.js";
 
 const router = express.Router();
 
+router.post("/calculate-pricing", optionalAuth, calculatePricing);
 router.post("/razorpay-create-order", optionalAuth, createRazorpayOrder);
 router.post("/razorpay-verify", optionalAuth, verifyRazorpayPayment);
 router.get("/hold-status", optionalAuth, getHoldStatus);

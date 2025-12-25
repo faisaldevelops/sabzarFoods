@@ -20,6 +20,8 @@ const OrderSummaryPage = () => {
 	const [insufficientItems, setInsufficientItems] = useState([]);
 	const [holdInfo, setHoldInfo] = useState(null);
 	const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
+	const [pricingBreakdown, setPricingBreakdown] = useState(null);
+	const [loadingPricing, setLoadingPricing] = useState(false);
 	const { user } = useUserStore();
 	const { address: addresses, fetchAddresses, createAddress, loading: addressLoading } = useAddressStore();
 	const navigate = useNavigate();
@@ -48,6 +50,41 @@ const OrderSummaryPage = () => {
 			fetchAddresses();
 		}
 	}, [user, fetchAddresses]);
+
+	// Fetch pricing breakdown when address is selected and order data is available
+	useEffect(() => {
+		const fetchPricing = async () => {
+			if (!orderData || !addresses || addresses.length === 0) {
+				setPricingBreakdown(null);
+				return;
+			}
+
+			const selectedAddress = addresses[selectedAddressIndex];
+			if (!selectedAddress) {
+				setPricingBreakdown(null);
+				return;
+			}
+
+			const subtotal = orderData.product.price * orderData.quantity;
+			setLoadingPricing(true);
+			try {
+				const res = await axios.post("/payments/calculate-pricing", {
+					subtotal: subtotal,
+					address: selectedAddress,
+				});
+				if (res.data.success) {
+					setPricingBreakdown(res.data);
+				}
+			} catch (error) {
+				console.error("Error fetching pricing:", error);
+				// Silently fail - will use fallback
+			} finally {
+				setLoadingPricing(false);
+			}
+		};
+
+		fetchPricing();
+	}, [addresses, selectedAddressIndex, orderData]);
 
 	// Set first address as selected by default when addresses are loaded
 	useEffect(() => {
@@ -271,8 +308,9 @@ const OrderSummaryPage = () => {
 	}
 
 	const totalPrice = (orderData.product.price * orderData.quantity).toFixed(2);
-	const extraCharges = 199; // Extra charges (Shipping + Platform Fee) in rupees - constant for now
-	const finalTotal = (parseFloat(totalPrice) + extraCharges).toFixed(2);
+	const finalTotal = pricingBreakdown 
+		? pricingBreakdown.total.toFixed(2)
+		: (parseFloat(totalPrice) + 199).toFixed(2); // Fallback to old calculation
 
 	return (
 		<div className='py-8 md:py-16 bg-stone-50 min-h-screen'>
@@ -419,10 +457,28 @@ const OrderSummaryPage = () => {
 										<dd className='text-base font-medium text-white'>₹{totalPrice}</dd>
 									</dl>
 
-									<dl className='flex items-center justify-between gap-4'>
-										<dt className='text-base font-normal text-gray-300'>Extra Charges (Shipping + Platform Fee)</dt>
-										<dd className='text-base font-medium text-white'>₹{extraCharges.toFixed(2)}</dd>
-									</dl>
+									{loadingPricing ? (
+										<dl className='flex items-center justify-between gap-4'>
+											<dt className='text-base font-normal text-gray-300'>Calculating charges...</dt>
+											<dd className='text-base font-medium text-white'>...</dd>
+										</dl>
+									) : pricingBreakdown ? (
+										<>
+											<dl className='flex items-center justify-between gap-4'>
+												<dt className='text-base font-normal text-gray-300'>Delivery Charges ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
+												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
+											</dl>
+											<dl className='flex items-center justify-between gap-4'>
+												<dt className='text-base font-normal text-gray-300'>Platform Fee</dt>
+												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
+											</dl>
+										</>
+									) : (
+										<dl className='flex items-center justify-between gap-4'>
+											<dt className='text-base font-normal text-gray-300'>Extra Charges (Shipping + Platform Fee)</dt>
+											<dd className='text-base font-medium text-white'>₹199.00</dd>
+										</dl>
+									)}
 									
 									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
 										<dt className='text-base font-bold text-white'>Total</dt>

@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import { validateIndianAddress } from "../lib/addressValidation.js";
 
 // Get all addresses for the authenticated user
 export const getAddresses = async (req, res) => {
@@ -24,6 +25,16 @@ export const addAddress = async (req, res) => {
     // Validate required fields
     if (!name || !phoneNumber || !pincode || !houseNumber || !streetAddress || !city || !state) {
       return res.status(400).json({ message: "All required fields must be provided" });
+    }
+
+    // Validate that address is from India
+    const addressData = { name, phoneNumber, pincode, houseNumber, streetAddress, city, state };
+    const validation = validateIndianAddress(addressData);
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        message: "Invalid address. Only Indian addresses are allowed.",
+        errors: validation.errors 
+      });
     }
 
     const user = await User.findById(req.user._id);
@@ -110,6 +121,24 @@ export const updateAddress = async (req, res) => {
 
     if (addressIndex === -1) {
       return res.status(404).json({ message: "Address not found" });
+    }
+
+    // Prepare updated address data
+    const updatedAddressData = {
+      name: name || user.addresses[addressIndex].name,
+      phoneNumber: phoneNumber || user.addresses[addressIndex].phoneNumber,
+      pincode: pincode || user.addresses[addressIndex].pincode,
+      city: city || user.addresses[addressIndex].city,
+      state: state || user.addresses[addressIndex].state,
+    };
+
+    // Validate that updated address is from India
+    const validation = validateIndianAddress(updatedAddressData);
+    if (!validation.isValid) {
+      return res.status(400).json({ 
+        message: "Invalid address. Only Indian addresses are allowed.",
+        errors: validation.errors 
+      });
     }
 
     // Update the address
