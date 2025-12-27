@@ -7,7 +7,7 @@
   ],
   "headers": {
     "/(.*)": {
-      "Content-Security-Policy": "default-src 'self'; img-src 'self' data:;"
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://res.cloudinary.com https://*.cloudinary.com; connect-src 'self' https: https://api.postalpincode.in https://checkout.razorpay.com https://www.google-analytics.com https://www.googletagmanager.com; frame-src https://checkout.razorpay.com;"
     }
   }
 }
