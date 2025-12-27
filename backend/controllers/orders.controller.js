@@ -496,8 +496,18 @@ export const getBulkAddressSheets = async (req, res) => {
 			.lean();
 
 		// Filter by deliveryType if specified (local or national)
+		// Note: Must be done post-query as it requires pincode evaluation logic
 		let orders = allOrders;
-		if (deliveryType && (deliveryType === 'local' || deliveryType === 'national')) {
+		if (deliveryType) {
+			// Validate deliveryType parameter
+			const validDeliveryTypes = ['local', 'national'];
+			if (!validDeliveryTypes.includes(deliveryType)) {
+				return res.status(400).json({ 
+					success: false, 
+					message: `Invalid deliveryType. Must be one of: ${validDeliveryTypes.join(', ')}` 
+				});
+			}
+			
 			orders = allOrders.filter(order => {
 				const orderDeliveryType = getDeliveryType(order.address);
 				return orderDeliveryType === deliveryType;
@@ -586,9 +596,12 @@ export const getBulkAddressSheets = async (req, res) => {
 		const labelsPerPage = 6;
 		
 		// Sort product names alphabetically with locale-aware comparison
-		const sortedProductNames = Object.keys(labelsByProduct).sort((a, b) => 
-			a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' })
-		);
+		// Put PRODUCT_REMOVED_LABEL at the end
+		const sortedProductNames = Object.keys(labelsByProduct).sort((a, b) => {
+			if (a === PRODUCT_REMOVED_LABEL) return 1;
+			if (b === PRODUCT_REMOVED_LABEL) return -1;
+			return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
+		});
 		
 		sortedProductNames.forEach((productName, productIndex) => {
 			const labels = labelsByProduct[productName];

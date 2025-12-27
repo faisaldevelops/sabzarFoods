@@ -210,6 +210,13 @@ const OrderslistTab = () => {
         }));
     };
     
+    const hasActiveFilters = () => {
+        return filters.phoneNumber || 
+               filters.orderId || 
+               filters.status !== 'all' || 
+               filters.deliveryType !== 'all';
+    };
+    
     const handleClearFilters = () => {
         setFilters({
             phoneNumber: '',
@@ -455,7 +462,7 @@ const OrderslistTab = () => {
             </div>
         )}
         
-        {showFilters && (filters.phoneNumber || filters.orderId || filters.status !== 'all' || filters.deliveryType !== 'all') && (
+        {showFilters && hasActiveFilters() && (
             <div className="mt-4 flex justify-end">
                 <button
                     onClick={handleClearFilters}
