@@ -13,8 +13,7 @@ const OrderslistTab = () => {
     const [filters, setFilters] = useState({
         phoneNumber: '',
         orderId: '',
-        status: 'all',
-        deliveryType: 'all'
+        status: 'all'
     });
     const [showFilters, setShowFilters] = useState(false);
     
@@ -210,19 +209,11 @@ const OrderslistTab = () => {
         }));
     };
     
-    const hasActiveFilters = () => {
-        return filters.phoneNumber || 
-               filters.orderId || 
-               filters.status !== 'all' || 
-               filters.deliveryType !== 'all';
-    };
-    
     const handleClearFilters = () => {
         setFilters({
             phoneNumber: '',
             orderId: '',
-            status: 'all',
-            deliveryType: 'all'
+            status: 'all'
         });
     };
 
@@ -272,7 +263,6 @@ const OrderslistTab = () => {
         if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
         if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
         if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
-        if (debouncedFilters.deliveryType && debouncedFilters.deliveryType !== 'all') params.append('deliveryType', debouncedFilters.deliveryType);
         
         const baseURL = import.meta.env.VITE_API_URL || '';
         const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
@@ -393,7 +383,7 @@ const OrderslistTab = () => {
         </div>
         
         {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                         Phone Number
@@ -444,25 +434,10 @@ const OrderslistTab = () => {
                         <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
-                
-                <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Delivery Type
-                    </label>
-                    <select
-                        value={filters.deliveryType}
-                        onChange={(e) => handleFilterChange('deliveryType', e.target.value)}
-                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    >
-                        <option value="all">All Deliveries</option>
-                        <option value="local">Local (J&K)</option>
-                        <option value="national">National</option>
-                    </select>
-                </div>
             </div>
         )}
         
-        {showFilters && hasActiveFilters() && (
+        {showFilters && (filters.phoneNumber || filters.orderId || filters.status !== 'all') && (
             <div className="mt-4 flex justify-end">
                 <button
                     onClick={handleClearFilters}
