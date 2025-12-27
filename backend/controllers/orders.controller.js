@@ -2,10 +2,6 @@ import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 import twilio from "twilio";
-import { getDeliveryType } from "../lib/pricing.js";
-
-// Constants for label generation
-const PRODUCT_REMOVED_LABEL = 'PRODUCT_REMOVED';
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -47,12 +43,6 @@ const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
 		console.error(`[SMS LOG] Error logging SMS for ${phoneNumber}:`, error.message);
 		return { success: false, reason: error.message };
 	}
-};
-
-// Helper function to capitalize first letter of a string
-const capitalizeFirstLetter = (str) => {
-	if (!str || typeof str !== 'string') return str;
-	return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
 export const getOrdersData = async (req, res) => {
@@ -456,7 +446,7 @@ export const getAddressSheet = async (req, res) => {
 export const getBulkAddressSheets = async (req, res) => {
 	try {
 		// Extract filter parameters from query
-		const { phoneNumber, publicOrderId, deliveryType } = req.query;
+		const { phoneNumber, publicOrderId } = req.query;
 		
 		// Build filter object - ALWAYS filter by processing status only
 		let filter = {
@@ -485,34 +475,10 @@ export const getBulkAddressSheets = async (req, res) => {
 		
 		// Find all orders matching filters (no pagination)
 		// Sort by createdAt in ascending order (oldest first)
-		// Populate products to enable grouping by product name
-		const allOrders = await Order.find(filter)
+		const orders = await Order.find(filter)
 			.populate('user', 'name phoneNumber')
-			.populate({
-				path: 'products.product',
-				select: 'name'
-			})
 			.sort({ createdAt: 1 })
 			.lean();
-
-		// Filter by deliveryType if specified (local or national)
-		// Note: Must be done post-query as it requires pincode evaluation logic
-		let orders = allOrders;
-		if (deliveryType) {
-			// Validate deliveryType parameter
-			const validDeliveryTypes = ['local', 'national'];
-			if (!validDeliveryTypes.includes(deliveryType)) {
-				return res.status(400).json({ 
-					success: false, 
-					message: `Invalid deliveryType. Must be one of: ${validDeliveryTypes.join(', ')}` 
-				});
-			}
-			
-			orders = allOrders.filter(order => {
-				const orderDeliveryType = getDeliveryType(order.address);
-				return orderDeliveryType === deliveryType;
-			});
-		}
 
 		if (orders.length === 0) {
 			return res.status(404).send(`
@@ -532,147 +498,63 @@ export const getBulkAddressSheets = async (req, res) => {
 			`);
 		}
 
-		// Group labels by product name
-		// Each order item (product in an order) gets its own label(s) based on quantity
-		const labelsByProduct = {};
-		
-		orders.forEach(order => {
-			const address = order.address || {};
-			const user = order.user || {};
-			const products = order.products || [];
-			
-			products.forEach(productItem => {
-				const product = productItem.product;
-				const productName = product?.name || PRODUCT_REMOVED_LABEL;
-				const quantity = productItem.quantity || 1;
-				
-				// Initialize product group if not exists
-				if (!labelsByProduct[productName]) {
-					labelsByProduct[productName] = [];
-				}
-				
-				// Create labels for each quantity (one label per item)
-				for (let i = 0; i < quantity; i++) {
-					labelsByProduct[productName].push({
-						orderId: order.publicOrderId || order._id,
-						orderDate: order.createdAt,
-						customerName: address.name || user.name || 'N/A',
-						phone: address.phoneNumber || user.phoneNumber || 'N/A',
-						houseNumber: address.houseNumber || 'N/A',
-						streetAddress: address.streetAddress || 'N/A',
-						landmark: address.landmark || '',
-						city: address.city || 'N/A',
-						state: address.state || 'N/A',
-						pincode: address.pincode || 'N/A',
-						productName: productName,
-						itemNumber: i + 1,
-						totalQuantity: quantity
-					});
-				}
-			});
-		});
-
-		// Generate filter information
-		const appliedFilters = [];
-		appliedFilters.push('Status: Processing');
-		if (deliveryType) {
-			appliedFilters.push(`Delivery Type: ${capitalizeFirstLetter(deliveryType)}`);
-		}
-		if (phoneNumber) {
-			appliedFilters.push(`Phone: ${phoneNumber}`);
-		}
-		if (publicOrderId) {
-			appliedFilters.push(`Order ID: ${publicOrderId}`);
-		}
-
-		const filterInfoHTML = appliedFilters.length > 0 ? `
-		<div class="filter-info">
-			<strong>Applied Filters:</strong> ${appliedFilters.join(' | ')}
-		</div>
-		` : '';
-
-		// Generate HTML for labels grouped by product
-		let addressSheetsHTML = '';
+		// Generate HTML for all address sheets, grouped into pages of 6
 		const labelsPerPage = 6;
+		const pages = [];
 		
-		// Sort product names alphabetically with locale-aware comparison
-		// Put PRODUCT_REMOVED_LABEL at the end
-		const sortedProductNames = Object.keys(labelsByProduct).sort((a, b) => {
-			if (a === PRODUCT_REMOVED_LABEL) return 1;
-			if (b === PRODUCT_REMOVED_LABEL) return -1;
-			return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
-		});
-		
-		sortedProductNames.forEach((productName, productIndex) => {
-			const labels = labelsByProduct[productName];
+		for (let i = 0; i < orders.length; i += labelsPerPage) {
+			const pageOrders = orders.slice(i, i + labelsPerPage);
+			const isLastPage = i + labelsPerPage >= orders.length;
 			
-			// Add product header (on its own page before product labels)
-			addressSheetsHTML += `
-		<div class="product-header-page" style="page-break-after: always;">
-			<div class="product-header">
-				<h1>${productName}</h1>
-				<p class="product-count">${labels.length} label${labels.length !== 1 ? 's' : ''}</p>
-			</div>
-		</div>
-			`;
-			
-			// Generate labels for this product in pages of 6
-			for (let i = 0; i < labels.length; i += labelsPerPage) {
-				const pageLabels = labels.slice(i, i + labelsPerPage);
-				const isLastPageOfProduct = i + labelsPerPage >= labels.length;
-				const isLastProduct = productIndex === sortedProductNames.length - 1;
-				const shouldBreak = !isLastPageOfProduct || !isLastProduct;
+			const pageHTML = pageOrders.map(order => {
+				const address = order.address || {};
+				const user = order.user || {};
 				
-				const pageHTML = pageLabels.map(label => {
-					return `
+				return `
 			<div class="address-sheet">
 				<div class="header">
-					<div class="product-name">${label.productName}</div>
-					<div class="order-id">Order #${label.orderId}</div>
-					<div style="font-size: 11px; color: #666;">Date: ${new Date(label.orderDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
-					${label.totalQuantity > 1 ? `<div style="font-size: 11px; color: #666; margin-top: 3px;">Item ${label.itemNumber} of ${label.totalQuantity}</div>` : ''}
+					<div class="order-id">Order #${order.publicOrderId || order._id}</div>
+					<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
 				</div>
 				
 				<div class="section">
 					<div class="label">Deliver To:</div>
-					<div class="value name">${label.customerName}</div>
+					<div class="value name">${address.name || user.name || 'N/A'}</div>
 				</div>
 				
 				<div class="section">
 					<div class="label">Phone:</div>
-					<div class="value phone">${label.phone}</div>
+					<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
 				</div>
 				
 				<div class="section">
 					<div class="label">Address:</div>
 					<div class="value">
-						<div class="address-line">${label.houseNumber}, ${label.streetAddress}</div>
-						${label.landmark ? `<div class="address-line">Near: ${label.landmark}</div>` : ''}
-						<div class="address-line">${label.city}, ${label.state}</div>
-						<div class="address-line" style="font-weight: bold;">PIN: ${label.pincode}</div>
+						<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
+						${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
+						<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
+						<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
 					</div>
 				</div>
 			</div>
-					`;
-				}).join('');
-				
-				addressSheetsHTML += `
-		<div class="page-container" ${shouldBreak ? 'style="page-break-after: always;"' : ''}>
+				`;
+			}).join('');
+			
+			pages.push(`
+		<div class="page-container" ${!isLastPage ? 'style="page-break-after: always;"' : ''}>
 			${pageHTML}
 		</div>
-				`;
-			}
-		});
-
-		// Count total labels
-		const totalLabels = Object.values(labelsByProduct).reduce((sum, labels) => sum + labels.length, 0);
+			`);
+		}
+		
+		const addressSheetsHTML = pages.join('');
 
 		const html = `
 <!DOCTYPE html>
 <html>
 <head>
 	<meta charset="UTF-8">
-	<title>Address Labels - ${totalLabels} Label${totalLabels !== 1 ? 's' : ''} (${sortedProductNames.length} Product${sortedProductNames.length !== 1 ? 's' : ''})</title>
+	<title>Bulk Address Sheets - ${orders.length} Order${orders.length !== 1 ? 's' : ''}</title>
 	<style>
 		* {
 			margin: 0;
@@ -682,37 +564,6 @@ export const getBulkAddressSheets = async (req, res) => {
 		body {
 			font-family: Arial, sans-serif;
 			padding: 10px;
-		}
-		.filter-info {
-			background-color: #f0f0f0;
-			border: 2px solid #333;
-			padding: 15px;
-			margin-bottom: 20px;
-			text-align: center;
-			font-size: 14px;
-			page-break-after: always;
-		}
-		.product-header-page {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			min-height: 100vh;
-			page-break-inside: avoid;
-		}
-		.product-header {
-			text-align: center;
-			padding: 40px;
-			border: 4px solid #000;
-			background-color: #f8f8f8;
-		}
-		.product-header h1 {
-			font-size: 48px;
-			margin-bottom: 20px;
-			color: #000;
-		}
-		.product-count {
-			font-size: 24px;
-			color: #666;
 		}
 		.page-container {
 			display: grid;
@@ -726,7 +577,7 @@ export const getBulkAddressSheets = async (req, res) => {
 		}
 		.address-sheet {
 			border: 2px solid #000;
-			padding: 15px;
+			padding: 20px;
 			display: flex;
 			flex-direction: column;
 			height: 100%;
@@ -735,57 +586,44 @@ export const getBulkAddressSheets = async (req, res) => {
 		.header {
 			text-align: center;
 			border-bottom: 2px solid #000;
-			padding-bottom: 8px;
-			margin-bottom: 12px;
-		}
-		.product-name {
-			font-size: 14px;
-			font-weight: bold;
-			color: #333;
-			margin-bottom: 3px;
+			padding-bottom: 10px;
+			margin-bottom: 15px;
 		}
 		.order-id {
-			font-size: 16px;
+			font-size: 18px;
 			font-weight: bold;
-			margin-bottom: 2px;
+			margin-bottom: 5px;
 		}
 		.section {
-			margin-bottom: 12px;
+			margin-bottom: 15px;
 		}
 		.label {
 			font-weight: bold;
-			font-size: 11px;
+			font-size: 12px;
 			color: #666;
 			text-transform: uppercase;
-			margin-bottom: 2px;
+			margin-bottom: 3px;
 		}
 		.value {
-			font-size: 14px;
-			margin-bottom: 6px;
-			line-height: 1.3;
+			font-size: 16px;
+			margin-bottom: 8px;
+			line-height: 1.4;
 		}
 		.name {
-			font-size: 18px;
+			font-size: 20px;
 			font-weight: bold;
 		}
 		.phone {
-			font-size: 16px;
+			font-size: 18px;
 			font-weight: bold;
 		}
 		.address-line {
-			margin-bottom: 4px;
+			margin-bottom: 5px;
 		}
 		@media print {
 			body {
 				padding: 0;
 				margin: 0;
-			}
-			.filter-info {
-				page-break-after: always;
-			}
-			.product-header-page {
-				page-break-after: always;
-				page-break-inside: avoid;
 			}
 			.page-container {
 				width: 100%;
@@ -801,7 +639,7 @@ export const getBulkAddressSheets = async (req, res) => {
 			}
 			.address-sheet {
 				border: 2px solid #000;
-				padding: 15px;
+				padding: 20px;
 				page-break-inside: avoid;
 			}
 			@page {
@@ -814,15 +652,10 @@ export const getBulkAddressSheets = async (req, res) => {
 				min-height: 100vh;
 				margin-bottom: 20px;
 			}
-			.product-header-page {
-				min-height: 100vh;
-				margin-bottom: 20px;
-			}
 		}
 	</style>
 </head>
 <body>
-	${filterInfoHTML}
 	${addressSheetsHTML}
 	<script>
 		// Auto-print when page loads
