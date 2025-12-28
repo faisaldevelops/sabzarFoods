@@ -12,8 +12,16 @@ export const upsertBOM = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Check if BOM entry already exists
-    const existingBOM = await ProductBOM.findOne({ product, component });
+    // Validate quantityPerUnit is provided and is a positive number
+    if (quantityPerUnit === undefined || quantityPerUnit === null || typeof quantityPerUnit !== 'number' || quantityPerUnit <= 0) {
+      return res.status(400).json({ message: "quantityPerUnit must be a positive number" });
+    }
+
+    // Normalize component name to lowercase for consistent matching
+    const normalizedComponent = component.toLowerCase().trim();
+
+    // Check if BOM entry already exists (case-insensitive)
+    const existingBOM = await ProductBOM.findOne({ product, component: normalizedComponent });
 
     if (existingBOM) {
       // Update existing
@@ -31,7 +39,7 @@ export const upsertBOM = async (req, res) => {
       // Create new
       const bom = new ProductBOM({
         product,
-        component,
+        component: normalizedComponent,
         quantityPerUnit,
         description: description || "",
       });

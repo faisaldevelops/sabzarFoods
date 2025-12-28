@@ -14,6 +14,27 @@ import Product from "../models/product.model.js";
  * 5. COGS = sold_quantity × cost_per_unit
  */
 
+// Helper: Escape string values for CSV to prevent CSV injection
+function escapeCSV(value) {
+  if (value === null || value === undefined) {
+    return '""';
+  }
+  const str = String(value);
+  // If the string starts with formula-triggering characters, prefix with single quote
+  // Also double any internal quotes and wrap in quotes
+  const needsQuote = str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r');
+  const escapedStr = str.replace(/"/g, '""');
+  
+  // Prefix with single quote if starts with potentially dangerous characters (formula injection prevention)
+  const dangerousChars = ['=', '+', '-', '@', '\t', '\r'];
+  const startsWithDangerous = dangerousChars.some(char => escapedStr.startsWith(char));
+  
+  if (startsWithDangerous) {
+    return `"'${escapedStr}"`;
+  }
+  return needsQuote || str.length === 0 ? `"${escapedStr}"` : `"${escapedStr}"`;
+}
+
 // Helper: Calculate cost per unit for a product based on BOM and expenses
 async function calculateCostPerUnit(productId, endDate) {
   try {
@@ -32,17 +53,18 @@ async function calculateCostPerUnit(productId, endDate) {
     
     const expenses = await Expense.find(expenseFilter);
 
-    // Group expenses by component
+    // Group expenses by component (case-insensitive)
     const componentExpenses = {};
     expenses.forEach(expense => {
-      if (!componentExpenses[expense.component]) {
-        componentExpenses[expense.component] = {
+      const normalizedComponent = expense.component.toLowerCase();
+      if (!componentExpenses[normalizedComponent]) {
+        componentExpenses[normalizedComponent] = {
           totalCost: 0,
           totalQuantity: 0,
         };
       }
-      componentExpenses[expense.component].totalCost += expense.totalCost;
-      componentExpenses[expense.component].totalQuantity += expense.quantityPurchased;
+      componentExpenses[normalizedComponent].totalCost += expense.totalCost;
+      componentExpenses[normalizedComponent].totalQuantity += expense.quantityPurchased;
     });
 
     // Calculate cost per unit based on BOM
@@ -51,7 +73,7 @@ async function calculateCostPerUnit(productId, endDate) {
     let hasIncompleteBOM = false;
 
     for (const bomEntry of bomEntries) {
-      const component = bomEntry.component;
+      const component = bomEntry.component.toLowerCase();
       const qtyPerUnit = bomEntry.quantityPerUnit;
       
       const expenseData = componentExpenses[component];
@@ -148,29 +170,101 @@ export const getFinanceDashboard = async (req, res) => {
     const productFilter = productId ? { _id: productId } : {};
     const products = await Product.find(productFilter);
 
+    // Batch-load all expenses for all products to avoid N+1 queries
+    const productIds = products.map((p) => p._id);
+    const batchedExpenseFilter = { product: { $in: productIds } };
+    if (endDate) {
+      batchedExpenseFilter.expenseDate = { $lte: new Date(endDate) };
+    }
+    const allProductExpenses = await Expense.find(batchedExpenseFilter);
+
+    // Pre-aggregate total expenses per product in memory
+    const expenseTotalsByProductId = allProductExpenses.reduce((acc, exp) => {
+      const key = String(exp.product);
+      acc[key] = (acc[key] || 0) + exp.totalCost;
+      return acc;
+    }, {});
+
+    // Pre-aggregate expenses by product and component for cost calculation
+    const expensesByProductAndComponent = allProductExpenses.reduce((acc, exp) => {
+      const productKey = String(exp.product);
+      const componentKey = exp.component.toLowerCase();
+      if (!acc[productKey]) {
+        acc[productKey] = {};
+      }
+      if (!acc[productKey][componentKey]) {
+        acc[productKey][componentKey] = { totalCost: 0, totalQuantity: 0 };
+      }
+      acc[productKey][componentKey].totalCost += exp.totalCost;
+      acc[productKey][componentKey].totalQuantity += exp.quantityPurchased;
+      return acc;
+    }, {});
+
+    // Batch-load all BOM entries for all products
+    const allBomEntries = await ProductBOM.find({ product: { $in: productIds } });
+    const bomByProductId = allBomEntries.reduce((acc, bom) => {
+      const key = String(bom.product);
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(bom);
+      return acc;
+    }, {});
+
     const dashboardData = [];
     let totalRevenue = 0;
     let totalCOGS = 0;
     let totalExpenses = 0;
     let totalLockedInventoryCost = 0;
 
+    // Compute per-product dashboard data using pre-fetched data
     for (const product of products) {
+      const productIdKey = String(product._id);
+      
       // Get sales data
       const salesData = await getSalesData(product._id, startDate, endDate);
       
-      // Calculate cost per unit
-      const costData = await calculateCostPerUnit(product._id, endDate);
+      // Calculate cost per unit using pre-fetched data
+      const bomEntries = bomByProductId[productIdKey] || [];
+      const componentExpenses = expensesByProductAndComponent[productIdKey] || {};
+      
+      let costPerUnit = 0;
+      const breakdown = [];
+      let hasIncompleteBOM = bomEntries.length === 0;
+
+      for (const bomEntry of bomEntries) {
+        const component = bomEntry.component.toLowerCase();
+        const qtyPerUnit = bomEntry.quantityPerUnit;
+        const expenseData = componentExpenses[component];
+
+        if (!expenseData || expenseData.totalQuantity === 0) {
+          breakdown.push({
+            component,
+            quantityPerUnit: qtyPerUnit,
+            costPerComponentUnit: 0,
+            costForProduct: 0,
+            warning: "No expenses recorded for this component",
+          });
+          hasIncompleteBOM = true;
+          continue;
+        }
+
+        const costPerComponentUnit = expenseData.totalCost / expenseData.totalQuantity;
+        const costForProduct = costPerComponentUnit * qtyPerUnit;
+        costPerUnit += costForProduct;
+        breakdown.push({
+          component,
+          quantityPerUnit: qtyPerUnit,
+          costPerComponentUnit,
+          costForProduct,
+        });
+      }
       
       // Calculate COGS (only for sold units)
-      const cogs = salesData.quantitySold * costData.costPerUnit;
+      const cogs = salesData.quantitySold * costPerUnit;
       
-      // Get total expenses for this product
-      const expenseFilter = { product: product._id };
-      if (endDate) {
-        expenseFilter.expenseDate = { $lte: new Date(endDate) };
-      }
-      const productExpenses = await Expense.find(expenseFilter);
-      const totalExpenseAmount = productExpenses.reduce((sum, exp) => sum + exp.totalCost, 0);
+      // Get pre-aggregated total expenses for this product
+      const totalExpenseAmount = expenseTotalsByProductId[productIdKey] || 0;
       
       // Calculate locked inventory cost (unrecovered expenses)
       // This is the total expenses minus what's been recovered through sales
@@ -193,10 +287,10 @@ export const getFinanceDashboard = async (req, res) => {
           orderCount: salesData.orderCount,
         },
         costing: {
-          costPerUnit: costData.costPerUnit,
+          costPerUnit: costPerUnit,
           totalCOGS: cogs,
-          costBreakdown: costData.breakdown,
-          hasIncompleteBOM: costData.hasIncompleteBOM,
+          costBreakdown: breakdown,
+          hasIncompleteBOM: hasIncompleteBOM,
         },
         expenses: {
           totalExpenses: totalExpenseAmount,
@@ -340,26 +434,78 @@ export const exportFinanceCSV = async (req, res) => {
       "Gross Profit Margin %",
     ].join(","));
 
-    for (const product of products) {
-      const salesData = await getSalesData(product._id, startDate, endDate);
-      const costData = await calculateCostPerUnit(product._id, endDate);
-      const cogs = salesData.quantitySold * costData.costPerUnit;
-      
-      const expenseFilter = { product: product._id };
-      if (endDate) {
-        expenseFilter.expenseDate = { $lte: new Date(endDate) };
+    // Batch-load all expenses for all products to avoid N+1 queries
+    const productIds = products.map((p) => p._id);
+    const batchedExpenseFilter = { product: { $in: productIds } };
+    if (endDate) {
+      batchedExpenseFilter.expenseDate = { $lte: new Date(endDate) };
+    }
+    const allExpenses = await Expense.find(batchedExpenseFilter);
+
+    // Pre-aggregate expenses by product
+    const expenseTotalsByProductId = allExpenses.reduce((acc, exp) => {
+      const key = String(exp.product);
+      acc[key] = (acc[key] || 0) + exp.totalCost;
+      return acc;
+    }, {});
+
+    // Pre-aggregate expenses by product and component
+    const expensesByProductAndComponent = allExpenses.reduce((acc, exp) => {
+      const productKey = String(exp.product);
+      const componentKey = exp.component.toLowerCase();
+      if (!acc[productKey]) {
+        acc[productKey] = {};
       }
-      const productExpenses = await Expense.find(expenseFilter);
-      const totalExpenses = productExpenses.reduce((sum, exp) => sum + exp.totalCost, 0);
+      if (!acc[productKey][componentKey]) {
+        acc[productKey][componentKey] = { totalCost: 0, totalQuantity: 0 };
+      }
+      acc[productKey][componentKey].totalCost += exp.totalCost;
+      acc[productKey][componentKey].totalQuantity += exp.quantityPurchased;
+      return acc;
+    }, {});
+
+    // Batch-load all BOM entries
+    const allBomEntries = await ProductBOM.find({ product: { $in: productIds } });
+    const bomByProductId = allBomEntries.reduce((acc, bom) => {
+      const key = String(bom.product);
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(bom);
+      return acc;
+    }, {});
+
+    for (const product of products) {
+      const productIdKey = String(product._id);
+      const salesData = await getSalesData(product._id, startDate, endDate);
+      
+      // Calculate cost per unit using pre-fetched data
+      const bomEntries = bomByProductId[productIdKey] || [];
+      const componentExpenses = expensesByProductAndComponent[productIdKey] || {};
+      
+      let costPerUnit = 0;
+      for (const bomEntry of bomEntries) {
+        const component = bomEntry.component.toLowerCase();
+        const qtyPerUnit = bomEntry.quantityPerUnit;
+        const expenseData = componentExpenses[component];
+
+        if (expenseData && expenseData.totalQuantity > 0) {
+          const costPerComponentUnit = expenseData.totalCost / expenseData.totalQuantity;
+          costPerUnit += costPerComponentUnit * qtyPerUnit;
+        }
+      }
+      
+      const cogs = salesData.quantitySold * costPerUnit;
+      const totalExpenses = expenseTotalsByProductId[productIdKey] || 0;
       const lockedInventoryCost = Math.max(0, totalExpenses - cogs);
       const grossProfit = salesData.revenue - cogs;
       const profitMargin = salesData.revenue > 0 ? (grossProfit / salesData.revenue) * 100 : 0;
 
       csvRows.push([
-        `"${product.name}"`,
+        escapeCSV(product.name),
         salesData.quantitySold,
         salesData.revenue.toFixed(2),
-        costData.costPerUnit.toFixed(2),
+        costPerUnit.toFixed(2),
         cogs.toFixed(2),
         totalExpenses.toFixed(2),
         cogs.toFixed(2),
@@ -388,26 +534,100 @@ export const getMonthlyProfitTrend = async (req, res) => {
     const monthsData = [];
     const now = new Date();
     
+    // Calculate the date range for all months
+    const oldestStartDate = new Date(now.getFullYear(), now.getMonth() - parseInt(months) + 1, 1);
+    const latestEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    
+    // Batch-load all orders in the entire date range
+    const allOrders = await Order.find({
+      status: "paid",
+      createdAt: { $gte: oldestStartDate, $lte: latestEndDate },
+    });
+
+    // Get all unique product IDs from orders
+    const productIdsSet = new Set();
+    allOrders.forEach(order => {
+      order.products.forEach(item => {
+        productIdsSet.add(String(item.product));
+      });
+    });
+    const productIds = Array.from(productIdsSet);
+
+    // Batch-load all expenses for these products up to the latest end date
+    const allExpenses = await Expense.find({
+      product: { $in: productIds },
+      expenseDate: { $lte: latestEndDate },
+    });
+
+    // Batch-load all BOM entries for these products
+    const allBomEntries = await ProductBOM.find({ product: { $in: productIds } });
+
+    // Build lookup maps for BOM and expenses
+    const bomByProductId = allBomEntries.reduce((acc, bom) => {
+      const key = String(bom.product);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(bom);
+      return acc;
+    }, {});
+
+    // Helper function to calculate cost per unit from pre-fetched data
+    const calculateCostFromData = (productId, expenses) => {
+      const productIdKey = String(productId);
+      const bomEntries = bomByProductId[productIdKey] || [];
+      
+      if (bomEntries.length === 0) return 0;
+
+      // Group expenses by component
+      const componentExpenses = {};
+      expenses.forEach(exp => {
+        if (String(exp.product) !== productIdKey) return;
+        const normalizedComponent = exp.component.toLowerCase();
+        if (!componentExpenses[normalizedComponent]) {
+          componentExpenses[normalizedComponent] = { totalCost: 0, totalQuantity: 0 };
+        }
+        componentExpenses[normalizedComponent].totalCost += exp.totalCost;
+        componentExpenses[normalizedComponent].totalQuantity += exp.quantityPurchased;
+      });
+
+      let costPerUnit = 0;
+      for (const bomEntry of bomEntries) {
+        const component = bomEntry.component.toLowerCase();
+        const expenseData = componentExpenses[component];
+        if (expenseData && expenseData.totalQuantity > 0) {
+          costPerUnit += (expenseData.totalCost / expenseData.totalQuantity) * bomEntry.quantityPerUnit;
+        }
+      }
+      return costPerUnit;
+    };
+    
     for (let i = parseInt(months) - 1; i >= 0; i--) {
       const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
       
-      // Get all sales for the month
-      const orders = await Order.find({
-        status: "paid",
-        createdAt: { $gte: startDate, $lte: endDate },
-      });
+      // Filter orders for this month from pre-fetched data
+      const monthOrders = allOrders.filter(order => 
+        order.createdAt >= startDate && order.createdAt <= endDate
+      );
+      
+      // Filter expenses up to this month's end date
+      const expensesUpToEndDate = allExpenses.filter(exp => exp.expenseDate <= endDate);
       
       let monthRevenue = 0;
       let monthCOGS = 0;
       
-      for (const order of orders) {
+      // Cache for cost per unit calculations within this month
+      const costCache = {};
+      
+      for (const order of monthOrders) {
         for (const item of order.products) {
           const revenue = item.quantity * item.price;
           monthRevenue += revenue;
           
-          const costData = await calculateCostPerUnit(item.product, endDate);
-          const itemCOGS = item.quantity * costData.costPerUnit;
+          const productIdKey = String(item.product);
+          if (!(productIdKey in costCache)) {
+            costCache[productIdKey] = calculateCostFromData(item.product, expensesUpToEndDate);
+          }
+          const itemCOGS = item.quantity * costCache[productIdKey];
           monthCOGS += itemCOGS;
         }
       }

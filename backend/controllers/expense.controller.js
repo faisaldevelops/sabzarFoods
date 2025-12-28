@@ -12,9 +12,17 @@ export const createExpense = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // Validate quantityPurchased and totalCost are positive numbers
+    if (typeof quantityPurchased !== 'number' || quantityPurchased <= 0) {
+      return res.status(400).json({ message: "quantityPurchased must be a positive number" });
+    }
+    if (typeof totalCost !== 'number' || totalCost <= 0) {
+      return res.status(400).json({ message: "totalCost must be a positive number" });
+    }
+
     const expense = new Expense({
       product,
-      component,
+      component: component.toLowerCase().trim(), // Normalize component name for consistent matching
       quantityPurchased,
       totalCost,
       paidBy,

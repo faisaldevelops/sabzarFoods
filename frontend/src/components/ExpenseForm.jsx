@@ -49,12 +49,24 @@ const ExpenseForm = ({ products }) => {
       return;
     }
 
+    // Validate positive values
+    const qty = parseFloat(formData.quantityPurchased);
+    const cost = parseFloat(formData.totalCost);
+    if (qty <= 0) {
+      toast.error("Quantity purchased must be greater than zero");
+      return;
+    }
+    if (cost <= 0) {
+      toast.error("Total cost must be greater than zero");
+      return;
+    }
+
     try {
       await createExpense({
         product: formData.product,
         component: formData.component.trim(),
-        quantityPurchased: parseFloat(formData.quantityPurchased),
-        totalCost: parseFloat(formData.totalCost),
+        quantityPurchased: qty,
+        totalCost: cost,
         paidBy: formData.paidBy.trim(),
         expenseDate: formData.expenseDate,
       });
@@ -138,7 +150,7 @@ const ExpenseForm = ({ products }) => {
               value={formData.quantityPurchased}
               onChange={handleChange}
               required
-              min="0"
+              min="0.01"
               step="0.01"
               placeholder="100"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -156,7 +168,7 @@ const ExpenseForm = ({ products }) => {
               value={formData.totalCost}
               onChange={handleChange}
               required
-              min="0"
+              min="0.01"
               step="0.01"
               placeholder="5000"
               className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
