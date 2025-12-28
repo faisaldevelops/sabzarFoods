@@ -21,6 +21,7 @@ const BOMManager = ({ products }) => {
     } else {
       setBomEntries([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct]);
 
   const loadBOMForProduct = async (productId) => {
