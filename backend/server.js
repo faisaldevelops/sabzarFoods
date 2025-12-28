@@ -13,6 +13,9 @@ import orderRoutes from "./routes/order.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import otpRoutes from "./routes/otp.route.js";
 import addressRoutes from "./routes/address.route.js";
+import expenseRoutes from "./routes/expense.route.js";
+import bomRoutes from "./routes/bom.route.js";
+import financeRoutes from "./routes/finance.route.js";
 import { connectDB } from "./lib/db.js";
 import { startHoldExpiryJob } from "./lib/stockHold.js";
 
@@ -69,6 +72,9 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/bom", bomRoutes);
+app.use("/api/finance", financeRoutes);
 
 /* =======================
    Start Server
