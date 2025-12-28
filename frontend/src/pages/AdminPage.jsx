@@ -63,7 +63,7 @@
 // export default AdminPage;
 
 
-import { BarChart, PlusCircle, ShoppingBag, ShoppingBasket } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBag, ShoppingBasket, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -72,12 +72,14 @@ import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import { useProductStore } from "../stores/useProductStore";
 import OrderslistTab from "../components/OrdersTab";
+import FinanceTab from "../components/FinanceTab";
 
 const tabs = [
   { id: "create", label: "Create Product", icon: PlusCircle },
   { id: "products", label: "Products", icon: ShoppingBasket },
   { id: "analytics", label: "Analytics", icon: BarChart },
   { id: "orders", label: "Orders", icon: ShoppingBag },
+  { id: "finance", label: "Finance / Costing", icon: DollarSign },
 ];
 
 const AdminPage = () => {
@@ -100,12 +102,12 @@ const AdminPage = () => {
           Admin Dashboard
         </motion.h1>
 
-        {/* ✅ Responsive Grid Tabs (2 per row on small, 4 per row on large) */}
+        {/* ✅ Responsive Grid Tabs (2 per row on small, 3-5 per row on large) */}
         <div
           className="
-            grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4
+            grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5
             gap-3 mb-8
-            max-w-3xl mx-auto
+            max-w-5xl mx-auto
           "
         >
           {tabs.map((tab) => (
@@ -134,6 +136,7 @@ const AdminPage = () => {
           {activeTab === "products" && <ProductsList />}
           {activeTab === "analytics" && <AnalyticsTab />}
           {activeTab === "orders" && <OrderslistTab />}
+          {activeTab === "finance" && <FinanceTab />}
         </div>
       </div>
     </div>
