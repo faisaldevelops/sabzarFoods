@@ -1,311 +1,219 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  DollarSign,
-  TrendingUp,
-  Package,
-  Download,
-  Calendar,
-  AlertCircle,
-} from "lucide-react";
+import { Download, Calendar, RefreshCw } from "lucide-react";
 import { useFinanceStore } from "../stores/useFinanceStore";
 import { useProductStore } from "../stores/useProductStore";
 import ExpenseForm from "./ExpenseForm";
-import BOMManager from "./BOMManager";
 import LoadingSpinner from "./LoadingSpinner";
 
 const FinanceTab = () => {
-  const [activeSubTab, setActiveSubTab] = useState("dashboard");
-  const [dateRange, setDateRange] = useState({
-    startDate: "",
-    endDate: "",
-  });
+  const [activeTab, setActiveTab] = useState("summary");
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
 
-  const { financeDashboard, monthlyTrend, fetchFinanceDashboard, fetchMonthlyTrend, exportFinanceCSV, loading } = useFinanceStore();
+  const { financeDashboard, fetchFinanceDashboard, exportFinanceCSV, loading } = useFinanceStore();
   const { products, fetchAllProducts } = useProductStore();
 
   useEffect(() => {
     fetchAllProducts();
     fetchFinanceDashboard();
-    fetchMonthlyTrend(6);
-  }, [fetchAllProducts, fetchFinanceDashboard, fetchMonthlyTrend]);
+  }, [fetchAllProducts, fetchFinanceDashboard]);
 
-  const handleDateRangeChange = (e) => {
-    const { name, value } = e.target;
-    setDateRange((prev) => ({ ...prev, [name]: value }));
+  const handleDateChange = (e) => {
+    setDateRange(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const applyFilters = () => {
+  const applyFilter = () => {
     const filters = {};
     if (dateRange.startDate) filters.startDate = dateRange.startDate;
     if (dateRange.endDate) filters.endDate = dateRange.endDate;
     fetchFinanceDashboard(filters);
   };
 
-  const handleExport = () => {
-    const filters = {};
-    if (dateRange.startDate) filters.startDate = dateRange.startDate;
-    if (dateRange.endDate) filters.endDate = dateRange.endDate;
-    exportFinanceCSV(filters);
-  };
+  const formatCurrency = (val) => `₹${(val || 0).toFixed(2)}`;
 
-  const subTabs = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "expenses", label: "Add Expense" },
-    { id: "bom", label: "Product BOM" },
-  ];
-
-  if (loading && !financeDashboard) {
-    return <LoadingSpinner />;
-  }
+  if (loading && !financeDashboard) return <LoadingSpinner />;
 
   return (
     <div className="space-y-6">
-      {/* Sub-tabs */}
-      <div className="flex flex-wrap gap-2 justify-center">
-        {subTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSubTab(tab.id)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeSubTab === tab.id
-                ? "bg-emerald-600 text-white"
-                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-2 justify-center">
+        <button
+          onClick={() => setActiveTab("summary")}
+          className={`px-4 py-2 rounded-md font-medium ${activeTab === "summary" ? "bg-emerald-600 text-white" : "bg-gray-700 text-gray-300"}`}
+        >
+          Summary
+        </button>
+        <button
+          onClick={() => setActiveTab("add")}
+          className={`px-4 py-2 rounded-md font-medium ${activeTab === "add" ? "bg-emerald-600 text-white" : "bg-gray-700 text-gray-300"}`}
+        >
+          Add Expense
+        </button>
       </div>
 
-      {/* Dashboard View */}
-      {activeSubTab === "dashboard" && (
+      {activeTab === "summary" && (
         <div className="space-y-6">
-          {/* Date Range Filter */}
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={dateRange.startDate}
-                  onChange={handleDateRangeChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
-                />
-              </div>
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  name="endDate"
-                  value={dateRange.endDate}
-                  onChange={handleDateRangeChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white"
-                />
-              </div>
-              <button
-                onClick={applyFilters}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700"
-              >
-                Apply
-              </button>
-              <button
-                onClick={handleExport}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export CSV
-              </button>
+          {/* Date Filter */}
+          <div className="bg-gray-800 p-4 rounded-lg flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                <Calendar className="inline w-4 h-4 mr-1" />From
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={dateRange.startDate}
+                onChange={handleDateChange}
+                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+              />
             </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                <Calendar className="inline w-4 h-4 mr-1" />To
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={dateRange.endDate}
+                onChange={handleDateChange}
+                className="px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
+              />
+            </div>
+            <button onClick={applyFilter} className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700">
+              Apply
+            </button>
+            <button onClick={() => fetchFinanceDashboard()} className="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-500">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => exportFinanceCSV(dateRange)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2">
+              <Download className="w-4 h-4" /> Export
+            </button>
           </div>
 
-          {financeDashboard && (
-            <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <motion.div
-                  className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 rounded-lg shadow-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-emerald-100 text-sm">Total Revenue</p>
-                      <p className="text-3xl font-bold text-white mt-2">
-                        ₹{financeDashboard.summary.totalRevenue.toFixed(2)}
-                      </p>
+          {/* Settlement Summary - Who should get money back */}
+          {financeDashboard?.settlement && financeDashboard.settlement.length > 0 && (
+            <div className="bg-gray-800 p-5 rounded-lg">
+              <h3 className="text-lg font-semibold text-emerald-400 mb-4">Settlement Summary</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {financeDashboard.settlement.map((item, idx) => (
+                  <motion.div
+                    key={idx}
+                    className="bg-gray-700 p-4 rounded-lg"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                  >
+                    <p className="text-white font-bold text-lg mb-3">{item.payer}</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Total Paid:</span>
+                        <span className="text-purple-400 font-medium">{formatCurrency(item.totalPaid)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Recovered:</span>
+                        <span className="text-emerald-400 font-medium">{formatCurrency(item.totalRecovered)}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-gray-600">
+                        <span className="text-gray-300">Pending:</span>
+                        <span className={`font-bold ${item.pendingRecovery > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                          {formatCurrency(item.pendingRecovery)}
+                        </span>
+                      </div>
                     </div>
-                    <DollarSign className="w-12 h-12 text-emerald-200" />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  className="bg-gradient-to-br from-red-500 to-red-700 p-6 rounded-lg shadow-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-red-100 text-sm">Recovered Expenses</p>
-                      <p className="text-3xl font-bold text-white mt-2">
-                        ₹{financeDashboard.summary.recoveredExpenses.toFixed(2)}
-                      </p>
-                    </div>
-                    <TrendingUp className="w-12 h-12 text-red-200" />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  className="bg-gradient-to-br from-orange-500 to-orange-700 p-6 rounded-lg shadow-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-orange-100 text-sm">Locked Inventory</p>
-                      <p className="text-3xl font-bold text-white mt-2">
-                        ₹{financeDashboard.summary.lockedInventoryCost.toFixed(2)}
-                      </p>
-                    </div>
-                    <Package className="w-12 h-12 text-orange-200" />
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  className="bg-gradient-to-br from-blue-500 to-blue-700 p-6 rounded-lg shadow-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-blue-100 text-sm">Net Profit</p>
-                      <p className="text-3xl font-bold text-white mt-2">
-                        ₹{financeDashboard.summary.netProfit.toFixed(2)}
-                      </p>
-                    </div>
-                    <TrendingUp className="w-12 h-12 text-blue-200" />
-                  </div>
-                </motion.div>
+                  </motion.div>
+                ))}
               </div>
+            </div>
+          )}
 
-              {/* Profit Split */}
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-xl font-semibold text-emerald-400 mb-4">
-                  Profit Split (Net Profit: ₹{financeDashboard.summary.netProfit.toFixed(2)})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-gray-700 p-4 rounded-lg">
-                    <p className="text-gray-300 text-sm">Dawood (70%)</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-2">
-                      ₹{financeDashboard.summary.profitSplit.dawood.amount.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="bg-gray-700 p-4 rounded-lg">
-                    <p className="text-gray-300 text-sm">Sayib & Faisal (30%)</p>
-                    <p className="text-2xl font-bold text-emerald-400 mt-2">
-                      ₹{financeDashboard.summary.profitSplit.sayibAndFaisal.amount.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Product-wise Breakdown */}
-              <div className="bg-gray-800 p-6 rounded-lg">
-                <h3 className="text-xl font-semibold text-emerald-400 mb-4">
-                  Product-wise Cost Breakdown
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="pb-3 text-gray-300">Product</th>
-                        <th className="pb-3 text-gray-300">Sold</th>
-                        <th className="pb-3 text-gray-300">Revenue</th>
-                        <th className="pb-3 text-gray-300">Cost/Unit</th>
-                        <th className="pb-3 text-gray-300">COGS</th>
-                        <th className="pb-3 text-gray-300">Locked Cost</th>
-                        <th className="pb-3 text-gray-300">Profit</th>
-                        <th className="pb-3 text-gray-300">Margin %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {financeDashboard.products.map((product, idx) => (
-                        <tr key={idx} className="border-b border-gray-700">
-                          <td className="py-3 text-white">
-                            {product.productName}
-                            {product.costing.hasIncompleteBOM && (
-                              <AlertCircle className="inline ml-2 w-4 h-4 text-yellow-500" title="Incomplete BOM or missing expenses" />
-                            )}
-                          </td>
-                          <td className="py-3 text-gray-300">{product.sales.quantitySold}</td>
-                          <td className="py-3 text-gray-300">₹{product.sales.revenue.toFixed(2)}</td>
-                          <td className="py-3 text-gray-300">₹{product.costing.costPerUnit.toFixed(2)}</td>
-                          <td className="py-3 text-gray-300">₹{product.costing.totalCOGS.toFixed(2)}</td>
-                          <td className="py-3 text-orange-400">₹{product.expenses.lockedInventoryCost.toFixed(2)}</td>
-                          <td className="py-3 text-emerald-400">₹{product.profit.grossProfit.toFixed(2)}</td>
-                          <td className="py-3 text-gray-300">{product.profit.grossProfitMargin.toFixed(1)}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Monthly Trend */}
-              {monthlyTrend && monthlyTrend.length > 0 && (
-                <div className="bg-gray-800 p-6 rounded-lg">
-                  <h3 className="text-xl font-semibold text-emerald-400 mb-4">
-                    Monthly Profit Trend
-                  </h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-gray-700">
-                          <th className="pb-3 text-gray-300">Month</th>
-                          <th className="pb-3 text-gray-300">Revenue</th>
-                          <th className="pb-3 text-gray-300">COGS</th>
-                          <th className="pb-3 text-gray-300">Profit</th>
-                          <th className="pb-3 text-gray-300">Dawood (70%)</th>
-                          <th className="pb-3 text-gray-300">S&F (30%)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {monthlyTrend.map((month, idx) => (
-                          <tr key={idx} className="border-b border-gray-700">
-                            <td className="py-3 text-white">{month.month}</td>
-                            <td className="py-3 text-gray-300">₹{month.revenue.toFixed(2)}</td>
-                            <td className="py-3 text-gray-300">₹{month.cogs.toFixed(2)}</td>
-                            <td className="py-3 text-emerald-400">₹{month.profit.toFixed(2)}</td>
-                            <td className="py-3 text-gray-300">₹{month.profitSplit.dawood.toFixed(2)}</td>
-                            <td className="py-3 text-gray-300">₹{month.profitSplit.sayibAndFaisal.toFixed(2)}</td>
-                          </tr>
+          {/* Product-wise breakdown */}
+          {financeDashboard?.productSummaries && financeDashboard.productSummaries.length > 0 && (
+            <div className="bg-gray-800 p-5 rounded-lg">
+              <h3 className="text-lg font-semibold text-emerald-400 mb-4">By Product</h3>
+              <div className="space-y-4">
+                {financeDashboard.productSummaries.map((prod, idx) => (
+                  <div key={idx} className="bg-gray-700 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-white font-medium">{prod.productName}</span>
+                      <span className="text-xs px-2 py-1 rounded bg-gray-600 text-gray-300">
+                        {prod.recoveryRate.toFixed(0)}% recovered
+                      </span>
+                    </div>
+                    <div className="flex gap-6 text-sm mb-3">
+                      <div>
+                        <span className="text-gray-400">Expenses: </span>
+                        <span className="text-purple-400">{formatCurrency(prod.totalExpense)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Sales: </span>
+                        <span className="text-emerald-400">{formatCurrency(prod.totalSales)}</span>
+                      </div>
+                    </div>
+                    {prod.payerRecovery.length > 0 && (
+                      <div className="flex flex-wrap gap-3">
+                        {prod.payerRecovery.map((pr, i) => (
+                          <div key={i} className="text-xs bg-gray-600 px-2 py-1 rounded">
+                            <span className="text-gray-300">{pr.payer}: </span>
+                            <span className="text-emerald-400">{formatCurrency(pr.recovered)}</span>
+                            <span className="text-gray-500"> / {formatCurrency(pr.paid)}</span>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-            </>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Expenses */}
+          {financeDashboard?.recentExpenses && financeDashboard.recentExpenses.length > 0 && (
+            <div className="bg-gray-800 p-5 rounded-lg">
+              <h3 className="text-lg font-semibold text-emerald-400 mb-4">Recent Expenses</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700 text-gray-400">
+                      <th className="text-left py-2">Date</th>
+                      <th className="text-left py-2">Product</th>
+                      <th className="text-left py-2">Component</th>
+                      <th className="text-right py-2">Amount</th>
+                      <th className="text-left py-2">Paid By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {financeDashboard.recentExpenses.map((exp, idx) => (
+                      <tr key={idx} className="border-b border-gray-700/50">
+                        <td className="py-2 text-gray-300">{new Date(exp.date).toLocaleDateString()}</td>
+                        <td className="py-2 text-white">{exp.product}</td>
+                        <td className="py-2 text-gray-300">{exp.component}</td>
+                        <td className="py-2 text-right text-purple-400">{formatCurrency(exp.amount)}</td>
+                        <td className="py-2 text-gray-300">{exp.paidBy}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {(!financeDashboard?.settlement || financeDashboard.settlement.length === 0) && 
+           (!financeDashboard?.recentExpenses || financeDashboard.recentExpenses.length === 0) && (
+            <div className="bg-gray-800 p-8 rounded-lg text-center">
+              <p className="text-gray-400 mb-4">No expenses recorded yet</p>
+              <button
+                onClick={() => setActiveTab("add")}
+                className="px-4 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+              >
+                Add First Expense
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* Expense Form */}
-      {activeSubTab === "expenses" && <ExpenseForm products={products} />}
-
-      {/* BOM Manager */}
-      {activeSubTab === "bom" && <BOMManager products={products} />}
+      {activeTab === "add" && <ExpenseForm products={products} />}
     </div>
   );
 };
