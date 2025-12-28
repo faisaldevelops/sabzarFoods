@@ -1,11 +1,13 @@
 import Order from "../models/order.model.js";
 import Expense from "../models/expense.model.js";
 import Product from "../models/product.model.js";
+import { calculateDeliveryCharge, calculatePlatformFee } from "../lib/pricing.js";
 
 /**
  * SIMPLE EXPENSE TRACKER
  * - Track who paid for product expenses
  * - When products sell, expenses are recovered to whoever paid
+ * - Track delivery charges and platform fees collected
  */
 
 // Helper: Escape CSV values
@@ -51,16 +53,34 @@ export const getFinanceDashboard = async (req, res) => {
     }
     const allOrders = await Order.find(orderQuery);
 
-    // Calculate sales revenue per product
+    // Calculate sales revenue per product AND track delivery/platform fees
     const salesByProduct = {};
+    let totalDeliveryCharges = 0;
+    let totalPlatformFees = 0;
+    let totalProductRevenue = 0;
+
     allOrders.forEach(order => {
+      // Calculate product subtotal for this order
+      let orderSubtotal = 0;
       order.products.forEach(item => {
         const prodId = String(item.product);
+        const itemRevenue = item.quantity * item.price;
+        orderSubtotal += itemRevenue;
+        
         if (!salesByProduct[prodId]) {
           salesByProduct[prodId] = 0;
         }
-        salesByProduct[prodId] += item.quantity * item.price;
+        salesByProduct[prodId] += itemRevenue;
       });
+      totalProductRevenue += orderSubtotal;
+
+      // Calculate delivery charge based on order address
+      const deliveryCharge = calculateDeliveryCharge(order.address);
+      totalDeliveryCharges += deliveryCharge;
+
+      // Calculate platform fee based on subtotal
+      const platformFee = calculatePlatformFee(orderSubtotal);
+      totalPlatformFees += platformFee.total;
     });
 
     // Calculate expenses per product per payer
@@ -83,10 +103,13 @@ export const getFinanceDashboard = async (req, res) => {
     // Calculate recovery per product per payer
     const productSummaries = [];
     const payerTotals = {};
+    let totalExpenses = 0;
 
     Object.entries(expensesByProduct).forEach(([prodId, data]) => {
       const sales = salesByProduct[prodId] || 0;
       const recoveryRate = data.totalExpense > 0 ? Math.min(sales / data.totalExpense, 1) : 0;
+      const profit = sales - data.totalExpense;
+      totalExpenses += data.totalExpense;
       
       const payerRecovery = [];
       Object.entries(data.byPayer).forEach(([payer, paid]) => {
@@ -109,6 +132,7 @@ export const getFinanceDashboard = async (req, res) => {
         productName: data.productName,
         totalExpense: data.totalExpense,
         totalSales: sales,
+        profit: profit,
         recoveryRate: recoveryRate * 100,
         payerRecovery,
       });
@@ -137,7 +161,18 @@ export const getFinanceDashboard = async (req, res) => {
         date: exp.expenseDate,
       }));
 
+    // Calculate totals
+    const totalProfit = totalProductRevenue - totalExpenses;
+
     res.json({
+      overview: {
+        totalProductRevenue,
+        totalExpenses,
+        totalProfit,
+        totalDeliveryCharges,
+        totalPlatformFees,
+        orderCount: allOrders.length,
+      },
       settlement,
       productSummaries: productSummaries.sort((a, b) => b.totalExpense - a.totalExpense),
       recentExpenses,

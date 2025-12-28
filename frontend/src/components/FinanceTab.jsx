@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Download, Calendar, RefreshCw } from "lucide-react";
+import { Download, Calendar, RefreshCw, TrendingUp, Truck, CreditCard } from "lucide-react";
 import { useFinanceStore } from "../stores/useFinanceStore";
 import { useProductStore } from "../stores/useProductStore";
 import ExpenseForm from "./ExpenseForm";
@@ -90,6 +90,35 @@ const FinanceTab = () => {
             </button>
           </div>
 
+          {/* Overview Cards - Revenue, Expenses, Profit, Delivery, Platform Fees */}
+          {financeDashboard?.overview && (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <p className="text-gray-400 text-xs">Product Revenue</p>
+                <p className="text-emerald-400 text-xl font-bold">{formatCurrency(financeDashboard.overview.totalProductRevenue)}</p>
+                <p className="text-gray-500 text-xs mt-1">{financeDashboard.overview.orderCount} orders</p>
+              </motion.div>
+              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <p className="text-gray-400 text-xs">Total Expenses</p>
+                <p className="text-purple-400 text-xl font-bold">{formatCurrency(financeDashboard.overview.totalExpenses)}</p>
+              </motion.div>
+              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                <p className="text-gray-400 text-xs flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Profit</p>
+                <p className={`text-xl font-bold ${financeDashboard.overview.totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {formatCurrency(financeDashboard.overview.totalProfit)}
+                </p>
+              </motion.div>
+              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                <p className="text-gray-400 text-xs flex items-center gap-1"><Truck className="w-3 h-3" /> Delivery Collected</p>
+                <p className="text-blue-400 text-xl font-bold">{formatCurrency(financeDashboard.overview.totalDeliveryCharges)}</p>
+              </motion.div>
+              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                <p className="text-gray-400 text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Platform Fees</p>
+                <p className="text-orange-400 text-xl font-bold">{formatCurrency(financeDashboard.overview.totalPlatformFees)}</p>
+              </motion.div>
+            </div>
+          )}
+
           {/* Settlement Summary - Who should get money back */}
           {financeDashboard?.settlement && financeDashboard.settlement.length > 0 && (
             <div className="bg-gray-800 p-5 rounded-lg">
@@ -135,18 +164,22 @@ const FinanceTab = () => {
                   <div key={idx} className="bg-gray-700 p-4 rounded-lg">
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-white font-medium">{prod.productName}</span>
-                      <span className="text-xs px-2 py-1 rounded bg-gray-600 text-gray-300">
-                        {prod.recoveryRate.toFixed(0)}% recovered
+                      <span className={`text-sm font-medium ${prod.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        Profit: {formatCurrency(prod.profit)}
                       </span>
                     </div>
                     <div className="flex gap-6 text-sm mb-3">
+                      <div>
+                        <span className="text-gray-400">Sales: </span>
+                        <span className="text-emerald-400">{formatCurrency(prod.totalSales)}</span>
+                      </div>
                       <div>
                         <span className="text-gray-400">Expenses: </span>
                         <span className="text-purple-400">{formatCurrency(prod.totalExpense)}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">Sales: </span>
-                        <span className="text-emerald-400">{formatCurrency(prod.totalSales)}</span>
+                        <span className="text-gray-400">Recovery: </span>
+                        <span className="text-gray-300">{prod.recoveryRate.toFixed(0)}%</span>
                       </div>
                     </div>
                     {prod.payerRecovery.length > 0 && (
