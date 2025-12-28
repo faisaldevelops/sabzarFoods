@@ -21,7 +21,7 @@ const ExpenseForm = ({ products }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.product || !formData.component || !formData.quantityPurchased || !formData.totalCost || !formData.paidBy) {
+    if (!formData.product || !formData.component.trim() || !formData.quantityPurchased || !formData.totalCost || !formData.paidBy) {
       toast.error("Please fill all fields");
       return;
     }
@@ -29,8 +29,8 @@ const ExpenseForm = ({ products }) => {
     const qty = parseFloat(formData.quantityPurchased);
     const cost = parseFloat(formData.totalCost);
 
-    if (qty <= 0 || cost <= 0) {
-      toast.error("Quantity and cost must be positive");
+    if (isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0) {
+      toast.error("Quantity and cost must be positive numbers");
       return;
     }
 
