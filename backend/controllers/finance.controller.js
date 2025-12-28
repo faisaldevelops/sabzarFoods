@@ -415,7 +415,7 @@ export const getMonthlyProfitTrend = async (req, res) => {
       const monthProfit = monthRevenue - monthCOGS;
       
       monthsData.push({
-        month: startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        month: startDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
         revenue: monthRevenue,
         cogs: monthCOGS,
         profit: monthProfit,

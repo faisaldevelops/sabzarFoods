@@ -76,7 +76,8 @@ const BOMManager = ({ products }) => {
   };
 
   const handleDeleteEntry = async (entryId) => {
-    if (!confirm("Are you sure you want to delete this BOM entry?")) {
+    // Using native confirm for now - could be replaced with a custom modal for better UX
+    if (!window.confirm("Are you sure you want to delete this BOM entry?")) {
       return;
     }
 

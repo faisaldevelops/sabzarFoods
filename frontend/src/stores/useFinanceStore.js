@@ -181,6 +181,9 @@ export const useFinanceStore = create((set) => ({
       link.click();
       link.remove();
       
+      // Cleanup to prevent memory leaks
+      window.URL.revokeObjectURL(url);
+      
       toast.success("Finance report exported successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to export report");
