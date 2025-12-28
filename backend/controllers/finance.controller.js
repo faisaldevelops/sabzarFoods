@@ -1,244 +1,181 @@
 import Order from "../models/order.model.js";
 import Expense from "../models/expense.model.js";
-import ProductBOM from "../models/productBOM.model.js";
 import Product from "../models/product.model.js";
+import { calculateDeliveryCharge, calculatePlatformFee } from "../lib/pricing.js";
 
 /**
- * INVENTORY-BASED COSTING LOGIC
- * 
- * Key principles:
- * 1. Sales are captured automatically from paid orders
- * 2. Expenses are inventory purchases (not immediately expensed)
- * 3. Cost is recovered ONLY when units sell
- * 4. Unsold inventory cost carries forward automatically
- * 5. COGS = sold_quantity × cost_per_unit
+ * SIMPLE EXPENSE TRACKER
+ * - Track who paid for product expenses
+ * - When products sell, expenses are recovered to whoever paid
+ * - Track delivery charges and platform fees collected
  */
 
-// Helper: Calculate cost per unit for a product based on BOM and expenses
-async function calculateCostPerUnit(productId, endDate) {
-  try {
-    // Get BOM entries for the product
-    const bomEntries = await ProductBOM.find({ product: productId });
-    
-    if (bomEntries.length === 0) {
-      return { costPerUnit: 0, breakdown: [], hasIncompleteBOM: true };
-    }
-
-    // Get all expenses for this product up to endDate
-    const expenseFilter = { product: productId };
-    if (endDate) {
-      expenseFilter.expenseDate = { $lte: new Date(endDate) };
-    }
-    
-    const expenses = await Expense.find(expenseFilter);
-
-    // Group expenses by component
-    const componentExpenses = {};
-    expenses.forEach(expense => {
-      if (!componentExpenses[expense.component]) {
-        componentExpenses[expense.component] = {
-          totalCost: 0,
-          totalQuantity: 0,
-        };
-      }
-      componentExpenses[expense.component].totalCost += expense.totalCost;
-      componentExpenses[expense.component].totalQuantity += expense.quantityPurchased;
-    });
-
-    // Calculate cost per unit based on BOM
-    let totalCostPerUnit = 0;
-    const breakdown = [];
-    let hasIncompleteBOM = false;
-
-    for (const bomEntry of bomEntries) {
-      const component = bomEntry.component;
-      const qtyPerUnit = bomEntry.quantityPerUnit;
-      
-      const expenseData = componentExpenses[component];
-      
-      if (!expenseData || expenseData.totalQuantity === 0) {
-        // No expenses recorded for this component yet
-        breakdown.push({
-          component,
-          quantityPerUnit: qtyPerUnit,
-          costPerComponentUnit: 0,
-          costForProduct: 0,
-          warning: "No expenses recorded for this component",
-        });
-        hasIncompleteBOM = true;
-        continue;
-      }
-
-      const costPerComponentUnit = expenseData.totalCost / expenseData.totalQuantity;
-      const costForProduct = costPerComponentUnit * qtyPerUnit;
-      
-      totalCostPerUnit += costForProduct;
-      
-      breakdown.push({
-        component,
-        quantityPerUnit: qtyPerUnit,
-        costPerComponentUnit,
-        costForProduct,
-      });
-    }
-
-    return {
-      costPerUnit: totalCostPerUnit,
-      breakdown,
-      hasIncompleteBOM,
-    };
-  } catch (error) {
-    console.error("Error calculating cost per unit:", error);
-    throw error;
+// Helper: Escape CSV values
+function escapeCSV(value) {
+  if (value === null || value === undefined) return '""';
+  const str = String(value);
+  const escapedStr = str.replace(/"/g, '""');
+  const dangerousChars = ['=', '+', '-', '@', '\t', '\r'];
+  if (dangerousChars.some(char => escapedStr.startsWith(char))) {
+    return `"'${escapedStr}"`;
   }
+  const needsQuote = str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r');
+  return needsQuote ? `"${escapedStr}"` : escapedStr;
 }
 
-// Helper: Get sales data from orders for a product in date range
-async function getSalesData(productId, startDate, endDate) {
-  const matchStage = {
-    status: "paid", // Only count paid orders
-    "products.product": productId,
-  };
-
-  if (startDate || endDate) {
-    matchStage.createdAt = {};
-    if (startDate) {
-      matchStage.createdAt.$gte = new Date(startDate);
-    }
-    if (endDate) {
-      matchStage.createdAt.$lte = new Date(endDate);
-    }
-  }
-
-  const salesData = await Order.aggregate([
-    { $match: matchStage },
-    { $unwind: "$products" },
-    { $match: { "products.product": productId } },
-    {
-      $group: {
-        _id: "$products.product",
-        totalQuantitySold: { $sum: "$products.quantity" },
-        totalRevenue: { $sum: { $multiply: ["$products.quantity", "$products.price"] } },
-        orderCount: { $sum: 1 },
-      },
-    },
-  ]);
-
-  if (salesData.length === 0) {
-    return {
-      quantitySold: 0,
-      revenue: 0,
-      orderCount: 0,
-    };
-  }
-
-  return {
-    quantitySold: salesData[0].totalQuantitySold || 0,
-    revenue: salesData[0].totalRevenue || 0,
-    orderCount: salesData[0].orderCount || 0,
-  };
-}
-
-// Get comprehensive finance dashboard data
+// Main dashboard - expense tracking and recovery
 export const getFinanceDashboard = async (req, res) => {
   try {
-    const { startDate, endDate, productId } = req.query;
+    const { startDate, endDate } = req.query;
 
-    // Get all products or specific product
-    const productFilter = productId ? { _id: productId } : {};
-    const products = await Product.find(productFilter);
+    // Get all products
+    const products = await Product.find();
 
-    const dashboardData = [];
-    let totalRevenue = 0;
-    let totalCOGS = 0;
-    let totalExpenses = 0;
-    let totalLockedInventoryCost = 0;
-
-    for (const product of products) {
-      // Get sales data
-      const salesData = await getSalesData(product._id, startDate, endDate);
-      
-      // Calculate cost per unit
-      const costData = await calculateCostPerUnit(product._id, endDate);
-      
-      // Calculate COGS (only for sold units)
-      const cogs = salesData.quantitySold * costData.costPerUnit;
-      
-      // Get total expenses for this product
-      const expenseFilter = { product: product._id };
-      if (endDate) {
-        expenseFilter.expenseDate = { $lte: new Date(endDate) };
-      }
-      const productExpenses = await Expense.find(expenseFilter);
-      const totalExpenseAmount = productExpenses.reduce((sum, exp) => sum + exp.totalCost, 0);
-      
-      // Calculate locked inventory cost (unrecovered expenses)
-      // This is the total expenses minus what's been recovered through sales
-      const lockedInventoryCost = totalExpenseAmount - cogs;
-      
-      // Calculate profit for sold units
-      const grossProfit = salesData.revenue - cogs;
-
-      totalRevenue += salesData.revenue;
-      totalCOGS += cogs;
-      totalExpenses += totalExpenseAmount;
-      totalLockedInventoryCost += Math.max(0, lockedInventoryCost);
-
-      dashboardData.push({
-        productId: product._id,
-        productName: product.name,
-        sales: {
-          quantitySold: salesData.quantitySold,
-          revenue: salesData.revenue,
-          orderCount: salesData.orderCount,
-        },
-        costing: {
-          costPerUnit: costData.costPerUnit,
-          totalCOGS: cogs,
-          costBreakdown: costData.breakdown,
-          hasIncompleteBOM: costData.hasIncompleteBOM,
-        },
-        expenses: {
-          totalExpenses: totalExpenseAmount,
-          recoveredExpenses: cogs,
-          lockedInventoryCost: Math.max(0, lockedInventoryCost),
-        },
-        profit: {
-          grossProfit,
-          grossProfitMargin: salesData.revenue > 0 ? (grossProfit / salesData.revenue) * 100 : 0,
-        },
-      });
+    // Build date filter
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.$gte = startDate ? new Date(startDate) : undefined;
+      dateFilter.$lte = endDate ? new Date(endDate) : undefined;
+      Object.keys(dateFilter).forEach(k => dateFilter[k] === undefined && delete dateFilter[k]);
     }
 
-    // Calculate net profit and splits
-    const netProfit = totalRevenue - totalCOGS;
-    const dawoodShare = netProfit * 0.70;
-    const othersShare = netProfit * 0.30;
+    // Get all expenses
+    const expenseQuery = {};
+    if (Object.keys(dateFilter).length > 0) {
+      expenseQuery.expenseDate = dateFilter;
+    }
+    const allExpenses = await Expense.find(expenseQuery).populate("product", "name");
+
+    // Get all paid orders
+    const orderQuery = { status: "paid" };
+    if (Object.keys(dateFilter).length > 0) {
+      orderQuery.createdAt = dateFilter;
+    }
+    const allOrders = await Order.find(orderQuery);
+
+    // Calculate sales revenue per product AND track delivery/platform fees
+    const salesByProduct = {};
+    let totalDeliveryCharges = 0;
+    let totalPlatformFees = 0;
+    let totalProductRevenue = 0;
+
+    allOrders.forEach(order => {
+      // Calculate product subtotal for this order
+      let orderSubtotal = 0;
+      order.products.forEach(item => {
+        const prodId = String(item.product);
+        const itemRevenue = item.quantity * item.price;
+        orderSubtotal += itemRevenue;
+        
+        if (!salesByProduct[prodId]) {
+          salesByProduct[prodId] = 0;
+        }
+        salesByProduct[prodId] += itemRevenue;
+      });
+      totalProductRevenue += orderSubtotal;
+
+      // Calculate delivery charge based on order address
+      const deliveryCharge = calculateDeliveryCharge(order.address);
+      totalDeliveryCharges += deliveryCharge;
+
+      // Calculate platform fee based on subtotal
+      const platformFee = calculatePlatformFee(orderSubtotal);
+      totalPlatformFees += platformFee.total;
+    });
+
+    // Calculate expenses per product per payer
+    const expensesByProduct = {};
+    allExpenses.forEach(exp => {
+      const prodId = String(exp.product?._id || exp.product);
+      const payer = exp.paidBy.charAt(0).toUpperCase() + exp.paidBy.slice(1).toLowerCase();
+      
+      if (!expensesByProduct[prodId]) {
+        expensesByProduct[prodId] = {
+          productName: exp.product?.name || "Unknown",
+          totalExpense: 0,
+          byPayer: {},
+        };
+      }
+      expensesByProduct[prodId].totalExpense += exp.totalCost;
+      expensesByProduct[prodId].byPayer[payer] = (expensesByProduct[prodId].byPayer[payer] || 0) + exp.totalCost;
+    });
+
+    // Calculate recovery per product per payer
+    const productSummaries = [];
+    const payerTotals = {};
+    let totalExpenses = 0;
+
+    Object.entries(expensesByProduct).forEach(([prodId, data]) => {
+      const sales = salesByProduct[prodId] || 0;
+      const recoveryRate = data.totalExpense > 0 ? Math.min(sales / data.totalExpense, 1) : 0;
+      const profit = sales - data.totalExpense;
+      totalExpenses += data.totalExpense;
+      
+      const payerRecovery = [];
+      Object.entries(data.byPayer).forEach(([payer, paid]) => {
+        const recovered = paid * recoveryRate;
+        const pending = paid - recovered;
+        
+        payerRecovery.push({ payer, paid, recovered, pending });
+        
+        // Accumulate totals per payer
+        if (!payerTotals[payer]) {
+          payerTotals[payer] = { paid: 0, recovered: 0, pending: 0 };
+        }
+        payerTotals[payer].paid += paid;
+        payerTotals[payer].recovered += recovered;
+        payerTotals[payer].pending += pending;
+      });
+
+      productSummaries.push({
+        productId: prodId,
+        productName: data.productName,
+        totalExpense: data.totalExpense,
+        totalSales: sales,
+        profit: profit,
+        recoveryRate: recoveryRate * 100,
+        payerRecovery,
+      });
+    });
+
+    // Format payer totals
+    const settlement = Object.entries(payerTotals)
+      .map(([payer, totals]) => ({
+        payer,
+        totalPaid: totals.paid,
+        totalRecovered: totals.recovered,
+        pendingRecovery: totals.pending,
+      }))
+      .sort((a, b) => b.totalPaid - a.totalPaid);
+
+    // Recent expenses
+    const recentExpenses = allExpenses
+      .sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate))
+      .slice(0, 10)
+      .map(exp => ({
+        id: exp._id,
+        product: exp.product?.name || "Unknown",
+        component: exp.component,
+        amount: exp.totalCost,
+        paidBy: exp.paidBy,
+        date: exp.expenseDate,
+      }));
+
+    // Calculate totals
+    const totalProfit = totalProductRevenue - totalExpenses;
 
     res.json({
-      summary: {
-        totalRevenue,
-        totalCOGS,
+      overview: {
+        totalProductRevenue,
         totalExpenses,
-        recoveredExpenses: totalCOGS,
-        lockedInventoryCost: totalLockedInventoryCost,
-        netProfit,
-        profitSplit: {
-          dawood: {
-            percentage: 70,
-            amount: dawoodShare,
-          },
-          sayibAndFaisal: {
-            percentage: 30,
-            amount: othersShare,
-          },
-        },
+        totalProfit,
+        totalDeliveryCharges,
+        totalPlatformFees,
+        orderCount: allOrders.length,
       },
-      products: dashboardData,
-      dateRange: {
-        startDate: startDate || null,
-        endDate: endDate || null,
-      },
+      settlement,
+      productSummaries: productSummaries.sort((a, b) => b.totalExpense - a.totalExpense),
+      recentExpenses,
     });
   } catch (error) {
     console.error("Error fetching finance dashboard:", error);
@@ -246,189 +183,86 @@ export const getFinanceDashboard = async (req, res) => {
   }
 };
 
-// Get detailed costing for a specific product
+// Get product-specific expense details
 export const getProductCosting = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { startDate, endDate } = req.query;
 
-    // Validate product exists
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Get sales data
-    const salesData = await getSalesData(productId, startDate, endDate);
+    const expenses = await Expense.find({ product: productId }).sort({ expenseDate: -1 });
     
-    // Calculate cost per unit
-    const costData = await calculateCostPerUnit(productId, endDate);
-    
-    // Get BOM
-    const bom = await ProductBOM.find({ product: productId });
-    
-    // Get expenses
-    const expenseFilter = { product: productId };
-    if (startDate || endDate) {
-      expenseFilter.expenseDate = {};
-      if (startDate) expenseFilter.expenseDate.$gte = new Date(startDate);
-      if (endDate) expenseFilter.expenseDate.$lte = new Date(endDate);
-    }
-    const expenses = await Expense.find(expenseFilter).sort({ expenseDate: -1 });
-    
-    // Calculate COGS
-    const cogs = salesData.quantitySold * costData.costPerUnit;
-    
-    // Calculate totals
-    const totalExpenses = expenses.reduce((sum, exp) => sum + exp.totalCost, 0);
-    const lockedInventoryCost = totalExpenses - cogs;
-    const grossProfit = salesData.revenue - cogs;
+    const byPayer = {};
+    let total = 0;
+    expenses.forEach(exp => {
+      const payer = exp.paidBy.charAt(0).toUpperCase() + exp.paidBy.slice(1).toLowerCase();
+      byPayer[payer] = (byPayer[payer] || 0) + exp.totalCost;
+      total += exp.totalCost;
+    });
 
     res.json({
-      product: {
-        id: product._id,
-        name: product.name,
-      },
-      sales: salesData,
-      costing: {
-        costPerUnit: costData.costPerUnit,
-        totalCOGS: cogs,
-        breakdown: costData.breakdown,
-        hasIncompleteBOM: costData.hasIncompleteBOM,
-      },
-      bom,
-      expenses: {
-        total: totalExpenses,
-        recovered: cogs,
-        locked: Math.max(0, lockedInventoryCost),
-        details: expenses,
-      },
-      profit: {
-        grossProfit,
-        grossProfitMargin: salesData.revenue > 0 ? (grossProfit / salesData.revenue) * 100 : 0,
-      },
-      dateRange: {
-        startDate: startDate || null,
-        endDate: endDate || null,
-      },
+      product: { id: product._id, name: product.name },
+      totalExpense: total,
+      byPayer: Object.entries(byPayer).map(([payer, amount]) => ({ payer, amount })),
+      expenses: expenses.map(exp => ({
+        id: exp._id,
+        component: exp.component,
+        quantity: exp.quantityPurchased,
+        amount: exp.totalCost,
+        paidBy: exp.paidBy,
+        date: exp.expenseDate,
+      })),
     });
   } catch (error) {
-    console.error("Error fetching product costing:", error);
+    console.error("Error fetching product expenses:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-// Export finance data to CSV
+// Export expenses to CSV
 export const exportFinanceCSV = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
-    const products = await Product.find();
-    const csvRows = [];
-    
-    // CSV Header
-    csvRows.push([
-      "Product Name",
-      "Quantity Sold",
-      "Revenue",
-      "Cost Per Unit",
-      "Total COGS",
-      "Total Expenses",
-      "Recovered Expenses",
-      "Locked Inventory Cost",
-      "Gross Profit",
-      "Gross Profit Margin %",
-    ].join(","));
-
-    for (const product of products) {
-      const salesData = await getSalesData(product._id, startDate, endDate);
-      const costData = await calculateCostPerUnit(product._id, endDate);
-      const cogs = salesData.quantitySold * costData.costPerUnit;
-      
-      const expenseFilter = { product: product._id };
-      if (endDate) {
-        expenseFilter.expenseDate = { $lte: new Date(endDate) };
-      }
-      const productExpenses = await Expense.find(expenseFilter);
-      const totalExpenses = productExpenses.reduce((sum, exp) => sum + exp.totalCost, 0);
-      const lockedInventoryCost = Math.max(0, totalExpenses - cogs);
-      const grossProfit = salesData.revenue - cogs;
-      const profitMargin = salesData.revenue > 0 ? (grossProfit / salesData.revenue) * 100 : 0;
-
-      csvRows.push([
-        `"${product.name}"`,
-        salesData.quantitySold,
-        salesData.revenue.toFixed(2),
-        costData.costPerUnit.toFixed(2),
-        cogs.toFixed(2),
-        totalExpenses.toFixed(2),
-        cogs.toFixed(2),
-        lockedInventoryCost.toFixed(2),
-        grossProfit.toFixed(2),
-        profitMargin.toFixed(2),
-      ].join(","));
+    const query = {};
+    if (startDate || endDate) {
+      query.expenseDate = {};
+      if (startDate) query.expenseDate.$gte = new Date(startDate);
+      if (endDate) query.expenseDate.$lte = new Date(endDate);
     }
 
-    const csvContent = csvRows.join("\n");
+    const expenses = await Expense.find(query).populate("product", "name").sort({ expenseDate: -1 });
     
+    const csvRows = [["Date", "Product", "Component", "Quantity", "Amount", "Paid By"].join(",")];
+
+    expenses.forEach(exp => {
+      csvRows.push([
+        new Date(exp.expenseDate).toLocaleDateString(),
+        escapeCSV(exp.product?.name || "Unknown"),
+        escapeCSV(exp.component),
+        exp.quantityPurchased,
+        exp.totalCost.toFixed(2),
+        escapeCSV(exp.paidBy),
+      ].join(","));
+    });
+
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename=finance-report-${Date.now()}.csv`);
-    res.send(csvContent);
+    res.setHeader("Content-Disposition", `attachment; filename=expenses-${Date.now()}.csv`);
+    res.send(csvRows.join("\n"));
   } catch (error) {
-    console.error("Error exporting finance CSV:", error);
+    console.error("Error exporting CSV:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
-// Get monthly profit trend
+// Monthly trend (kept for compatibility)
 export const getMonthlyProfitTrend = async (req, res) => {
   try {
-    const { months = 6 } = req.query;
-    
-    const monthsData = [];
-    const now = new Date();
-    
-    for (let i = parseInt(months) - 1; i >= 0; i--) {
-      const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      
-      // Get all sales for the month
-      const orders = await Order.find({
-        status: "paid",
-        createdAt: { $gte: startDate, $lte: endDate },
-      });
-      
-      let monthRevenue = 0;
-      let monthCOGS = 0;
-      
-      for (const order of orders) {
-        for (const item of order.products) {
-          const revenue = item.quantity * item.price;
-          monthRevenue += revenue;
-          
-          const costData = await calculateCostPerUnit(item.product, endDate);
-          const itemCOGS = item.quantity * costData.costPerUnit;
-          monthCOGS += itemCOGS;
-        }
-      }
-      
-      const monthProfit = monthRevenue - monthCOGS;
-      
-      monthsData.push({
-        month: startDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
-        revenue: monthRevenue,
-        cogs: monthCOGS,
-        profit: monthProfit,
-        profitSplit: {
-          dawood: monthProfit * 0.70,
-          sayibAndFaisal: monthProfit * 0.30,
-        },
-      });
-    }
-    
-    res.json({ monthlyTrend: monthsData });
+    res.json({ monthlyTrend: [] });
   } catch (error) {
-    console.error("Error fetching monthly profit trend:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

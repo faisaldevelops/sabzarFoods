@@ -57,11 +57,18 @@ const BOMManager = ({ products }) => {
       return;
     }
 
+    // Validate positive quantity
+    const qty = parseFloat(newEntry.quantityPerUnit);
+    if (qty <= 0) {
+      toast.error("Quantity per unit must be greater than zero");
+      return;
+    }
+
     try {
       await upsertBOM({
         product: selectedProduct,
         component: newEntry.component.trim(),
-        quantityPerUnit: parseFloat(newEntry.quantityPerUnit),
+        quantityPerUnit: qty,
         description: newEntry.description.trim(),
       });
 
@@ -172,7 +179,7 @@ const BOMManager = ({ products }) => {
                     value={newEntry.quantityPerUnit}
                     onChange={handleNewEntryChange}
                     required
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     placeholder="1"
                     className="w-full px-3 py-2 bg-gray-600 border border-gray-500 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"

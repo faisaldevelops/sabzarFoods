@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { DollarSign, Package, Calendar, User } from "lucide-react";
 import { useFinanceStore } from "../stores/useFinanceStore";
 import toast from "react-hot-toast";
 
@@ -16,36 +14,23 @@ const ExpenseForm = ({ products }) => {
 
   const { createExpense, loading } = useFinanceStore();
 
-  const componentSuggestions = [
-    "Jar",
-    "Lid",
-    "Label",
-    "Raw Honey",
-    "Spices",
-    "Oil",
-    "Packaging Box",
-    "Bubble Wrap",
-    "Tape",
-    "Other",
-  ];
-
-  const paidBySuggestions = ["Dawood", "Sayib", "Faisal", "Company"];
-
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.product) {
-      toast.error("Please select a product");
+    if (!formData.product || !formData.component.trim() || !formData.quantityPurchased || !formData.totalCost || !formData.paidBy) {
+      toast.error("Please fill all fields");
       return;
     }
 
-    if (!formData.component || !formData.quantityPurchased || !formData.totalCost || !formData.paidBy) {
-      toast.error("Please fill in all required fields");
+    const qty = parseFloat(formData.quantityPurchased);
+    const cost = parseFloat(formData.totalCost);
+
+    if (isNaN(qty) || qty <= 0 || isNaN(cost) || cost <= 0) {
+      toast.error("Quantity and cost must be positive numbers");
       return;
     }
 
@@ -53,183 +38,132 @@ const ExpenseForm = ({ products }) => {
       await createExpense({
         product: formData.product,
         component: formData.component.trim(),
-        quantityPurchased: parseFloat(formData.quantityPurchased),
-        totalCost: parseFloat(formData.totalCost),
-        paidBy: formData.paidBy.trim(),
+        quantityPurchased: qty,
+        totalCost: cost,
+        paidBy: formData.paidBy,
         expenseDate: formData.expenseDate,
       });
 
-      // Reset form
       setFormData({
-        product: formData.product, // Keep product selected for convenience
+        product: formData.product,
         component: "",
         quantityPurchased: "",
         totalCost: "",
-        paidBy: formData.paidBy, // Keep paidBy for convenience
+        paidBy: formData.paidBy,
         expenseDate: new Date().toISOString().split("T")[0],
       });
+      
+      toast.success("Expense added!");
     } catch (error) {
-      console.error("Error creating expense:", error);
+      console.error(error);
     }
   };
 
+  const payers = ["Dawood", "Sayib", "Faisal"];
+
   return (
-    <motion.div
-      className="bg-gray-800 p-6 rounded-lg max-w-2xl mx-auto"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
-      <h3 className="text-2xl font-semibold text-emerald-400 mb-6">Add New Expense</h3>
+    <div className="bg-gray-800 p-6 rounded-lg max-w-lg mx-auto">
+      <h3 className="text-xl font-semibold text-emerald-400 mb-4">Add Expense</h3>
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Product Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            <Package className="inline w-4 h-4 mr-1" />
-            Product *
-          </label>
+          <label className="block text-sm text-gray-400 mb-1">Product</label>
           <select
             name="product"
             value={formData.product}
             onChange={handleChange}
-            required
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
           >
-            <option value="">Select a product</option>
-            {products.map((product) => (
-              <option key={product._id} value={product._id}>
-                {product.name}
-              </option>
+            <option value="">Select product</option>
+            {products.map(p => (
+              <option key={p._id} value={p._id}>{p.name}</option>
             ))}
           </select>
         </div>
 
-        {/* Component */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Component *
-          </label>
+          <label className="block text-sm text-gray-400 mb-1">Component</label>
           <input
             type="text"
             name="component"
             value={formData.component}
             onChange={handleChange}
-            list="component-suggestions"
-            required
-            placeholder="e.g., Jar, Label, Raw Honey"
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="e.g., Jar, Lid, Honey"
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
           />
-          <datalist id="component-suggestions">
-            {componentSuggestions.map((comp) => (
-              <option key={comp} value={comp} />
-            ))}
-          </datalist>
         </div>
 
-        {/* Quantity and Cost */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Quantity Purchased *
-            </label>
+            <label className="block text-sm text-gray-400 mb-1">Quantity</label>
             <input
               type="number"
               name="quantityPurchased"
               value={formData.quantityPurchased}
               onChange={handleChange}
-              required
-              min="0"
+              min="0.01"
               step="0.01"
               placeholder="100"
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <DollarSign className="inline w-4 h-4 mr-1" />
-              Total Cost (₹) *
-            </label>
+            <label className="block text-sm text-gray-400 mb-1">Total Cost (₹)</label>
             <input
               type="number"
               name="totalCost"
               value={formData.totalCost}
               onChange={handleChange}
-              required
-              min="0"
+              min="0.01"
               step="0.01"
               placeholder="5000"
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
             />
           </div>
         </div>
 
-        {/* Paid By */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            <User className="inline w-4 h-4 mr-1" />
-            Paid By *
-          </label>
-          <input
-            type="text"
-            name="paidBy"
-            value={formData.paidBy}
-            onChange={handleChange}
-            list="paidby-suggestions"
-            required
-            placeholder="e.g., Dawood, Sayib, Faisal"
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-          <datalist id="paidby-suggestions">
-            {paidBySuggestions.map((person) => (
-              <option key={person} value={person} />
+          <label className="block text-sm text-gray-400 mb-1">Paid By</label>
+          <div className="flex gap-2">
+            {payers.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, paidBy: p }))}
+                className={`flex-1 py-2 rounded font-medium ${formData.paidBy === p ? 'bg-emerald-600 text-white' : 'bg-gray-700 text-gray-300'}`}
+              >
+                {p}
+              </button>
             ))}
-          </datalist>
+          </div>
         </div>
 
-        {/* Expense Date */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            <Calendar className="inline w-4 h-4 mr-1" />
-            Expense Date *
-          </label>
+          <label className="block text-sm text-gray-400 mb-1">Date</label>
           <input
             type="date"
             name="expenseDate"
             value={formData.expenseDate}
             onChange={handleChange}
-            required
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white"
           />
         </div>
 
-        {/* Cost per Unit Display */}
-        {formData.quantityPurchased && formData.totalCost && (
-          <div className="bg-gray-700 p-3 rounded-md">
-            <p className="text-sm text-gray-300">
-              Cost per unit: ₹
-              {(parseFloat(formData.totalCost) / parseFloat(formData.quantityPurchased)).toFixed(2)}
-            </p>
+        {formData.quantityPurchased && formData.totalCost && parseFloat(formData.quantityPurchased) > 0 && (
+          <div className="text-sm text-gray-400">
+            Cost per unit: ₹{(parseFloat(formData.totalCost) / parseFloat(formData.quantityPurchased)).toFixed(2)}
           </div>
         )}
 
-        {/* Submit Button */}
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 bg-emerald-600 text-white font-semibold rounded-md hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+          className="w-full py-3 bg-emerald-600 text-white font-semibold rounded hover:bg-emerald-700 disabled:bg-gray-600"
         >
           {loading ? "Adding..." : "Add Expense"}
         </button>
       </form>
-
-      <div className="mt-6 p-4 bg-blue-900/30 border border-blue-700 rounded-md">
-        <p className="text-sm text-blue-200">
-          <strong>Note:</strong> Expenses are inventory purchases, not immediate costs. 
-          The system will automatically recover these costs as units sell.
-        </p>
-      </div>
-    </motion.div>
+    </div>
   );
 };
 
