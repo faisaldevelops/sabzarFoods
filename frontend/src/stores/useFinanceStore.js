@@ -4,12 +4,13 @@ import axios from "../lib/axios";
 
 export const useFinanceStore = create((set) => ({
   expenses: [],
-  bomEntries: [],
+  partnerBalances: [],
   financeDashboard: null,
+  reimbursementHistory: [],
   monthlyTrend: [],
   loading: false,
 
-  // Expense operations
+  // Expense operations (simplified: partner, amount, date, description)
   createExpense: async (expenseData) => {
     set({ loading: true });
     try {
@@ -74,70 +75,15 @@ export const useFinanceStore = create((set) => ({
     }
   },
 
-  // BOM operations
-  upsertBOM: async (bomData) => {
+  // Partner balances
+  fetchPartnerBalances: async () => {
     set({ loading: true });
     try {
-      const res = await axios.post("/bom", bomData);
-      set((prevState) => {
-        const existingIndex = prevState.bomEntries.findIndex(
-          (b) => b.product === bomData.product && b.component === bomData.component
-        );
-        let updatedEntries;
-        if (existingIndex !== -1) {
-          updatedEntries = [...prevState.bomEntries];
-          updatedEntries[existingIndex] = res.data.bom;
-        } else {
-          updatedEntries = [res.data.bom, ...prevState.bomEntries];
-        }
-        return { bomEntries: updatedEntries, loading: false };
-      });
-      toast.success(res.data.message);
-      return res.data.bom;
+      const res = await axios.get("/expenses/balances");
+      set({ partnerBalances: res.data.balances, loading: false });
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to save BOM");
+      toast.error(error.response?.data?.message || "Failed to fetch partner balances");
       set({ loading: false });
-      throw error;
-    }
-  },
-
-  fetchAllBOM: async () => {
-    set({ loading: true });
-    try {
-      const res = await axios.get("/bom");
-      set({ bomEntries: res.data.bomEntries, loading: false });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch BOM");
-      set({ loading: false });
-    }
-  },
-
-  fetchBOMByProduct: async (productId) => {
-    set({ loading: true });
-    try {
-      const res = await axios.get(`/bom/product/${productId}`);
-      set({ bomEntries: res.data.bomEntries, loading: false });
-      return res.data.bomEntries;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch BOM");
-      set({ loading: false });
-      throw error;
-    }
-  },
-
-  deleteBOM: async (id) => {
-    set({ loading: true });
-    try {
-      await axios.delete(`/bom/${id}`);
-      set((prevState) => ({
-        bomEntries: prevState.bomEntries.filter((b) => b._id !== id),
-        loading: false,
-      }));
-      toast.success("BOM entry deleted successfully");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to delete BOM entry");
-      set({ loading: false });
-      throw error;
     }
   },
 
@@ -150,6 +96,37 @@ export const useFinanceStore = create((set) => ({
       set({ financeDashboard: res.data, loading: false });
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch finance data");
+      set({ loading: false });
+    }
+  },
+
+  // Process monthly reimbursement
+  processReimbursement: async (year, month, recoveryPercentage) => {
+    set({ loading: true });
+    try {
+      const res = await axios.post("/finance/reimbursement", {
+        year,
+        month,
+        recoveryPercentage,
+      });
+      toast.success("Reimbursement processed successfully");
+      set({ loading: false });
+      return res.data.reimbursement;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to process reimbursement");
+      set({ loading: false });
+      throw error;
+    }
+  },
+
+  // Get reimbursement history
+  fetchReimbursementHistory: async (limit = 12) => {
+    set({ loading: true });
+    try {
+      const res = await axios.get(`/finance/reimbursement/history?limit=${limit}`);
+      set({ reimbursementHistory: res.data.history, loading: false });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to fetch reimbursement history");
       set({ loading: false });
     }
   },

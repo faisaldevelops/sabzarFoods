@@ -1,14 +1,29 @@
 import Order from "../models/order.model.js";
 import Expense from "../models/expense.model.js";
-import Product from "../models/product.model.js";
+import PartnerBalance from "../models/partnerBalance.model.js";
+import Reimbursement from "../models/reimbursement.model.js";
 import { calculateDeliveryCharge, calculatePlatformFee } from "../lib/pricing.js";
 
 /**
- * SIMPLE EXPENSE TRACKER
- * - Track who paid for product expenses
- * - When products sell, expenses are recovered to whoever paid
- * - Track delivery charges and platform fees collected
+ * FINANCE / COSTING MODULE
+ * 
+ * Business Rules:
+ * 1. Partners (Dawood, Sayib, Faisal) can pay business expenses
+ * 2. Each partner has a pending expense balance
+ * 3. Sales are captured automatically from completed orders
+ * 4. Monthly recovery pool = total sales × recovery percentage (default 50%)
+ * 5. Recovery pool is distributed proportionally among partners based on pending balances
+ * 6. Profit = total sales - total reimbursed expenses
+ * 7. Profit split: Dawood 70%, Sayib+Faisal 30%
  */
+
+// Constants
+const VALID_PARTNERS = ["Dawood", "Sayib", "Faisal"];
+const DEFAULT_RECOVERY_PERCENTAGE = 50;
+const PROFIT_SPLIT = {
+  dawood: 70,
+  sayibAndFaisal: 30,
+};
 
 // Helper: Escape CSV values
 function escapeCSV(value) {
@@ -23,159 +38,165 @@ function escapeCSV(value) {
   return needsQuote ? `"${escapedStr}"` : escapedStr;
 }
 
-// Main dashboard - expense tracking and recovery
+// Helper: Get month boundaries
+function getMonthBoundaries(year, month) {
+  const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+  return { startDate, endDate };
+}
+
+// Helper: Calculate total sales for a month
+async function calculateMonthlySales(year, month) {
+  const { startDate, endDate } = getMonthBoundaries(year, month);
+  
+  const orders = await Order.find({
+    status: "paid",
+    createdAt: { $gte: startDate, $lte: endDate },
+  });
+
+  let totalProductRevenue = 0;
+  let totalDeliveryCharges = 0;
+  let totalPlatformFees = 0;
+
+  orders.forEach(order => {
+    // Calculate product subtotal
+    let orderSubtotal = 0;
+    order.products.forEach(item => {
+      orderSubtotal += item.quantity * item.price;
+    });
+    totalProductRevenue += orderSubtotal;
+
+    // Calculate delivery and platform fees
+    const deliveryCharge = calculateDeliveryCharge(order.address);
+    totalDeliveryCharges += deliveryCharge;
+
+    const platformFee = calculatePlatformFee(orderSubtotal);
+    totalPlatformFees += platformFee.total;
+  });
+
+  return {
+    totalProductRevenue,
+    totalDeliveryCharges,
+    totalPlatformFees,
+    totalSales: totalProductRevenue, // Sales = product revenue (fees are separate)
+    orderCount: orders.length,
+  };
+}
+
+// Main dashboard - simplified finance view
 export const getFinanceDashboard = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { year, month } = req.query;
+    
+    // Default to current month if not specified
+    const now = new Date();
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+    const targetMonth = month ? parseInt(month) : now.getMonth() + 1;
 
-    // Get all products
-    const products = await Product.find();
+    // Get monthly sales
+    const salesData = await calculateMonthlySales(targetYear, targetMonth);
 
-    // Build date filter
-    const dateFilter = {};
-    if (startDate || endDate) {
-      dateFilter.$gte = startDate ? new Date(startDate) : undefined;
-      dateFilter.$lte = endDate ? new Date(endDate) : undefined;
-      Object.keys(dateFilter).forEach(k => dateFilter[k] === undefined && delete dateFilter[k]);
-    }
-
-    // Get all expenses
-    const expenseQuery = {};
-    if (Object.keys(dateFilter).length > 0) {
-      expenseQuery.expenseDate = dateFilter;
-    }
-    const allExpenses = await Expense.find(expenseQuery).populate("product", "name");
-
-    // Get all paid orders
-    const orderQuery = { status: "paid" };
-    if (Object.keys(dateFilter).length > 0) {
-      orderQuery.createdAt = dateFilter;
-    }
-    const allOrders = await Order.find(orderQuery);
-
-    // Calculate sales revenue per product AND track delivery/platform fees
-    const salesByProduct = {};
-    let totalDeliveryCharges = 0;
-    let totalPlatformFees = 0;
-    let totalProductRevenue = 0;
-
-    allOrders.forEach(order => {
-      // Calculate product subtotal for this order
-      let orderSubtotal = 0;
-      order.products.forEach(item => {
-        const prodId = String(item.product);
-        const itemRevenue = item.quantity * item.price;
-        orderSubtotal += itemRevenue;
-        
-        if (!salesByProduct[prodId]) {
-          salesByProduct[prodId] = 0;
-        }
-        salesByProduct[prodId] += itemRevenue;
-      });
-      totalProductRevenue += orderSubtotal;
-
-      // Calculate delivery charge based on order address
-      const deliveryCharge = calculateDeliveryCharge(order.address);
-      totalDeliveryCharges += deliveryCharge;
-
-      // Calculate platform fee based on subtotal
-      const platformFee = calculatePlatformFee(orderSubtotal);
-      totalPlatformFees += platformFee.total;
+    // Get partner balances
+    const partnerBalances = await PartnerBalance.find().sort({ partner: 1 });
+    
+    // Ensure all partners have records
+    const balanceMap = {};
+    VALID_PARTNERS.forEach(partner => {
+      const existing = partnerBalances.find(b => b.partner === partner);
+      balanceMap[partner] = existing || {
+        partner,
+        pendingBalance: 0,
+        totalExpenses: 0,
+        totalReimbursed: 0,
+      };
     });
 
-    // Calculate expenses per product per payer
-    const expensesByProduct = {};
-    allExpenses.forEach(exp => {
-      const prodId = String(exp.product?._id || exp.product);
-      const payer = exp.paidBy.charAt(0).toUpperCase() + exp.paidBy.slice(1).toLowerCase();
+    // Get recent expenses
+    const { startDate, endDate } = getMonthBoundaries(targetYear, targetMonth);
+    const recentExpenses = await Expense.find({
+      expenseDate: { $gte: startDate, $lte: endDate },
+    }).sort({ expenseDate: -1 }).limit(20);
+
+    // Get existing reimbursement for this month (if any)
+    const existingReimbursement = await Reimbursement.findOne({
+      year: targetYear,
+      month: targetMonth,
+    });
+
+    // Calculate potential recovery (preview)
+    const recoveryPercentage = DEFAULT_RECOVERY_PERCENTAGE;
+    const potentialRecoveryPool = salesData.totalSales * (recoveryPercentage / 100);
+    
+    // Calculate proportional distribution preview
+    const totalPendingBalance = Object.values(balanceMap).reduce(
+      (sum, b) => sum + b.pendingBalance, 0
+    );
+    
+    const recoveryPreview = VALID_PARTNERS.map(partner => {
+      const balance = balanceMap[partner];
+      const proportion = totalPendingBalance > 0 
+        ? balance.pendingBalance / totalPendingBalance 
+        : 0;
+      const potentialReimbursement = potentialRecoveryPool * proportion;
       
-      if (!expensesByProduct[prodId]) {
-        expensesByProduct[prodId] = {
-          productName: exp.product?.name || "Unknown",
-          totalExpense: 0,
-          byPayer: {},
-        };
-      }
-      expensesByProduct[prodId].totalExpense += exp.totalCost;
-      expensesByProduct[prodId].byPayer[payer] = (expensesByProduct[prodId].byPayer[payer] || 0) + exp.totalCost;
+      return {
+        partner,
+        pendingBalance: balance.pendingBalance,
+        totalExpenses: balance.totalExpenses,
+        totalReimbursed: balance.totalReimbursed,
+        proportion: proportion * 100,
+        potentialReimbursement,
+        balanceAfterReimbursement: Math.max(0, balance.pendingBalance - potentialReimbursement),
+      };
     });
 
-    // Calculate recovery per product per payer
-    const productSummaries = [];
-    const payerTotals = {};
-    let totalExpenses = 0;
-
-    Object.entries(expensesByProduct).forEach(([prodId, data]) => {
-      const sales = salesByProduct[prodId] || 0;
-      const recoveryRate = data.totalExpense > 0 ? Math.min(sales / data.totalExpense, 1) : 0;
-      const profit = sales - data.totalExpense;
-      totalExpenses += data.totalExpense;
-      
-      const payerRecovery = [];
-      Object.entries(data.byPayer).forEach(([payer, paid]) => {
-        const recovered = paid * recoveryRate;
-        const pending = paid - recovered;
-        
-        payerRecovery.push({ payer, paid, recovered, pending });
-        
-        // Accumulate totals per payer
-        if (!payerTotals[payer]) {
-          payerTotals[payer] = { paid: 0, recovered: 0, pending: 0 };
-        }
-        payerTotals[payer].paid += paid;
-        payerTotals[payer].recovered += recovered;
-        payerTotals[payer].pending += pending;
-      });
-
-      productSummaries.push({
-        productId: prodId,
-        productName: data.productName,
-        totalExpense: data.totalExpense,
-        totalSales: sales,
-        profit: profit,
-        recoveryRate: recoveryRate * 100,
-        payerRecovery,
-      });
-    });
-
-    // Format payer totals
-    const settlement = Object.entries(payerTotals)
-      .map(([payer, totals]) => ({
-        payer,
-        totalPaid: totals.paid,
-        totalRecovered: totals.recovered,
-        pendingRecovery: totals.pending,
-      }))
-      .sort((a, b) => b.totalPaid - a.totalPaid);
-
-    // Recent expenses
-    const recentExpenses = allExpenses
-      .sort((a, b) => new Date(b.expenseDate) - new Date(a.expenseDate))
-      .slice(0, 10)
-      .map(exp => ({
-        id: exp._id,
-        product: exp.product?.name || "Unknown",
-        component: exp.component,
-        amount: exp.totalCost,
-        paidBy: exp.paidBy,
-        date: exp.expenseDate,
-      }));
-
-    // Calculate totals
-    const totalProfit = totalProductRevenue - totalExpenses;
+    // Calculate profit preview
+    const totalReimbursement = recoveryPreview.reduce((sum, r) => sum + r.potentialReimbursement, 0);
+    const profit = salesData.totalSales - totalReimbursement;
+    const profitSplit = {
+      dawood: profit * (PROFIT_SPLIT.dawood / 100),
+      sayibAndFaisal: profit * (PROFIT_SPLIT.sayibAndFaisal / 100),
+    };
 
     res.json({
-      overview: {
-        totalProductRevenue,
-        totalExpenses,
-        totalProfit,
-        totalDeliveryCharges,
-        totalPlatformFees,
-        orderCount: allOrders.length,
+      period: {
+        year: targetYear,
+        month: targetMonth,
+        monthName: new Date(targetYear, targetMonth - 1).toLocaleString('default', { month: 'long' }),
       },
-      settlement,
-      productSummaries: productSummaries.sort((a, b) => b.totalExpense - a.totalExpense),
-      recentExpenses,
+      sales: {
+        totalProductRevenue: salesData.totalProductRevenue,
+        totalDeliveryCharges: salesData.totalDeliveryCharges,
+        totalPlatformFees: salesData.totalPlatformFees,
+        totalSales: salesData.totalSales,
+        orderCount: salesData.orderCount,
+      },
+      recovery: {
+        recoveryPercentage,
+        recoveryPool: potentialRecoveryPool,
+        totalPendingBalance,
+        partnerRecovery: recoveryPreview,
+      },
+      profit: {
+        totalSales: salesData.totalSales,
+        totalReimbursement,
+        profit,
+        profitSplit,
+        profitSplitPercentage: PROFIT_SPLIT,
+      },
+      recentExpenses: recentExpenses.map(exp => ({
+        id: exp._id,
+        partner: exp.partner,
+        amount: exp.amount,
+        description: exp.description,
+        date: exp.expenseDate,
+      })),
+      existingReimbursement: existingReimbursement ? {
+        isFinalized: existingReimbursement.isFinalized,
+        totalReimbursed: existingReimbursement.totalReimbursed,
+        profit: existingReimbursement.profit,
+        createdAt: existingReimbursement.createdAt,
+      } : null,
     });
   } catch (error) {
     console.error("Error fetching finance dashboard:", error);
@@ -183,41 +204,138 @@ export const getFinanceDashboard = async (req, res) => {
   }
 };
 
-// Get product-specific expense details
-export const getProductCosting = async (req, res) => {
+// Process monthly reimbursement
+export const processMonthlyReimbursement = async (req, res) => {
   try {
-    const { productId } = req.params;
+    const { year, month, recoveryPercentage } = req.body;
 
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    if (!year || !month) {
+      return res.status(400).json({ message: "Year and month are required" });
     }
 
-    const expenses = await Expense.find({ product: productId }).sort({ expenseDate: -1 });
-    
-    const byPayer = {};
-    let total = 0;
-    expenses.forEach(exp => {
-      const payer = exp.paidBy.charAt(0).toUpperCase() + exp.paidBy.slice(1).toLowerCase();
-      byPayer[payer] = (byPayer[payer] || 0) + exp.totalCost;
-      total += exp.totalCost;
+    const targetYear = parseInt(year);
+    const targetMonth = parseInt(month);
+    const recoveryPct = recoveryPercentage !== undefined 
+      ? parseFloat(recoveryPercentage) 
+      : DEFAULT_RECOVERY_PERCENTAGE;
+
+    if (recoveryPct < 0 || recoveryPct > 100) {
+      return res.status(400).json({ message: "Recovery percentage must be between 0 and 100" });
+    }
+
+    // Check if already processed
+    const existing = await Reimbursement.findOne({
+      year: targetYear,
+      month: targetMonth,
+      isFinalized: true,
     });
 
+    if (existing) {
+      return res.status(400).json({ 
+        message: "Reimbursement already finalized for this month",
+        reimbursement: existing,
+      });
+    }
+
+    // Calculate sales for the month
+    const salesData = await calculateMonthlySales(targetYear, targetMonth);
+    const recoveryPool = salesData.totalSales * (recoveryPct / 100);
+
+    // Get current partner balances
+    const partnerBalances = await PartnerBalance.find();
+    const balanceMap = {};
+    VALID_PARTNERS.forEach(partner => {
+      const existing = partnerBalances.find(b => b.partner === partner);
+      balanceMap[partner] = existing ? existing.pendingBalance : 0;
+    });
+
+    const totalPendingBalance = Object.values(balanceMap).reduce((sum, b) => sum + b, 0);
+
+    // Calculate reimbursements proportionally
+    const partnerReimbursements = [];
+    let totalReimbursed = 0;
+
+    for (const partner of VALID_PARTNERS) {
+      const pendingBalanceBefore = balanceMap[partner];
+      const proportion = totalPendingBalance > 0 
+        ? pendingBalanceBefore / totalPendingBalance 
+        : 0;
+      // Cap reimbursement at pending balance
+      const reimbursementAmount = Math.min(
+        recoveryPool * proportion,
+        pendingBalanceBefore
+      );
+      const pendingBalanceAfter = pendingBalanceBefore - reimbursementAmount;
+
+      partnerReimbursements.push({
+        partner,
+        pendingBalanceBefore,
+        reimbursementAmount,
+        pendingBalanceAfter,
+      });
+
+      totalReimbursed += reimbursementAmount;
+
+      // Update partner balance in database
+      if (reimbursementAmount > 0) {
+        await PartnerBalance.findOneAndUpdate(
+          { partner },
+          {
+            $inc: {
+              pendingBalance: -reimbursementAmount,
+              totalReimbursed: reimbursementAmount,
+            },
+          },
+          { upsert: true }
+        );
+      }
+    }
+
+    // Calculate profit and split
+    const profit = salesData.totalSales - totalReimbursed;
+    const profitSplit = {
+      dawood: profit * (PROFIT_SPLIT.dawood / 100),
+      sayibAndFaisal: profit * (PROFIT_SPLIT.sayibAndFaisal / 100),
+    };
+
+    // Create or update reimbursement record
+    const reimbursement = await Reimbursement.findOneAndUpdate(
+      { year: targetYear, month: targetMonth },
+      {
+        totalSales: salesData.totalSales,
+        recoveryPercentage: recoveryPct,
+        recoveryPool,
+        partnerReimbursements,
+        totalReimbursed,
+        profit,
+        profitSplit,
+        isFinalized: true,
+      },
+      { upsert: true, new: true }
+    );
+
     res.json({
-      product: { id: product._id, name: product.name },
-      totalExpense: total,
-      byPayer: Object.entries(byPayer).map(([payer, amount]) => ({ payer, amount })),
-      expenses: expenses.map(exp => ({
-        id: exp._id,
-        component: exp.component,
-        quantity: exp.quantityPurchased,
-        amount: exp.totalCost,
-        paidBy: exp.paidBy,
-        date: exp.expenseDate,
-      })),
+      message: "Monthly reimbursement processed successfully",
+      reimbursement,
     });
   } catch (error) {
-    console.error("Error fetching product expenses:", error);
+    console.error("Error processing reimbursement:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Get reimbursement history
+export const getReimbursementHistory = async (req, res) => {
+  try {
+    const { limit = 12 } = req.query;
+    
+    const history = await Reimbursement.find({ isFinalized: true })
+      .sort({ year: -1, month: -1 })
+      .limit(parseInt(limit));
+
+    res.json({ history });
+  } catch (error) {
+    console.error("Error fetching reimbursement history:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -234,18 +352,16 @@ export const exportFinanceCSV = async (req, res) => {
       if (endDate) query.expenseDate.$lte = new Date(endDate);
     }
 
-    const expenses = await Expense.find(query).populate("product", "name").sort({ expenseDate: -1 });
+    const expenses = await Expense.find(query).sort({ expenseDate: -1 });
     
-    const csvRows = [["Date", "Product", "Component", "Quantity", "Amount", "Paid By"].join(",")];
+    const csvRows = [["Date", "Partner", "Amount", "Description"].join(",")];
 
     expenses.forEach(exp => {
       csvRows.push([
         new Date(exp.expenseDate).toLocaleDateString(),
-        escapeCSV(exp.product?.name || "Unknown"),
-        escapeCSV(exp.component),
-        exp.quantityPurchased,
-        exp.totalCost.toFixed(2),
-        escapeCSV(exp.paidBy),
+        escapeCSV(exp.partner),
+        exp.amount.toFixed(2),
+        escapeCSV(exp.description || ""),
       ].join(","));
     });
 
@@ -258,11 +374,36 @@ export const exportFinanceCSV = async (req, res) => {
   }
 };
 
-// Monthly trend (kept for compatibility)
+// Get monthly profit trend
 export const getMonthlyProfitTrend = async (req, res) => {
   try {
-    res.json({ monthlyTrend: [] });
+    const { months = 6 } = req.query;
+    
+    const history = await Reimbursement.find({ isFinalized: true })
+      .sort({ year: -1, month: -1 })
+      .limit(parseInt(months));
+
+    const trend = history.map(r => ({
+      year: r.year,
+      month: r.month,
+      monthName: new Date(r.year, r.month - 1).toLocaleString('default', { month: 'short' }),
+      totalSales: r.totalSales,
+      totalReimbursed: r.totalReimbursed,
+      profit: r.profit,
+    })).reverse();
+
+    res.json({ monthlyTrend: trend });
   } catch (error) {
+    console.error("Error fetching monthly trend:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
+};
+
+// Legacy endpoint - kept for compatibility but returns empty
+export const getProductCosting = async (req, res) => {
+  res.json({ 
+    message: "Product-level costing has been removed. Use the new finance dashboard.",
+    product: null,
+    expenses: [],
+  });
 };

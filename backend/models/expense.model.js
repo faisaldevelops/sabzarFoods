@@ -1,31 +1,26 @@
 import mongoose from "mongoose";
 
+/**
+ * Expense Model - Simplified for partner expense tracking
+ * Partners can pay business expenses, tracked separately from products/orders
+ */
 const expenseSchema = new mongoose.Schema(
   {
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-    },
-    component: {
+    partner: {
       type: String,
       required: true,
+      enum: ["Dawood", "Sayib", "Faisal"],
       trim: true,
     },
-    quantityPurchased: {
+    amount: {
       type: Number,
       required: true,
-      min: 0,
+      min: 0.01,
     },
-    totalCost: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    paidBy: {
+    description: {
       type: String,
-      required: true,
       trim: true,
+      default: "",
     },
     expenseDate: {
       type: Date,
@@ -37,7 +32,7 @@ const expenseSchema = new mongoose.Schema(
 );
 
 // Index for faster queries
-expenseSchema.index({ product: 1, expenseDate: -1 });
+expenseSchema.index({ partner: 1, expenseDate: -1 });
 expenseSchema.index({ expenseDate: -1 });
 
 const Expense = mongoose.model("Expense", expenseSchema);
