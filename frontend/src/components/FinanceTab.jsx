@@ -108,25 +108,37 @@ const FinanceTab = () => {
 
           {/* Sales Overview Cards */}
           {financeDashboard?.sales && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                <p className="text-gray-400 text-xs">Product Revenue</p>
-                <p className="text-emerald-400 text-xl font-bold">{formatCurrency(financeDashboard.sales.totalProductRevenue)}</p>
-                <p className="text-gray-500 text-xs mt-1">{financeDashboard.sales.orderCount} orders</p>
-              </motion.div>
-              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <p className="text-gray-400 text-xs flex items-center gap-1"><Truck className="w-3 h-3" /> Delivery Fees</p>
-                <p className="text-blue-400 text-xl font-bold">{formatCurrency(financeDashboard.sales.totalDeliveryCharges)}</p>
-              </motion.div>
-              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                <p className="text-gray-400 text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Platform Fees</p>
-                <p className="text-orange-400 text-xl font-bold">{formatCurrency(financeDashboard.sales.totalPlatformFees)}</p>
-                <p className="text-gray-500 text-xs mt-1">Includes Razorpay</p>
-              </motion.div>
-              <motion.div className="bg-gray-800 p-4 rounded-lg" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <p className="text-gray-400 text-xs">Total Sales</p>
-                <p className="text-emerald-400 text-xl font-bold">{formatCurrency(financeDashboard.sales.totalSales)}</p>
-              </motion.div>
+            <div className="space-y-4">
+              {/* Main Sales Card */}
+              <div className="bg-gray-800 p-4 rounded-lg max-w-md mx-auto">
+                <p className="text-gray-400 text-xs text-center">Total Sales (Product Revenue)</p>
+                <p className="text-emerald-400 text-2xl font-bold text-center">{formatCurrency(financeDashboard.sales.totalSales)}</p>
+                <p className="text-gray-500 text-xs text-center mt-1">{financeDashboard.sales.orderCount} orders • Used for profit calculations</p>
+              </div>
+              
+              {/* Fees Cards - For Display Only */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                  <p className="text-gray-400 text-xs flex items-center gap-1"><Truck className="w-3 h-3" /> Delivery Fees</p>
+                  <p className="text-blue-400 text-lg font-bold">{formatCurrency(financeDashboard.sales.totalDeliveryCharges)}</p>
+                  <p className="text-gray-600 text-xs mt-1">Recovered separately</p>
+                </motion.div>
+                <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                  <p className="text-gray-400 text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Platform Fee (Constant)</p>
+                  <p className="text-orange-400 text-lg font-bold">{formatCurrency(financeDashboard.sales.platformFees?.constant || 0)}</p>
+                  <p className="text-gray-600 text-xs mt-1">Fixed per order</p>
+                </motion.div>
+                <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                  <p className="text-gray-400 text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Razorpay Fee</p>
+                  <p className="text-orange-400 text-lg font-bold">{formatCurrency(financeDashboard.sales.platformFees?.razorpay || 0)}</p>
+                  <p className="text-gray-600 text-xs mt-1">Variable (2%)</p>
+                </motion.div>
+                <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                  <p className="text-gray-400 text-xs">Total Platform Fees</p>
+                  <p className="text-orange-400 text-lg font-bold">{formatCurrency(financeDashboard.sales.platformFees?.total || 0)}</p>
+                  <p className="text-gray-600 text-xs mt-1">Recovered separately</p>
+                </motion.div>
+              </div>
             </div>
           )}
 

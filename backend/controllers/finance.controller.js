@@ -10,11 +10,13 @@ import { calculateDeliveryCharge, calculatePlatformFee } from "../lib/pricing.js
  * Business Rules:
  * 1. Partners (Dawood, Sayib, Faisal) can pay business expenses
  * 2. Each partner has a pending expense balance
- * 3. Sales are captured automatically from completed orders
+ * 3. Sales are captured automatically from completed orders (Product Price only - excludes delivery/platform fees)
  * 4. Monthly recovery pool = total sales × recovery percentage (default 50%)
  * 5. Recovery pool is distributed proportionally among partners based on pending balances
  * 6. Profit = total sales - total reimbursed expenses
  * 7. Profit split: Dawood 70%, Sayib+Faisal 30%
+ * 
+ * Note: Delivery fees and platform fees are displayed for reference but NOT included in sales/profit calculations
  */
 
 // Constants
@@ -45,7 +47,8 @@ function getMonthBoundaries(year, month) {
   return { startDate, endDate };
 }
 
-// Helper: Calculate total sales for a month
+// Helper: Calculate total sales for a month (Product Price only - excludes delivery/platform fees)
+// Also calculates delivery and platform fees for display purposes
 async function calculateMonthlySales(year, month) {
   const { startDate, endDate } = getMonthBoundaries(year, month);
   
@@ -56,29 +59,32 @@ async function calculateMonthlySales(year, month) {
 
   let totalProductRevenue = 0;
   let totalDeliveryCharges = 0;
-  let totalPlatformFees = 0;
+  let totalPlatformFeeConstant = 0;
+  let totalPlatformFeeRazorpay = 0;
 
   orders.forEach(order => {
-    // Calculate product subtotal
+    // Calculate product subtotal only (this is the SALES figure)
     let orderSubtotal = 0;
     order.products.forEach(item => {
       orderSubtotal += item.quantity * item.price;
     });
     totalProductRevenue += orderSubtotal;
 
-    // Calculate delivery and platform fees
+    // Calculate delivery and platform fees (for display only, NOT part of sales)
     const deliveryCharge = calculateDeliveryCharge(order.address);
     totalDeliveryCharges += deliveryCharge;
 
     const platformFee = calculatePlatformFee(orderSubtotal);
-    totalPlatformFees += platformFee.total;
+    totalPlatformFeeConstant += platformFee.constant;
+    totalPlatformFeeRazorpay += platformFee.razorpayFee;
   });
 
   return {
-    totalProductRevenue,
-    totalDeliveryCharges,
-    totalPlatformFees,
-    totalSales: totalProductRevenue, // Sales = product revenue (fees are separate)
+    totalSales: totalProductRevenue, // Sales = product revenue only (used for calculations)
+    totalDeliveryCharges, // For display only
+    totalPlatformFeeConstant, // For display only - constant part
+    totalPlatformFeeRazorpay, // For display only - Razorpay variable part
+    totalPlatformFees: totalPlatformFeeConstant + totalPlatformFeeRazorpay, // For display only - total
     orderCount: orders.length,
   };
 }
@@ -165,10 +171,13 @@ export const getFinanceDashboard = async (req, res) => {
         monthName: new Date(targetYear, targetMonth - 1).toLocaleString('default', { month: 'long' }),
       },
       sales: {
-        totalProductRevenue: salesData.totalProductRevenue,
-        totalDeliveryCharges: salesData.totalDeliveryCharges,
-        totalPlatformFees: salesData.totalPlatformFees,
-        totalSales: salesData.totalSales,
+        totalSales: salesData.totalSales, // Product revenue only (used for calculations)
+        totalDeliveryCharges: salesData.totalDeliveryCharges, // For display only
+        platformFees: {
+          constant: salesData.totalPlatformFeeConstant, // Constant part
+          razorpay: salesData.totalPlatformFeeRazorpay, // Razorpay variable part
+          total: salesData.totalPlatformFees, // Total platform fees
+        },
         orderCount: salesData.orderCount,
       },
       recovery: {
