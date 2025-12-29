@@ -2,6 +2,7 @@ import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 import twilio from "twilio";
+import { getDeliveryType } from "../lib/pricing.js";
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -446,14 +447,21 @@ export const getAddressSheet = async (req, res) => {
 export const getBulkAddressSheets = async (req, res) => {
 	try {
 		// Extract filter parameters from query
-		const { phoneNumber, publicOrderId } = req.query;
+		const { phoneNumber, publicOrderId, status, deliveryType } = req.query;
 		
-		// Build filter object - ALWAYS filter by processing status only
-		let filter = {
-			trackingStatus: 'processing'
-		};
+		// Build filter object - default to processing if no status specified
+		let filter = {};
 		
-		// Filter by publicOrderId (optional, but still only shows processing orders)
+		// Status filter - default to 'processing' if not provided
+		if (status && status !== 'all') {
+			filter.trackingStatus = status;
+		} else if (!status) {
+			// Default to processing if no status is provided
+			filter.trackingStatus = 'processing';
+		}
+		// If status is 'all', no filter is applied
+		
+		// Filter by publicOrderId (optional)
 		if (publicOrderId) {
 			filter.publicOrderId = publicOrderId;
 		}
@@ -477,10 +485,23 @@ export const getBulkAddressSheets = async (req, res) => {
 		// Sort by createdAt in ascending order (oldest first)
 		const orders = await Order.find(filter)
 			.populate('user', 'name phoneNumber')
+			.populate({
+				path: 'products.product',
+				select: 'name',
+			})
 			.sort({ createdAt: 1 })
 			.lean();
 
-		if (orders.length === 0) {
+		// Filter by delivery type if specified
+		let filteredOrders = orders;
+		if (deliveryType && deliveryType !== 'all') {
+			filteredOrders = orders.filter(order => {
+				const orderDeliveryType = getDeliveryType(order.address);
+				return orderDeliveryType === deliveryType;
+			});
+		}
+
+		if (filteredOrders.length === 0) {
 			return res.status(404).send(`
 				<!DOCTYPE html>
 				<html>
@@ -502,38 +523,51 @@ export const getBulkAddressSheets = async (req, res) => {
 		const labelsPerPage = 6;
 		const pages = [];
 		
-		for (let i = 0; i < orders.length; i += labelsPerPage) {
-			const pageOrders = orders.slice(i, i + labelsPerPage);
-			const isLastPage = i + labelsPerPage >= orders.length;
+		for (let i = 0; i < filteredOrders.length; i += labelsPerPage) {
+			const pageOrders = filteredOrders.slice(i, i + labelsPerPage);
+			const isLastPage = i + labelsPerPage >= filteredOrders.length;
 			
 			const pageHTML = pageOrders.map(order => {
 				const address = order.address || {};
 				const user = order.user || {};
 				
+				// Build order items string
+				const orderItems = (order.products || [])
+					.map(p => {
+						const productName = p.product?.name || 'PRODUCT_REMOVED';
+						return `${productName} (${p.quantity})`;
+					})
+					.join(', ');
+				
 				return `
-			<div class="address-sheet">
-				<div class="header">
-					<div class="order-id">Order #${order.publicOrderId || order._id}</div>
-					<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+			<div class="label-container">
+				<div class="order-items">
+					Order Items: ${orderItems || 'No items'}
 				</div>
-				
-				<div class="section">
-					<div class="label">Deliver To:</div>
-					<div class="value name">${address.name || user.name || 'N/A'}</div>
-				</div>
-				
-				<div class="section">
-					<div class="label">Phone:</div>
-					<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
-				</div>
-				
-				<div class="section">
-					<div class="label">Address:</div>
-					<div class="value">
-						<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
-						${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
-						<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
-						<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
+				<div class="address-sheet">
+					<div class="header">
+						<div class="order-id">Order #${order.publicOrderId || order._id}</div>
+						<div style="font-size: 12px; color: #666;">Date: ${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</div>
+					</div>
+					
+					<div class="section">
+						<div class="label">Deliver To:</div>
+						<div class="value name">${address.name || user.name || 'N/A'}</div>
+					</div>
+					
+					<div class="section">
+						<div class="label">Phone:</div>
+						<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
+					</div>
+					
+					<div class="section">
+						<div class="label">Address:</div>
+						<div class="value">
+							<div class="address-line">${address.houseNumber || 'N/A'}, ${address.streetAddress || 'N/A'}</div>
+							${address.landmark ? `<div class="address-line">Near: ${address.landmark}</div>` : ''}
+							<div class="address-line">${address.city || 'N/A'}, ${address.state || 'N/A'}</div>
+							<div class="address-line" style="font-weight: bold;">PIN: ${address.pincode || 'N/A'}</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -554,7 +588,7 @@ export const getBulkAddressSheets = async (req, res) => {
 <html>
 <head>
 	<meta charset="UTF-8">
-	<title>Bulk Address Sheets - ${orders.length} Order${orders.length !== 1 ? 's' : ''}</title>
+	<title>Bulk Address Sheets - ${filteredOrders.length} Order${filteredOrders.length !== 1 ? 's' : ''}</title>
 	<style>
 		* {
 			margin: 0;
@@ -575,12 +609,28 @@ export const getBulkAddressSheets = async (req, res) => {
 			padding: 10px;
 			page-break-inside: avoid;
 		}
+		.label-container {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+		}
+		.order-items {
+			font-size: 10px;
+			color: #333;
+			padding: 4px 8px;
+			background-color: #f0f0f0;
+			border: 1px solid #ccc;
+			border-bottom: none;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
 		.address-sheet {
 			border: 2px solid #000;
 			padding: 20px;
 			display: flex;
 			flex-direction: column;
-			height: 100%;
+			flex: 1;
 			overflow: hidden;
 		}
 		.header {
@@ -636,6 +686,13 @@ export const getBulkAddressSheets = async (req, res) => {
 			}
 			.page-container:last-child {
 				page-break-after: auto;
+			}
+			.label-container {
+				page-break-inside: avoid;
+			}
+			.order-items {
+				font-size: 9px;
+				padding: 3px 6px;
 			}
 			.address-sheet {
 				border: 2px solid #000;
