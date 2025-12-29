@@ -7,6 +7,7 @@ import {
   updateExpense,
   deleteExpense,
   getExpenseSummary,
+  getPartnerBalances,
 } from "../controllers/expense.controller.js";
 
 const router = express.Router();
@@ -15,6 +16,7 @@ const router = express.Router();
 router.post("/", protectRoute, adminRoute, createExpense);
 router.get("/", protectRoute, adminRoute, getExpenses);
 router.get("/summary", protectRoute, adminRoute, getExpenseSummary);
+router.get("/balances", protectRoute, adminRoute, getPartnerBalances);
 router.get("/:id", protectRoute, adminRoute, getExpenseById);
 router.put("/:id", protectRoute, adminRoute, updateExpense);
 router.delete("/:id", protectRoute, adminRoute, deleteExpense);
