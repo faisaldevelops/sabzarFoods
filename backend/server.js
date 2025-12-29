@@ -17,7 +17,7 @@ import expenseRoutes from "./routes/expense.route.js";
 import bomRoutes from "./routes/bom.route.js";
 import financeRoutes from "./routes/finance.route.js";
 import { connectDB } from "./lib/db.js";
-import { startHoldExpiryJob } from "./lib/stockHold.js";
+import { startHoldExpiryJob, stopHoldExpiryJob } from "./lib/stockHold.js";
 
 dotenv.config();
 
@@ -79,8 +79,23 @@ app.use("/api/finance", financeRoutes);
 /* =======================
    Start Server
 ======================= */
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   await connectDB();
   startHoldExpiryJob();
 });
+
+/* =======================
+   Graceful Shutdown
+======================= */
+const shutdown = () => {
+  console.log("Shutting down gracefully...");
+  stopHoldExpiryJob();
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+};
+
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

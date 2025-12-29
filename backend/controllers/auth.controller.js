@@ -26,14 +26,14 @@ const setCookies = (res, accessToken, refreshToken) => {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
 		secure: isProd,
 		sameSite: "lax",
-		domain: ".sabzarfoods.in", 
+		domain: isProd ? ".sabzarfoods.in" : undefined, 
 		maxAge: 60 * 24 * 60 * 60 * 1000, // 60 days
 	});
 	res.cookie("refreshToken", refreshToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
 		secure: isProd,
 		sameSite: "lax",
-		domain: ".sabzarfoods.in", 
+		domain: isProd ? ".sabzarfoods.in" : undefined, 
 		path: "/api/auth/refresh-token",
 		maxAge: 60 * 24 * 60 * 60 * 1000, // 60 days
 	});
