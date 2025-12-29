@@ -131,7 +131,7 @@ const FinanceTab = () => {
                 <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                   <p className="text-gray-400 text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Razorpay Fee</p>
                   <p className="text-orange-400 text-lg font-bold">{formatCurrency(financeDashboard.sales.platformFees?.razorpay || 0)}</p>
-                  <p className="text-gray-600 text-xs mt-1">Variable (2%)</p>
+                  <p className="text-gray-600 text-xs mt-1">Variable ({financeDashboard.sales.platformFees?.razorpayPercentage || 2}%)</p>
                 </motion.div>
                 <motion.div className="bg-gray-800/60 p-4 rounded-lg border border-gray-700" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                   <p className="text-gray-400 text-xs">Total Platform Fees</p>

@@ -61,6 +61,7 @@ async function calculateMonthlySales(year, month) {
   let totalDeliveryCharges = 0;
   let totalPlatformFeeConstant = 0;
   let totalPlatformFeeRazorpay = 0;
+  let razorpayPercentage = 2.0; // Default
 
   orders.forEach(order => {
     // Calculate product subtotal only (this is the SALES figure)
@@ -77,6 +78,7 @@ async function calculateMonthlySales(year, month) {
     const platformFee = calculatePlatformFee(orderSubtotal);
     totalPlatformFeeConstant += platformFee.constant;
     totalPlatformFeeRazorpay += platformFee.razorpayFee;
+    razorpayPercentage = platformFee.razorpayPercentage; // Get from config
   });
 
   return {
@@ -85,6 +87,7 @@ async function calculateMonthlySales(year, month) {
     totalPlatformFeeConstant, // For display only - constant part
     totalPlatformFeeRazorpay, // For display only - Razorpay variable part
     totalPlatformFees: totalPlatformFeeConstant + totalPlatformFeeRazorpay, // For display only - total
+    razorpayPercentage, // Razorpay percentage from config
     orderCount: orders.length,
   };
 }
@@ -176,6 +179,7 @@ export const getFinanceDashboard = async (req, res) => {
         platformFees: {
           constant: salesData.totalPlatformFeeConstant, // Constant part
           razorpay: salesData.totalPlatformFeeRazorpay, // Razorpay variable part
+          razorpayPercentage: salesData.razorpayPercentage, // Razorpay percentage from config
           total: salesData.totalPlatformFees, // Total platform fees
         },
         orderCount: salesData.orderCount,
