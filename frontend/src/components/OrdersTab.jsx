@@ -3,6 +3,7 @@ import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
+import PrintLabelsFilterModal from "./PrintLabelsFilterModal";
 
 const OrderslistTab = () => {
     const [ orders, setOrders ] = useState([])
@@ -25,6 +26,9 @@ const OrderslistTab = () => {
         newStatus: null,
         orderPublicId: null
     });
+    
+    // Print labels filter modal state
+    const [printLabelsModalOpen, setPrintLabelsModalOpen] = useState(false);
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -258,15 +262,34 @@ const OrderslistTab = () => {
     };
 
     const handlePrintAllLabels = () => {
-        // Build query parameters from current filters
+        // Open the filter modal
+        setPrintLabelsModalOpen(true);
+    };
+
+    const handlePrintLabelsConfirm = (filters) => {
+        // Build query parameters from filters
         const params = new URLSearchParams();
-        if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
-        if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
-        if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
+        
+        // Add status filter if not 'all'
+        if (filters.status && filters.status !== 'all') {
+            params.append('status', filters.status);
+        }
+        
+        // Add delivery type filter if not 'all'
+        if (filters.deliveryType && filters.deliveryType !== 'all') {
+            params.append('deliveryType', filters.deliveryType);
+        }
         
         const baseURL = import.meta.env.VITE_API_URL || '';
         const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
         window.open(url, '_blank');
+        
+        // Close the modal
+        setPrintLabelsModalOpen(false);
+    };
+
+    const handlePrintLabelsCancel = () => {
+        setPrintLabelsModalOpen(false);
     };
 
     const handlePageChange = (newPage) => {
@@ -691,6 +714,13 @@ const OrderslistTab = () => {
             </motion.div>
         </div>
     )}
+
+    {/* Print Labels Filter Modal */}
+    <PrintLabelsFilterModal
+        isOpen={printLabelsModalOpen}
+        onClose={handlePrintLabelsCancel}
+        onConfirm={handlePrintLabelsConfirm}
+    />
 
     </>
     
