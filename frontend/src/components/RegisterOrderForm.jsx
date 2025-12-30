@@ -69,10 +69,22 @@ const RegisterOrderForm = () => {
   });
 
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     fetchAllProducts();
   }, [fetchAllProducts]);
+
+  // Clear field error when user types
+  const clearError = (field) => {
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
+  };
 
   // Filter products based on search query
   const filteredProducts = products?.filter(product =>
@@ -104,6 +116,7 @@ const RegisterOrderForm = () => {
       ]);
     }
     setSearchQuery("");
+    clearError('products');
   };
 
   const handleUpdateQuantity = (productId, newQuantity) => {
@@ -132,21 +145,44 @@ const RegisterOrderForm = () => {
     return calculateSubtotal() + (formData.deliveryFee || 0) + (formData.platformFee || 0);
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Customer validation
+    if (!formData.customerName.trim()) {
+      newErrors.customerName = "Name is required";
+    }
+    if (!formData.customerPhone || !/^\d{10}$/.test(formData.customerPhone)) {
+      newErrors.customerPhone = "Enter valid 10-digit phone";
+    }
+    if (formData.customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)) {
+      newErrors.customerEmail = "Enter valid email";
+    }
+    
+    // Address validation
+    if (!formData.address.pincode || !/^\d{6}$/.test(formData.address.pincode)) {
+      newErrors.pincode = "Enter 6-digit pincode";
+    }
+    if (!formData.address.city.trim()) {
+      newErrors.city = "City is required";
+    }
+    if (!formData.address.state.trim()) {
+      newErrors.state = "State is required";
+    }
+    
+    // Products validation
+    if (selectedProducts.length === 0) {
+      newErrors.products = "Add at least one product";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (selectedProducts.length === 0) {
-      toast.error("Please add at least one product");
-      return;
-    }
-
-    if (!formData.customerName || !formData.customerPhone) {
-      toast.error("Customer name and phone are required");
-      return;
-    }
-
-    if (!formData.address.pincode || !formData.address.city || !formData.address.state) {
-      toast.error("Pincode, city, and state are required");
+    if (!validateForm()) {
       return;
     }
 
@@ -290,11 +326,14 @@ const RegisterOrderForm = () => {
               <input
                 type="text"
                 value={formData.customerName}
-                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setFormData({ ...formData, customerName: e.target.value });
+                  clearError('customerName');
+                }}
+                className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.customerName ? 'border-red-500' : 'border-gray-600'}`}
                 placeholder="Customer name"
-                required
               />
+              {errors.customerName && <p className="text-xs text-red-400 mt-1">{errors.customerName}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -305,12 +344,16 @@ const RegisterOrderForm = () => {
                 <input
                   type="tel"
                   value={formData.customerPhone}
-                  onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md pl-10 pr-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Phone number"
-                  required
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setFormData({ ...formData, customerPhone: digits });
+                    clearError('customerPhone');
+                  }}
+                  className={`w-full bg-gray-700 border rounded-md pl-10 pr-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.customerPhone ? 'border-red-500' : 'border-gray-600'}`}
+                  placeholder="10 digit phone"
                 />
               </div>
+              {errors.customerPhone && <p className="text-xs text-red-400 mt-1">{errors.customerPhone}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
@@ -319,11 +362,15 @@ const RegisterOrderForm = () => {
                 <input
                   type="email"
                   value={formData.customerEmail}
-                  onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md pl-10 pr-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  onChange={(e) => {
+                    setFormData({ ...formData, customerEmail: e.target.value });
+                    clearError('customerEmail');
+                  }}
+                  className={`w-full bg-gray-700 border rounded-md pl-10 pr-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.customerEmail ? 'border-red-500' : 'border-gray-600'}`}
                   placeholder="Email (optional)"
                 />
               </div>
+              {errors.customerEmail && <p className="text-xs text-red-400 mt-1">{errors.customerEmail}</p>}
             </div>
           </div>
         </div>
@@ -372,11 +419,15 @@ const RegisterOrderForm = () => {
               <input
                 type="text"
                 value={formData.address.pincode}
-                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, pincode: e.target.value } })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Pincode"
-                required
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setFormData({ ...formData, address: { ...formData.address, pincode: digits } });
+                  clearError('pincode');
+                }}
+                className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.pincode ? 'border-red-500' : 'border-gray-600'}`}
+                placeholder="6 digit pincode"
               />
+              {errors.pincode && <p className="text-xs text-red-400 mt-1">{errors.pincode}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -385,11 +436,14 @@ const RegisterOrderForm = () => {
               <input
                 type="text"
                 value={formData.address.city}
-                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setFormData({ ...formData, address: { ...formData.address, city: e.target.value } });
+                  clearError('city');
+                }}
+                className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.city ? 'border-red-500' : 'border-gray-600'}`}
                 placeholder="City"
-                required
               />
+              {errors.city && <p className="text-xs text-red-400 mt-1">{errors.city}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -398,21 +452,27 @@ const RegisterOrderForm = () => {
               <input
                 type="text"
                 value={formData.address.state}
-                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, state: e.target.value } })}
-                className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={(e) => {
+                  setFormData({ ...formData, address: { ...formData.address, state: e.target.value } });
+                  clearError('state');
+                }}
+                className={`w-full bg-gray-700 border rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.state ? 'border-red-500' : 'border-gray-600'}`}
                 placeholder="State"
-                required
               />
+              {errors.state && <p className="text-xs text-red-400 mt-1">{errors.state}</p>}
             </div>
           </div>
         </div>
 
         {/* Products */}
         <div className="bg-gray-900 rounded-lg p-4">
-          <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-            <Package className="w-5 h-5 text-emerald-400" />
-            Products <span className="text-red-400">*</span>
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-white flex items-center gap-2">
+              <Package className="w-5 h-5 text-emerald-400" />
+              Products <span className="text-red-400">*</span>
+            </h3>
+            {errors.products && <p className="text-xs text-red-400">{errors.products}</p>}
+          </div>
           
           {/* Product Search */}
           <div className="relative mb-4">
