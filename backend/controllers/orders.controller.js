@@ -212,6 +212,7 @@ export const getUserOrders = async (req, res) => {
 			address: order.address,
 			trackingStatus: order.trackingStatus,
 			trackingNumber: order.trackingNumber,
+			deliveryPartner: order.deliveryPartner,
 			estimatedDelivery: order.estimatedDelivery,
 			trackingHistory: order.trackingHistory,
 		}));
@@ -237,7 +238,7 @@ export const getUserOrders = async (req, res) => {
 export const updateOrderTracking = async (req, res) => {
 	try {
 		const { orderId } = req.params;
-		const { trackingStatus, trackingNumber, estimatedDelivery, note } = req.body;
+		const { trackingStatus, trackingNumber, deliveryPartner, estimatedDelivery, note } = req.body;
 
 		const order = await Order.findById(orderId).populate('user', 'phoneNumber');
 		if (!order) {
@@ -267,6 +268,10 @@ export const updateOrderTracking = async (req, res) => {
 			order.trackingNumber = trackingNumber;
 		}
 
+		if (deliveryPartner !== undefined) {
+			order.deliveryPartner = deliveryPartner;
+		}
+
 		if (estimatedDelivery !== undefined) {
 			order.estimatedDelivery = estimatedDelivery;
 		}
@@ -281,6 +286,7 @@ export const updateOrderTracking = async (req, res) => {
 				publicOrderId: order.publicOrderId,
 				trackingStatus: order.trackingStatus,
 				trackingNumber: order.trackingNumber,
+				deliveryPartner: order.deliveryPartner,
 				estimatedDelivery: order.estimatedDelivery,
 				trackingHistory: order.trackingHistory,
 			},

@@ -26,6 +26,12 @@ const OrderslistTab = () => {
         orderPublicId: null
     });
     
+    // Shipping details state (for when changing to shipped)
+    const [shippingDetails, setShippingDetails] = useState({
+        trackingNumber: '',
+        deliveryPartner: ''
+    });
+    
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize] = useState(10); // Items per page
@@ -110,13 +116,23 @@ const OrderslistTab = () => {
 	}, [fetchAllOrders]);
 // Removed duplicate/broken useEffect and setDisplayOrderIds calls
 
-    const updateTrackingStatus = async (orderId, newStatus) => {
+    const updateTrackingStatus = async (orderId, newStatus, trackingNumber = null, deliveryPartner = null) => {
         setUpdatingOrder(orderId);
         try {
-            const response = await axios.patch(`/orders/${orderId}/tracking`, {
+            const payload = {
                 trackingStatus: newStatus,
                 note: `Status updated to ${newStatus}`,
-            });
+            };
+            
+            // Include tracking details if provided (for shipped status)
+            if (trackingNumber) {
+                payload.trackingNumber = trackingNumber;
+            }
+            if (deliveryPartner) {
+                payload.deliveryPartner = deliveryPartner;
+            }
+            
+            const response = await axios.patch(`/orders/${orderId}/tracking`, payload);
             
             if (response.data.success) {
                 // Refetch orders to respect current filters
@@ -166,6 +182,8 @@ const OrderslistTab = () => {
     };
 
     const handleStatusChangeClick = (orderId, newStatus, orderPublicId, currentStatus) => {
+        // Reset shipping details when opening modal
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: true,
             orderId,
@@ -178,7 +196,19 @@ const OrderslistTab = () => {
     const handleConfirmStatusChange = async () => {
         if (!confirmationModal.orderId || !confirmationModal.newStatus) return;
         
-        await updateTrackingStatus(confirmationModal.orderId, confirmationModal.newStatus);
+        // Pass tracking details if changing to shipped
+        const trackingNumber = confirmationModal.newStatus === 'shipped' ? shippingDetails.trackingNumber : null;
+        const deliveryPartner = confirmationModal.newStatus === 'shipped' ? shippingDetails.deliveryPartner : null;
+        
+        await updateTrackingStatus(
+            confirmationModal.orderId, 
+            confirmationModal.newStatus,
+            trackingNumber || null,
+            deliveryPartner || null
+        );
+        
+        // Reset shipping details
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: false,
             orderId: null,
@@ -189,6 +219,7 @@ const OrderslistTab = () => {
     };
 
     const handleCancelStatusChange = () => {
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: false,
             orderId: null,
@@ -671,6 +702,46 @@ const OrderslistTab = () => {
                                 {getStatusDisplayName(confirmationModal.newStatus)}
                             </span>?
                         </p>
+                        
+                        {/* Shipping Details Fields - Only show when changing to shipped */}
+                        {confirmationModal.newStatus === 'shipped' && (
+                            <div className="mb-4 p-3 bg-gray-900 rounded-lg border border-gray-700 space-y-3">
+                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                                    Shipping Details (Optional)
+                                </p>
+                                
+                                {/* Delivery Partner Dropdown */}
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">
+                                        Delivery Partner
+                                    </label>
+                                    <select
+                                        value={shippingDetails.deliveryPartner}
+                                        onChange={(e) => setShippingDetails(prev => ({ ...prev, deliveryPartner: e.target.value }))}
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option value="">Select delivery partner</option>
+                                        <option value="india_post">India Post (Speed Post)</option>
+                                        <option value="delhivery">Delhivery</option>
+                                    </select>
+                                </div>
+                                
+                                {/* Tracking Number Input */}
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">
+                                        Tracking Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={shippingDetails.trackingNumber}
+                                        onChange={(e) => setShippingDetails(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                                        placeholder="Enter tracking number"
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={handleCancelStatusChange}

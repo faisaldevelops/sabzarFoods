@@ -75,6 +75,11 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    deliveryPartner: {
+      type: String,
+      enum: ["india_post", "delhivery", null],
+      default: null,
+    },
     estimatedDelivery: {
       type: Date,
       default: null,
