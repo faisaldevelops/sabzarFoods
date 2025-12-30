@@ -78,20 +78,12 @@ const LabelsTab = () => {
     setIsPrinting(true);
 
     try {
-      // Build query for bulk print
-      const selectedOrderIds = selectedOrders.join(',');
-      
-      // Open print window
+      // Open print window with ONLY selected order IDs
       const baseURL = import.meta.env.VITE_API_URL || '';
-      
-      // We need to filter to only selected orders
-      // For now, use the existing bulk endpoint with status filter
-      // The bulk endpoint prints all matching orders, so we'll mark after print
       const params = new URLSearchParams();
-      params.append("status", filter.status);
-      if (filter.printed === "unprinted") {
-        params.append("printed", "unprinted");
-      }
+      
+      // Pass selected order IDs to print only those
+      params.append("orderIds", selectedOrders.join(','));
       
       const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
       window.open(url, '_blank');
@@ -118,7 +110,13 @@ const LabelsTab = () => {
     // Just print without marking
     const baseURL = import.meta.env.VITE_API_URL || '';
     const params = new URLSearchParams();
-    params.append("status", filter.status);
+    
+    // If orders are selected, print only those; otherwise use filter
+    if (selectedOrders.length > 0) {
+      params.append("orderIds", selectedOrders.join(','));
+    } else {
+      params.append("status", filter.status);
+    }
     
     const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
     window.open(url, '_blank');

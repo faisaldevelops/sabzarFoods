@@ -457,36 +457,44 @@ export const getAddressSheet = async (req, res) => {
 export const getBulkAddressSheets = async (req, res) => {
 	try {
 		// Extract filter parameters from query
-		const { phoneNumber, publicOrderId, status, deliveryType } = req.query;
+		const { phoneNumber, publicOrderId, status, deliveryType, orderIds } = req.query;
 		
-		// Build filter object - default to processing if no status specified
+		// Build filter object
 		let filter = {};
 		
-		// Status filter - default to 'processing' if not provided
-		if (status && status !== 'all') {
-			filter.trackingStatus = status;
-		} else if (!status) {
-			// Default to processing if no status is provided
-			filter.trackingStatus = 'processing';
-		}
-		// If status is 'all', no filter is applied
-		
-		// Filter by publicOrderId (optional)
-		if (publicOrderId) {
-			filter.publicOrderId = publicOrderId;
-		}
-		
-		// Filter by user phone number (optional)
-		if (phoneNumber) {
-			const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
-			if (sanitizedPhone) {
-				const User = mongoose.model('User');
-				const users = await User.find({ phoneNumber: { $regex: sanitizedPhone, $options: 'i' } }, '_id');
-				const userIds = users.map(u => u._id);
-				if (userIds.length > 0) {
-					filter.user = { $in: userIds };
-				} else {
-					filter.user = null;
+		// If specific order IDs are provided, use those (highest priority)
+		if (orderIds) {
+			const ids = orderIds.split(',').map(id => id.trim()).filter(id => id);
+			if (ids.length > 0) {
+				filter._id = { $in: ids };
+			}
+		} else {
+			// Status filter - default to 'processing' if not provided
+			if (status && status !== 'all') {
+				filter.trackingStatus = status;
+			} else if (!status) {
+				// Default to processing if no status is provided
+				filter.trackingStatus = 'processing';
+			}
+			// If status is 'all', no filter is applied
+			
+			// Filter by publicOrderId (optional)
+			if (publicOrderId) {
+				filter.publicOrderId = publicOrderId;
+			}
+			
+			// Filter by user phone number (optional)
+			if (phoneNumber) {
+				const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
+				if (sanitizedPhone) {
+					const User = mongoose.model('User');
+					const users = await User.find({ phoneNumber: { $regex: sanitizedPhone, $options: 'i' } }, '_id');
+					const userIds = users.map(u => u._id);
+					if (userIds.length > 0) {
+						filter.user = { $in: userIds };
+					} else {
+						filter.user = null;
+					}
 				}
 			}
 		}
