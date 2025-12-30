@@ -1,9 +1,8 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
-import PrintLabelsFilterModal from "./PrintLabelsFilterModal";
 
 const OrderslistTab = () => {
     const [ orders, setOrders ] = useState([])
@@ -27,8 +26,11 @@ const OrderslistTab = () => {
         orderPublicId: null
     });
     
-    // Print labels filter modal state
-    const [printLabelsModalOpen, setPrintLabelsModalOpen] = useState(false);
+    // Shipping details state (for when changing to shipped)
+    const [shippingDetails, setShippingDetails] = useState({
+        trackingNumber: '',
+        deliveryPartner: ''
+    });
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -114,13 +116,23 @@ const OrderslistTab = () => {
 	}, [fetchAllOrders]);
 // Removed duplicate/broken useEffect and setDisplayOrderIds calls
 
-    const updateTrackingStatus = async (orderId, newStatus) => {
+    const updateTrackingStatus = async (orderId, newStatus, trackingNumber = null, deliveryPartner = null) => {
         setUpdatingOrder(orderId);
         try {
-            const response = await axios.patch(`/orders/${orderId}/tracking`, {
+            const payload = {
                 trackingStatus: newStatus,
                 note: `Status updated to ${newStatus}`,
-            });
+            };
+            
+            // Include tracking details if provided (for shipped status)
+            if (trackingNumber) {
+                payload.trackingNumber = trackingNumber;
+            }
+            if (deliveryPartner) {
+                payload.deliveryPartner = deliveryPartner;
+            }
+            
+            const response = await axios.patch(`/orders/${orderId}/tracking`, payload);
             
             if (response.data.success) {
                 // Refetch orders to respect current filters
@@ -170,6 +182,8 @@ const OrderslistTab = () => {
     };
 
     const handleStatusChangeClick = (orderId, newStatus, orderPublicId, currentStatus) => {
+        // Reset shipping details when opening modal
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: true,
             orderId,
@@ -182,7 +196,19 @@ const OrderslistTab = () => {
     const handleConfirmStatusChange = async () => {
         if (!confirmationModal.orderId || !confirmationModal.newStatus) return;
         
-        await updateTrackingStatus(confirmationModal.orderId, confirmationModal.newStatus);
+        // Pass tracking details if changing to shipped
+        const trackingNumber = confirmationModal.newStatus === 'shipped' ? shippingDetails.trackingNumber : null;
+        const deliveryPartner = confirmationModal.newStatus === 'shipped' ? shippingDetails.deliveryPartner : null;
+        
+        await updateTrackingStatus(
+            confirmationModal.orderId, 
+            confirmationModal.newStatus,
+            trackingNumber || null,
+            deliveryPartner || null
+        );
+        
+        // Reset shipping details
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: false,
             orderId: null,
@@ -193,6 +219,7 @@ const OrderslistTab = () => {
     };
 
     const handleCancelStatusChange = () => {
+        setShippingDetails({ trackingNumber: '', deliveryPartner: '' });
         setConfirmationModal({
             isOpen: false,
             orderId: null,
@@ -252,44 +279,6 @@ const OrderslistTab = () => {
             console.error('Error exporting orders:', error);
             toast.error(error.response?.data?.message || 'Failed to export orders');
         }
-    };
-
-    const handlePrintAddressSheet = (orderId) => {
-        // Open the address sheet in a new window for printing
-        const baseURL = import.meta.env.VITE_API_URL || '';
-        const url = `${baseURL}/orders/${orderId}/address-sheet`;
-        window.open(url, '_blank');
-    };
-
-    const handlePrintAllLabels = () => {
-        // Open the filter modal
-        setPrintLabelsModalOpen(true);
-    };
-
-    const handlePrintLabelsConfirm = (filters) => {
-        // Build query parameters from filters
-        const params = new URLSearchParams();
-        
-        // Add status filter if not 'all'
-        if (filters.status && filters.status !== 'all') {
-            params.append('status', filters.status);
-        }
-        
-        // Add delivery type filter if not 'all'
-        if (filters.deliveryType && filters.deliveryType !== 'all') {
-            params.append('deliveryType', filters.deliveryType);
-        }
-        
-        const baseURL = import.meta.env.VITE_API_URL || '';
-        const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
-        window.open(url, '_blank');
-        
-        // Close the modal
-        setPrintLabelsModalOpen(false);
-    };
-
-    const handlePrintLabelsCancel = () => {
-        setPrintLabelsModalOpen(false);
     };
 
     const handlePageChange = (newPage) => {
@@ -484,27 +473,15 @@ const OrderslistTab = () => {
                 </p>
             )}
         </div>
-        <div className="flex items-center gap-3">
-            <motion.button
-                onClick={handlePrintAllLabels}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title="Print all address labels for filtered orders"
-            >
-                <Printer className="w-4 h-4" />
-                Print All Labels
-            </motion.button>
-            <motion.button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-            >
-                <Download className="w-4 h-4" />
-                Export CSV
-            </motion.button>
-        </div>
+        <motion.button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+        >
+            <Download className="w-4 h-4" />
+            Export CSV
+        </motion.button>
     </div>
     
     <div className="space-y-8">
@@ -520,10 +497,36 @@ const OrderslistTab = () => {
             <div className="bg-gray-900 px-6 py-4 border-b border-gray-700">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                        <h2 className="text-lg font-semibold text-white">
-                            Order #{order.publicOrderId || order.orderId} for {order.user.name}
-                        </h2>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-semibold text-white">
+                                Order #{order.publicOrderId || order.orderId} for {order.user.name}
+                            </h2>
+                            {order.isManualOrder && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                    Manual
+                                </span>
+                            )}
+                            {order.orderSource && order.orderSource !== "website" && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 capitalize">
+                                    {order.orderSource === "whatsapp" ? "💬 WhatsApp" : 
+                                     order.orderSource === "instagram" ? "📸 Instagram" : 
+                                     order.orderSource === "phone" ? "📞 Phone" : order.orderSource}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-sm text-gray-400">{order.user.email || order.user.phoneNumber}</p>
+                        {order.isManualOrder && (
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                <span>Payment: <span className="text-gray-300 capitalize">{order.paymentMethod?.replace('_', ' ')}</span></span>
+                                <span className={`px-1.5 py-0.5 rounded ${
+                                    order.paymentStatus === 'paid' ? 'bg-green-500/20 text-green-400' :
+                                    order.paymentStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-blue-500/20 text-blue-400'
+                                }`}>
+                                    {order.paymentStatus?.toUpperCase()}
+                                </span>
+                            </div>
+                        )}
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -538,6 +541,13 @@ const OrderslistTab = () => {
                             <p className="text-lg font-semibold text-white">
                                 Total: ₹{order.totalAmount.toFixed(2)}
                             </p>
+                            {(order.deliveryFee > 0 || order.platformFee > 0) && (
+                                <p className="text-xs text-gray-500">
+                                    {order.deliveryFee > 0 && `Delivery: ₹${order.deliveryFee}`}
+                                    {order.deliveryFee > 0 && order.platformFee > 0 && ' • '}
+                                    {order.platformFee > 0 && `Platform: ₹${order.platformFee}`}
+                                </p>
+                            )}
                         </div>
                         
                         {/* Tracking Status Badge */}
@@ -549,27 +559,25 @@ const OrderslistTab = () => {
                 
                 {/* Shipping Address */}
                 <div className="mt-4 pt-4 border-t border-gray-700">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
-                            <p className="text-sm text-gray-400">
-                                {order.address.name} • {order.address.phoneNumber}
-                            </p>
-                            <p className="text-sm text-gray-400">
-                                {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => handlePrintAddressSheet(order.orderId)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                            title="Print Address Sheet"
-                        >
-                            <Printer className="w-3 h-3" />
-                            Print Label
-                        </button>
+                    <div>
+                        <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
+                        <p className="text-sm text-gray-400">
+                            {order.address.name} • {order.address.phoneNumber}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                            {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
+                        </p>
                     </div>
                 </div>
                 
+                {/* Admin Notes (for manual orders) */}
+                {order.adminNotes && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                        <p className="text-sm font-medium text-gray-300 mb-1">Admin Notes:</p>
+                        <p className="text-sm text-gray-400 bg-gray-800 rounded p-2 italic">{order.adminNotes}</p>
+                    </div>
+                )}
+
                 {/* Admin Tracking Controls */}
                 <div className="mt-4 pt-4 border-t border-gray-700">
                     <p className="text-sm font-medium text-gray-300 mb-2">Update Order Status:</p>
@@ -694,6 +702,46 @@ const OrderslistTab = () => {
                                 {getStatusDisplayName(confirmationModal.newStatus)}
                             </span>?
                         </p>
+                        
+                        {/* Shipping Details Fields - Only show when changing to shipped */}
+                        {confirmationModal.newStatus === 'shipped' && (
+                            <div className="mb-4 p-3 bg-gray-900 rounded-lg border border-gray-700 space-y-3">
+                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">
+                                    Shipping Details (Optional)
+                                </p>
+                                
+                                {/* Delivery Partner Dropdown */}
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">
+                                        Delivery Partner
+                                    </label>
+                                    <select
+                                        value={shippingDetails.deliveryPartner}
+                                        onChange={(e) => setShippingDetails(prev => ({ ...prev, deliveryPartner: e.target.value }))}
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option value="">Select delivery partner</option>
+                                        <option value="india_post">India Post (Speed Post)</option>
+                                        <option value="delhivery">Delhivery</option>
+                                    </select>
+                                </div>
+                                
+                                {/* Tracking Number Input */}
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">
+                                        Tracking Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={shippingDetails.trackingNumber}
+                                        onChange={(e) => setShippingDetails(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                                        placeholder="Enter tracking number"
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        
                         <div className="flex gap-3 justify-end">
                             <button
                                 onClick={handleCancelStatusChange}
@@ -714,13 +762,6 @@ const OrderslistTab = () => {
             </motion.div>
         </div>
     )}
-
-    {/* Print Labels Filter Modal */}
-    <PrintLabelsFilterModal
-        isOpen={printLabelsModalOpen}
-        onClose={handlePrintLabelsCancel}
-        onConfirm={handlePrintLabelsConfirm}
-    />
 
     </>
     

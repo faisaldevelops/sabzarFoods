@@ -15,7 +15,12 @@ const CartItem = ({ item }) => {
 					<p className='text-sm font-medium text-stone-900 truncate'>
 						{item.name}
 					</p>
-					<p className='text-base font-bold text-stone-900 mt-1'>₹{item.price}</p>
+					<div className='flex items-baseline gap-2 mt-1'>
+						{item.actualPrice && item.actualPrice > item.price && (
+							<span className='text-sm text-stone-400 line-through'>₹{item.actualPrice}</span>
+						)}
+						<span className='text-base font-bold text-stone-900'>₹{item.price}</span>
+					</div>
 				</div>
 
 				<div className='flex items-center gap-2'>

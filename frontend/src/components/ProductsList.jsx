@@ -11,6 +11,7 @@ const ProductsList = () => {
   const [editForm, setEditForm] = useState({
     name: "",
     description: "",
+    actualPrice: "",
     price: "",
     stockQuantity: "",
     image: "",
@@ -21,6 +22,7 @@ const ProductsList = () => {
     setEditForm({
       name: product.name,
       description: product.description,
+      actualPrice: product.actualPrice,
       price: product.price,
       stockQuantity: product.stockQuantity,
       image: product.image,
@@ -32,6 +34,7 @@ const ProductsList = () => {
     setEditForm({
       name: "",
       description: "",
+      actualPrice: "",
       price: "",
       stockQuantity: "",
       image: "",
@@ -50,12 +53,17 @@ const ProductsList = () => {
         return;
       }
       
+      const actualPrice = parseFloat(editForm.actualPrice);
       const price = parseFloat(editForm.price);
       const stockQuantity = parseInt(editForm.stockQuantity, 10);
       
       // Validate numeric values
+      if (isNaN(actualPrice) || actualPrice < 0) {
+        toast.error('Please enter a valid actual price');
+        return;
+      }
       if (isNaN(price) || price < 0) {
-        toast.error('Please enter a valid price');
+        toast.error('Please enter a valid selling price');
         return;
       }
       if (isNaN(stockQuantity) || stockQuantity < 0) {
@@ -66,6 +74,7 @@ const ProductsList = () => {
       const updatedData = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
+        actualPrice,
         price,
         stockQuantity,
         image: editForm.image,
@@ -75,6 +84,7 @@ const ProductsList = () => {
       setEditForm({
         name: "",
         description: "",
+        actualPrice: "",
         price: "",
         stockQuantity: "",
         image: "",
@@ -120,7 +130,7 @@ const ProductsList = () => {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
                 >
-                  Price
+                  MRP / Selling
                 </th>
                 <th
                   scope="col"
@@ -156,8 +166,9 @@ const ProductsList = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-300">
-                      ₹{Number(product.price ?? 0).toFixed(2)}
+                    <div className="text-sm">
+                      <span className="text-gray-500 line-through">₹{Number(product.actualPrice ?? 0).toFixed(2)}</span>
+                      <span className="text-emerald-400 ml-2 font-medium">₹{Number(product.price ?? 0).toFixed(2)}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -217,8 +228,10 @@ const ProductsList = () => {
                 {product.name}
               </h3>
 
-              <p className="text-sm text-gray-300 mt-1">
-                <span className="font-medium">Price:</span> ₹{Number(product.price ?? 0).toFixed(2)}
+              <p className="text-sm mt-1">
+                <span className="font-medium text-gray-300">Price:</span>{' '}
+                <span className="text-gray-500 line-through">₹{Number(product.actualPrice ?? 0).toFixed(2)}</span>
+                <span className="text-emerald-400 ml-1 font-medium">₹{Number(product.price ?? 0).toFixed(2)}</span>
               </p>
 
               <p className="text-sm mt-1">
@@ -285,15 +298,27 @@ const ProductsList = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Price</label>
-                <input
-                  type="number"
-                  value={editForm.price}
-                  onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
-                  step="0.01"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Actual Price (MRP)</label>
+                  <input
+                    type="number"
+                    value={editForm.actualPrice}
+                    onChange={(e) => setEditForm({ ...editForm, actualPrice: e.target.value })}
+                    step="0.01"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Selling Price</label>
+                  <input
+                    type="number"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                    step="0.01"
+                    className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
 
               <div>

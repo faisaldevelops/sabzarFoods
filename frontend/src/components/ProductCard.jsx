@@ -97,11 +97,20 @@ const ProductCard = ({ product }) => {
 					</h5>
 					
 					<div className='mt-auto pt-2'>
-						<div className='flex items-baseline justify-between mb-2'>
+						<div className='flex items-baseline gap-2 mb-2'>
+							{product.actualPrice && product.actualPrice > product.price && (
+								<span className='text-sm text-stone-400 line-through'>
+									₹{product.actualPrice}
+								</span>
+							)}
 							<span className='text-xl font-bold text-stone-900'>
 								₹{product.price}
 							</span>
-							
+							{product.actualPrice && product.actualPrice > product.price && (
+								<span className='text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded'>
+									{Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
+								</span>
+							)}
 						</div>
 						
 						<div className='flex sm:flex-row flex-col gap-2'>

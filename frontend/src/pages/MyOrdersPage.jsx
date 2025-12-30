@@ -340,14 +340,27 @@ const MyOrdersPage = () => {
 									</div>
 								</div>
 
-								{/* Tracking Number */}
-								{order.trackingNumber && (
-									<div className="mt-3 pt-3 border-t border-gray-700/50">
-										<div className="flex items-center text-sm">
-											<Truck className="w-4 h-4 mr-2 text-emerald-400" />
-											<span className="text-gray-400">Tracking Number:</span>
-											<span className="ml-2 font-mono text-emerald-400">{order.trackingNumber}</span>
-										</div>
+								{/* Tracking Information */}
+								{(order.trackingNumber || order.deliveryPartner) && (
+									<div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
+										{order.deliveryPartner && (
+											<div className="flex items-center text-sm">
+												<Truck className="w-4 h-4 mr-2 text-purple-400" />
+												<span className="text-gray-400">Delivery Partner:</span>
+												<span className="ml-2 text-purple-400 font-medium">
+													{order.deliveryPartner === 'india_post' ? 'India Post (Speed Post)' : 
+													 order.deliveryPartner === 'delhivery' ? 'Delhivery' : 
+													 order.deliveryPartner}
+												</span>
+											</div>
+										)}
+										{order.trackingNumber && (
+											<div className="flex items-center text-sm">
+												<Package className="w-4 h-4 mr-2 text-emerald-400" />
+												<span className="text-gray-400">Tracking Number:</span>
+												<span className="ml-2 font-mono text-emerald-400">{order.trackingNumber}</span>
+											</div>
+										)}
 									</div>
 								)}
 

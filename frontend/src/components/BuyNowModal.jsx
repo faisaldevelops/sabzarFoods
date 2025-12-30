@@ -107,9 +107,21 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
               <h4 className="font-medium text-stone-900 line-clamp-2">
                 {product.name}
               </h4>
-              <p className="text-lg font-bold text-stone-900 mt-1">
-                ₹{product.price}
-              </p>
+              <div className="flex items-baseline gap-2 mt-1">
+                {product.actualPrice && product.actualPrice > product.price && (
+                  <span className="text-sm text-stone-400 line-through">
+                    ₹{product.actualPrice}
+                  </span>
+                )}
+                <span className="text-lg font-bold text-stone-900">
+                  ₹{product.price}
+                </span>
+                {product.actualPrice && product.actualPrice > product.price && (
+                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                    {Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-stone-600 mt-1">
                 {product.stockQuantity} in stock
               </p>

@@ -137,13 +137,11 @@ export const createRazorpayOrder = async (req, res) => {
       totalAmount: totalAmount,
       razorpayOrderId: razorpayOrder.id,
       address,
-      // Store pricing breakdown in order for reference
-      pricingBreakdown: {
-        subtotal: pricingBreakdown.subtotal,
-        deliveryCharge: pricingBreakdown.deliveryCharge,
-        deliveryType: pricingBreakdown.deliveryType,
-        platformFee: pricingBreakdown.platformFee,
-      },
+      // Store delivery and platform fees in order
+      deliveryFee: pricingBreakdown.deliveryCharge,
+      platformFee: pricingBreakdown.platformFee.total,
+      orderSource: "website",
+      paymentMethod: "razorpay",
     });
 
     return res.json({
