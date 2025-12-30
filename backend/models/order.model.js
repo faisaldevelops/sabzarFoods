@@ -38,6 +38,27 @@ const orderSchema = new mongoose.Schema(
     razorpayOrderId: { type: String },    // new field for Razorpay
     razorpayPaymentId: { type: String },  // new field for Razorpay payment id
     status: { type: String, enum: ["pending", "hold", "paid", "cancelled", "expired"], default: "pending" },
+    
+    // Manual order fields
+    isManualOrder: { type: Boolean, default: false },
+    orderSource: { 
+      type: String, 
+      enum: ["website", "whatsapp", "instagram", "phone", "other"], 
+      default: "website" 
+    },
+    paymentMethod: { 
+      type: String, 
+      enum: ["razorpay", "cash", "upi", "bank_transfer", "cod"], 
+      default: "razorpay" 
+    },
+    paymentStatus: { 
+      type: String, 
+      enum: ["paid", "pending", "cod", "partial"], 
+      default: "paid" 
+    },
+    deliveryFee: { type: Number, default: 0, min: 0 },
+    platformFee: { type: Number, default: 0, min: 0 },
+    adminNotes: { type: String, default: "" },
     expiresAt: { type: Date, default: null }, // Hold expiration time (e.g., 15 minutes from creation)
     couponCode: { type: String, default: null },
     trackingStatus: {

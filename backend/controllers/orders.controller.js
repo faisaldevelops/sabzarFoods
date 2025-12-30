@@ -1,6 +1,8 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import User from "../models/user.model.js";
 import mongoose from "mongoose";
+import crypto from "crypto";
 import twilio from "twilio";
 import { getDeliveryType } from "../lib/pricing.js";
 
@@ -142,6 +144,14 @@ export const getOrdersData = async (req, res) => {
 				trackingNumber: order.trackingNumber,
 				estimatedDelivery: order.estimatedDelivery,
 				trackingHistory: order.trackingHistory,
+				// Manual order fields
+				isManualOrder: order.isManualOrder || false,
+				orderSource: order.orderSource || "website",
+				paymentMethod: order.paymentMethod || "razorpay",
+				paymentStatus: order.paymentStatus || "paid",
+				deliveryFee: order.deliveryFee || 0,
+				platformFee: order.platformFee || 0,
+				adminNotes: order.adminNotes || "",
 			};
 		});
 
@@ -865,5 +875,187 @@ export const exportOrdersCSV = async (req, res) => {
 	} catch (err) {
 		console.error('Error exporting orders to CSV:', err);
 		return res.status(500).json({ success: false, message: 'Server error exporting orders' });
+	}
+};
+
+/**
+ * Create a manual order (for orders received via DMs, WhatsApp, phone, etc.)
+ * Admin only
+ */
+export const createManualOrder = async (req, res) => {
+	try {
+		const {
+			customerName,
+			customerPhone,
+			customerEmail,
+			products, // Array of { productId, quantity }
+			address,
+			orderSource,
+			paymentMethod,
+			paymentStatus,
+			deliveryFee,
+			platformFee,
+			adminNotes
+		} = req.body;
+
+		// Validate required fields
+		if (!customerName || !customerPhone) {
+			return res.status(400).json({ 
+				success: false, 
+				message: "Customer name and phone number are required" 
+			});
+		}
+
+		if (!products || products.length === 0) {
+			return res.status(400).json({ 
+				success: false, 
+				message: "At least one product is required" 
+			});
+		}
+
+		if (!address || !address.pincode || !address.city || !address.state) {
+			return res.status(400).json({ 
+				success: false, 
+				message: "Complete address with pincode, city, and state is required" 
+			});
+		}
+
+		// Find or create user by phone number
+		let user = await User.findOne({ phoneNumber: customerPhone });
+		
+		if (!user) {
+			// Create a new guest user for this order
+			user = await User.create({
+				name: customerName,
+				phoneNumber: customerPhone,
+				email: customerEmail || undefined,
+				isGuest: true
+			});
+		}
+
+		// Validate and fetch products
+		const orderProducts = [];
+		let subtotal = 0;
+
+		for (const item of products) {
+			const product = await Product.findById(item.productId);
+			
+			if (!product) {
+				return res.status(400).json({ 
+					success: false, 
+					message: `Product not found: ${item.productId}` 
+				});
+			}
+
+			// Check stock
+			const availableStock = product.stockQuantity - (product.reservedQuantity || 0);
+			if (item.quantity > availableStock) {
+				return res.status(400).json({ 
+					success: false, 
+					message: `Insufficient stock for ${product.name}. Available: ${availableStock}` 
+				});
+			}
+
+			orderProducts.push({
+				product: product._id,
+				quantity: item.quantity,
+				price: product.price
+			});
+
+			subtotal += product.price * item.quantity;
+
+			// Deduct stock immediately for manual orders (they're confirmed)
+			product.stockQuantity -= item.quantity;
+			product.sold = (product.sold || 0) + item.quantity;
+			await product.save();
+		}
+
+		// Calculate total amount
+		const deliveryFeeAmount = deliveryFee || 0;
+		const platformFeeAmount = platformFee || 0;
+		const totalAmount = subtotal + deliveryFeeAmount + platformFeeAmount;
+
+		// Generate unique public order ID
+		const publicOrderId = `MAN-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+
+		// Create the order
+		const order = new Order({
+			user: user._id,
+			products: orderProducts,
+			totalAmount,
+			publicOrderId,
+			address: {
+				name: address.name || customerName,
+				phoneNumber: address.phoneNumber || customerPhone,
+				pincode: address.pincode,
+				houseNumber: address.houseNumber || "",
+				streetAddress: address.streetAddress || "",
+				landmark: address.landmark || "",
+				city: address.city,
+				state: address.state
+			},
+			status: paymentStatus === "paid" ? "paid" : "pending",
+			isManualOrder: true,
+			orderSource: orderSource || "other",
+			paymentMethod: paymentMethod || "cash",
+			paymentStatus: paymentStatus || "paid",
+			deliveryFee: deliveryFeeAmount,
+			platformFee: platformFeeAmount,
+			adminNotes: adminNotes || "",
+			trackingStatus: "processing", // Manual orders go straight to processing
+			trackingHistory: [{
+				status: "processing",
+				timestamp: new Date(),
+				note: `Manual order created via ${orderSource || "admin"}`
+			}]
+		});
+
+		await order.save();
+
+		// Populate and return the created order
+		const populatedOrder = await Order.findById(order._id)
+			.populate('user', 'name phoneNumber email')
+			.populate({
+				path: 'products.product',
+				select: 'name price image'
+			})
+			.lean();
+
+		res.status(201).json({
+			success: true,
+			message: "Manual order created successfully",
+			order: {
+				orderId: populatedOrder._id,
+				publicOrderId: populatedOrder.publicOrderId,
+				totalAmount: populatedOrder.totalAmount,
+				subtotal,
+				deliveryFee: deliveryFeeAmount,
+				platformFee: platformFeeAmount,
+				customer: {
+					name: populatedOrder.user.name,
+					phone: populatedOrder.user.phoneNumber,
+					email: populatedOrder.user.email
+				},
+				products: populatedOrder.products.map(p => ({
+					name: p.product?.name,
+					price: p.price,
+					quantity: p.quantity,
+					image: p.product?.image
+				})),
+				address: populatedOrder.address,
+				orderSource: populatedOrder.orderSource,
+				paymentMethod: populatedOrder.paymentMethod,
+				paymentStatus: populatedOrder.paymentStatus,
+				trackingStatus: populatedOrder.trackingStatus,
+				createdAt: populatedOrder.createdAt
+			}
+		});
+
+	} catch (error) {
+		console.error('Error creating manual order:', error);
+		res.status(500).json({ 
+			success: false, 
+			message: error.message || 'Server error creating manual order' 
+		});
 	}
 };

@@ -520,10 +520,36 @@ const OrderslistTab = () => {
             <div className="bg-gray-900 px-6 py-4 border-b border-gray-700">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                        <h2 className="text-lg font-semibold text-white">
-                            Order #{order.publicOrderId || order.orderId} for {order.user.name}
-                        </h2>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-lg font-semibold text-white">
+                                Order #{order.publicOrderId || order.orderId} for {order.user.name}
+                            </h2>
+                            {order.isManualOrder && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                    Manual
+                                </span>
+                            )}
+                            {order.orderSource && order.orderSource !== "website" && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 capitalize">
+                                    {order.orderSource === "whatsapp" ? "💬 WhatsApp" : 
+                                     order.orderSource === "instagram" ? "📸 Instagram" : 
+                                     order.orderSource === "phone" ? "📞 Phone" : order.orderSource}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-sm text-gray-400">{order.user.email || order.user.phoneNumber}</p>
+                        {order.isManualOrder && (
+                            <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                                <span>Payment: <span className="text-gray-300 capitalize">{order.paymentMethod?.replace('_', ' ')}</span></span>
+                                <span className={`px-1.5 py-0.5 rounded ${
+                                    order.paymentStatus === 'paid' ? 'bg-green-500/20 text-green-400' :
+                                    order.paymentStatus === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-blue-500/20 text-blue-400'
+                                }`}>
+                                    {order.paymentStatus?.toUpperCase()}
+                                </span>
+                            </div>
+                        )}
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -570,6 +596,14 @@ const OrderslistTab = () => {
                     </div>
                 </div>
                 
+                {/* Admin Notes (for manual orders) */}
+                {order.adminNotes && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                        <p className="text-sm font-medium text-gray-300 mb-1">Admin Notes:</p>
+                        <p className="text-sm text-gray-400 bg-gray-800 rounded p-2 italic">{order.adminNotes}</p>
+                    </div>
+                )}
+
                 {/* Admin Tracking Controls */}
                 <div className="mt-4 pt-4 border-t border-gray-700">
                     <p className="text-sm font-medium text-gray-300 mb-2">Update Order Status:</p>
