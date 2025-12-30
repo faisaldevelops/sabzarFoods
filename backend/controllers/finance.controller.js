@@ -99,8 +99,12 @@ export const getFinanceDashboard = async (req, res) => {
     
     // Default to current month if not specified
     const now = new Date();
-    const targetYear = year ? parseInt(year) : now.getFullYear();
-    const targetMonth = month ? parseInt(month) : now.getMonth() + 1;
+    const parsedYear = parseInt(year);
+    const parsedMonth = parseInt(month);
+    
+    // Use parsed values only if they are valid numbers, otherwise use current date
+    const targetYear = !isNaN(parsedYear) && parsedYear > 0 ? parsedYear : now.getFullYear();
+    const targetMonth = !isNaN(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : now.getMonth() + 1;
 
     // Get monthly sales
     const salesData = await calculateMonthlySales(targetYear, targetMonth);
