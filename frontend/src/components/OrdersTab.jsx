@@ -1,9 +1,8 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, Printer, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
-import PrintLabelsFilterModal from "./PrintLabelsFilterModal";
 
 const OrderslistTab = () => {
     const [ orders, setOrders ] = useState([])
@@ -26,9 +25,6 @@ const OrderslistTab = () => {
         newStatus: null,
         orderPublicId: null
     });
-    
-    // Print labels filter modal state
-    const [printLabelsModalOpen, setPrintLabelsModalOpen] = useState(false);
     
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -254,44 +250,6 @@ const OrderslistTab = () => {
         }
     };
 
-    const handlePrintAddressSheet = (orderId) => {
-        // Open the address sheet in a new window for printing
-        const baseURL = import.meta.env.VITE_API_URL || '';
-        const url = `${baseURL}/orders/${orderId}/address-sheet`;
-        window.open(url, '_blank');
-    };
-
-    const handlePrintAllLabels = () => {
-        // Open the filter modal
-        setPrintLabelsModalOpen(true);
-    };
-
-    const handlePrintLabelsConfirm = (filters) => {
-        // Build query parameters from filters
-        const params = new URLSearchParams();
-        
-        // Add status filter if not 'all'
-        if (filters.status && filters.status !== 'all') {
-            params.append('status', filters.status);
-        }
-        
-        // Add delivery type filter if not 'all'
-        if (filters.deliveryType && filters.deliveryType !== 'all') {
-            params.append('deliveryType', filters.deliveryType);
-        }
-        
-        const baseURL = import.meta.env.VITE_API_URL || '';
-        const url = `${baseURL}/orders/bulk-address-sheets?${params.toString()}`;
-        window.open(url, '_blank');
-        
-        // Close the modal
-        setPrintLabelsModalOpen(false);
-    };
-
-    const handlePrintLabelsCancel = () => {
-        setPrintLabelsModalOpen(false);
-    };
-
     const handlePageChange = (newPage) => {
         if (newPage >= 1 && newPage <= pagination.totalPages) {
             setCurrentPage(newPage);
@@ -484,27 +442,15 @@ const OrderslistTab = () => {
                 </p>
             )}
         </div>
-        <div className="flex items-center gap-3">
-            <motion.button
-                onClick={handlePrintAllLabels}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                title="Print all address labels for filtered orders"
-            >
-                <Printer className="w-4 h-4" />
-                Print All Labels
-            </motion.button>
-            <motion.button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-            >
-                <Download className="w-4 h-4" />
-                Export CSV
-            </motion.button>
-        </div>
+        <motion.button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+        >
+            <Download className="w-4 h-4" />
+            Export CSV
+        </motion.button>
     </div>
     
     <div className="space-y-8">
@@ -582,24 +528,14 @@ const OrderslistTab = () => {
                 
                 {/* Shipping Address */}
                 <div className="mt-4 pt-4 border-t border-gray-700">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
-                            <p className="text-sm text-gray-400">
-                                {order.address.name} • {order.address.phoneNumber}
-                            </p>
-                            <p className="text-sm text-gray-400">
-                                {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => handlePrintAddressSheet(order.orderId)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                            title="Print Address Sheet"
-                        >
-                            <Printer className="w-3 h-3" />
-                            Print Label
-                        </button>
+                    <div>
+                        <p className="text-sm font-medium text-gray-300 mb-1">Shipping Address:</p>
+                        <p className="text-sm text-gray-400">
+                            {order.address.name} • {order.address.phoneNumber}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                            {order.address.houseNumber}, {order.address.streetAddress}, {order.address.city}, {order.address.state} - {order.address.pincode}
+                        </p>
                     </div>
                 </div>
                 
@@ -755,13 +691,6 @@ const OrderslistTab = () => {
             </motion.div>
         </div>
     )}
-
-    {/* Print Labels Filter Modal */}
-    <PrintLabelsFilterModal
-        isOpen={printLabelsModalOpen}
-        onClose={handlePrintLabelsCancel}
-        onConfirm={handlePrintLabelsConfirm}
-    />
 
     </>
     

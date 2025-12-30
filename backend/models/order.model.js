@@ -59,6 +59,11 @@ const orderSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0, min: 0 },
     platformFee: { type: Number, default: 0, min: 0 },
     adminNotes: { type: String, default: "" },
+    
+    // Label tracking
+    labelPrintedAt: { type: Date, default: null },
+    labelPrintBatch: { type: String, default: null }, // Batch ID for group prints
+    
     expiresAt: { type: Date, default: null }, // Hold expiration time (e.g., 15 minutes from creation)
     couponCode: { type: String, default: null },
     trackingStatus: {
