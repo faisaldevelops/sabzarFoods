@@ -564,6 +564,13 @@ const OrderslistTab = () => {
                             <p className="text-lg font-semibold text-white">
                                 Total: ₹{order.totalAmount.toFixed(2)}
                             </p>
+                            {(order.deliveryFee > 0 || order.platformFee > 0) && (
+                                <p className="text-xs text-gray-500">
+                                    {order.deliveryFee > 0 && `Delivery: ₹${order.deliveryFee}`}
+                                    {order.deliveryFee > 0 && order.platformFee > 0 && ' • '}
+                                    {order.platformFee > 0 && `Platform: ₹${order.platformFee}`}
+                                </p>
+                            )}
                         </div>
                         
                         {/* Tracking Status Badge */}
