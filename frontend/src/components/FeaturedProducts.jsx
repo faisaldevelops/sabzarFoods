@@ -63,10 +63,22 @@ const FeaturedProducts = ({ featuredProducts }) => {
 												/>
 											</div>
 											<div className='p-4'>
-												<h3 className='text-sm font-medium mb-2 text-stone-900 line-clamp-2'>{product.name}</h3>
-												<p className='text-stone-900 font-bold mb-4 text-lg'>
+											<h3 className='text-sm font-medium mb-2 text-stone-900 line-clamp-2'>{product.name}</h3>
+											<div className='flex items-baseline gap-2 mb-4'>
+												{product.actualPrice && product.actualPrice > product.price && (
+													<span className='text-sm text-stone-400 line-through'>
+														₹{product.actualPrice.toFixed(2)}
+													</span>
+												)}
+												<span className='text-stone-900 font-bold text-lg'>
 													₹{product.price.toFixed(2)}
-												</p>
+												</span>
+												{product.actualPrice && product.actualPrice > product.price && (
+													<span className='text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded'>
+														{Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
+													</span>
+												)}
+											</div>
 												<button
 													onClick={() => handleAddToCart(product)}
 													disabled={isOutOfStock}

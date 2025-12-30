@@ -440,7 +440,12 @@ const OrderSummary = () => {
 									<p className='text-xs text-stone-500'>Qty: {item.quantity}</p>
 								</div>
 							</div>
-							<p className='text-sm font-medium text-stone-900 flex-shrink-0'>₹{(item.price * item.quantity).toFixed(2)}</p>
+							<div className='flex flex-col items-end flex-shrink-0'>
+								{item.actualPrice && item.actualPrice > item.price && (
+									<span className='text-xs text-stone-400 line-through'>₹{(item.actualPrice * item.quantity).toFixed(2)}</span>
+								)}
+								<span className='text-sm font-medium text-stone-900'>₹{(item.price * item.quantity).toFixed(2)}</span>
+							</div>
 						</div>
 					))}
 				</div>

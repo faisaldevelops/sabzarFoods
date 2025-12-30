@@ -451,7 +451,12 @@ const OrderSummaryPage = () => {
 												<p className='text-xs text-gray-400'>Qty: {orderData.quantity}</p>
 											</div>
 										</div>
-										<p className='text-sm font-medium text-white flex-shrink-0'>₹{totalPrice}</p>
+										<div className='flex flex-col items-end flex-shrink-0'>
+											{orderData.product.actualPrice && orderData.product.actualPrice > orderData.product.price && (
+												<span className='text-xs text-gray-500 line-through'>₹{(orderData.product.actualPrice * orderData.quantity).toFixed(2)}</span>
+											)}
+											<span className='text-sm font-medium text-white'>₹{totalPrice}</span>
+										</div>
 									</div>
 								</div>
 

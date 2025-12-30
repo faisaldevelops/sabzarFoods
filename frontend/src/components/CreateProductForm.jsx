@@ -9,6 +9,7 @@ const CreateProductForm = () => {
 	const [newProduct, setNewProduct] = useState({
 		name: "",
 		description: "",
+		actualPrice: "",
 		price: "",
 		image: "",
 		stockQuantity: "",
@@ -20,7 +21,7 @@ const CreateProductForm = () => {
 		e.preventDefault();
 		try {
 			await createProduct(newProduct);
-			setNewProduct({ name: "", description: "", price: "", image: "", stockQuantity: "" });
+			setNewProduct({ name: "", description: "", actualPrice: "", price: "", image: "", stockQuantity: "" });
 		} catch {
 			console.log("error creating a product");
 		}
@@ -85,22 +86,41 @@ const CreateProductForm = () => {
 					/>
 				</div>
 
-				<div>
-					<label htmlFor='price' className='block text-sm font-medium text-gray-300'>
-						Price
-					</label>
-					<input
-						type='number'
-						id='price'
-						name='price'
-						value={newProduct.price}
-						onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-						step='0.01'
-						className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
-						py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
-						 focus:border-emerald-500'
-						required
-					/>
+				<div className='grid grid-cols-2 gap-4'>
+					<div>
+						<label htmlFor='actualPrice' className='block text-sm font-medium text-gray-300'>
+							Actual Price (MRP)
+						</label>
+						<input
+							type='number'
+							id='actualPrice'
+							name='actualPrice'
+							value={newProduct.actualPrice}
+							onChange={(e) => setNewProduct({ ...newProduct, actualPrice: e.target.value })}
+							step='0.01'
+							className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
+							py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
+							 focus:border-emerald-500'
+							required
+						/>
+					</div>
+					<div>
+						<label htmlFor='price' className='block text-sm font-medium text-gray-300'>
+							Selling Price
+						</label>
+						<input
+							type='number'
+							id='price'
+							name='price'
+							value={newProduct.price}
+							onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+							step='0.01'
+							className='mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm 
+							py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500
+							 focus:border-emerald-500'
+							required
+						/>
+					</div>
 				</div>
 
 				<div>
