@@ -4,11 +4,11 @@
 delivery:
   # Local delivery charges (J&K pincodes)
   local:
-    price: 79  # in rupees
+    price: 84  # in rupees
   
   # National delivery charges (other states/regions)
   national:
-    price:  149 # in rupees
+    price:  154 # in rupees
   
   # Local delivery is determined by pincode
   # All pincodes from Jammu & Kashmir (J&K) are considered local
