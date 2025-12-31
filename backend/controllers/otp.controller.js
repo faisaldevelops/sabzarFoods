@@ -1,25 +1,21 @@
 import twilio from "twilio";
 import crypto from "crypto";
 import User from "../models/user.model.js";
+import { redis } from "../lib/redis.js";
 import { generateTokens, storeRefreshToken, setCookies } from "./auth.controller.js";
 
-// In-memory OTP storage (use Redis in production)
-const otpStore = new Map();
-
-// In-memory throttling storage for resend attempts
-// Structure: { phoneNumber: { count: number, resetAt: timestamp, lastSentAt: timestamp } }
-const throttleStore = new Map();
-
-// In-memory storage for failed OTP attempts
-// Structure: { phoneNumber: { attempts: number, freezeUntil: timestamp } }
-const failedAttemptsStore = new Map();
+// Redis key prefixes
+const OTP_PREFIX = "otp:";
+const THROTTLE_PREFIX = "otp_throttle:";
+const FAILED_ATTEMPTS_PREFIX = "otp_failed:";
 
 // Throttling configuration
+const OTP_EXPIRY_SECONDS = 5 * 60; // 5 minutes
 const RESEND_COOLDOWN_SECONDS = 60; // Minimum time between resends
 const MAX_RESENDS_PER_WINDOW = 3; // Maximum resends allowed in the time window
-const THROTTLE_WINDOW_MINUTES = 15; // Time window for tracking resends
+const THROTTLE_WINDOW_SECONDS = 15 * 60; // 15 minutes
 const MAX_FAILED_ATTEMPTS = 3; // Maximum failed OTP attempts
-const FREEZE_DURATION_MINUTES = 15; // Freeze duration after max failed attempts
+const FREEZE_DURATION_SECONDS = 15 * 60; // 15 minutes freeze
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -37,20 +33,16 @@ const generateOTP = () => {
 };
 
 // Check if phone number is throttled
-const checkThrottle = (phoneNumber) => {
+const checkThrottle = async (phoneNumber) => {
   const now = Date.now();
-  const throttleData = throttleStore.get(phoneNumber);
+  const throttleKey = THROTTLE_PREFIX + phoneNumber;
+  const throttleDataStr = await redis.get(throttleKey);
 
-  if (!throttleData) {
+  if (!throttleDataStr) {
     return { allowed: true };
   }
 
-  // Check if the throttle window has expired
-  if (now > throttleData.resetAt) {
-    // Reset the throttle data
-    throttleStore.delete(phoneNumber);
-    return { allowed: true };
-  }
+  const throttleData = JSON.parse(throttleDataStr);
 
   // Check cooldown period
   const timeSinceLastSend = (now - throttleData.lastSentAt) / 1000;
@@ -66,7 +58,8 @@ const checkThrottle = (phoneNumber) => {
 
   // Check if max resends reached
   if (throttleData.count >= MAX_RESENDS_PER_WINDOW) {
-    const resetInMinutes = Math.ceil((throttleData.resetAt - now) / 60000);
+    const ttl = await redis.ttl(throttleKey);
+    const resetInMinutes = Math.ceil(ttl / 60);
     return {
       allowed: false,
       reason: "limit_reached",
@@ -79,78 +72,86 @@ const checkThrottle = (phoneNumber) => {
 };
 
 // Update throttle data after sending OTP
-const updateThrottle = (phoneNumber) => {
+const updateThrottle = async (phoneNumber) => {
   const now = Date.now();
-  const throttleData = throttleStore.get(phoneNumber);
+  const throttleKey = THROTTLE_PREFIX + phoneNumber;
+  const throttleDataStr = await redis.get(throttleKey);
 
-  if (!throttleData || now > throttleData.resetAt) {
-    // First request or window expired - create new throttle data
-    throttleStore.set(phoneNumber, {
+  if (!throttleDataStr) {
+    // First request - create new throttle data
+    const newData = {
       count: 1,
-      resetAt: now + THROTTLE_WINDOW_MINUTES * 60 * 1000,
       lastSentAt: now,
-    });
+    };
+    await redis.setex(throttleKey, THROTTLE_WINDOW_SECONDS, JSON.stringify(newData));
   } else {
     // Increment count within existing window
+    const throttleData = JSON.parse(throttleDataStr);
     throttleData.count += 1;
     throttleData.lastSentAt = now;
-    throttleStore.set(phoneNumber, throttleData);
+    
+    // Get remaining TTL to preserve the original window
+    const ttl = await redis.ttl(throttleKey);
+    if (ttl > 0) {
+      await redis.setex(throttleKey, ttl, JSON.stringify(throttleData));
+    }
   }
 };
 
 // Check if phone number is frozen due to failed attempts
-const checkFailedAttempts = (phoneNumber) => {
-  const now = Date.now();
-  const attemptData = failedAttemptsStore.get(phoneNumber);
+const checkFailedAttempts = async (phoneNumber) => {
+  const failedKey = FAILED_ATTEMPTS_PREFIX + phoneNumber;
+  const attemptDataStr = await redis.get(failedKey);
 
-  if (!attemptData) {
+  if (!attemptDataStr) {
     return { allowed: true };
   }
 
-  // Check if freeze period has expired
-  if (attemptData.freezeUntil && now < attemptData.freezeUntil) {
-    const remainingMinutes = Math.ceil((attemptData.freezeUntil - now) / 60000);
-    return {
-      allowed: false,
-      reason: "frozen",
-      remainingMinutes,
-      message: `Too many failed attempts. Please try again in ${remainingMinutes} minute(s)`,
-    };
-  }
+  const attemptData = JSON.parse(attemptDataStr);
 
-  // Freeze period expired, reset attempts
-  if (attemptData.freezeUntil && now >= attemptData.freezeUntil) {
-    failedAttemptsStore.delete(phoneNumber);
-    return { allowed: true };
+  // If frozen (attempts >= max), check remaining time
+  if (attemptData.attempts >= MAX_FAILED_ATTEMPTS) {
+    const ttl = await redis.ttl(failedKey);
+    if (ttl > 0) {
+      const remainingMinutes = Math.ceil(ttl / 60);
+      return {
+        allowed: false,
+        reason: "frozen",
+        remainingMinutes,
+        message: `Too many failed attempts. Please try again in ${remainingMinutes} minute(s)`,
+      };
+    }
   }
 
   return { allowed: true };
 };
 
 // Record a failed OTP attempt
-const recordFailedAttempt = (phoneNumber) => {
-  const now = Date.now();
-  const attemptData = failedAttemptsStore.get(phoneNumber);
+const recordFailedAttempt = async (phoneNumber) => {
+  const failedKey = FAILED_ATTEMPTS_PREFIX + phoneNumber;
+  const attemptDataStr = await redis.get(failedKey);
 
-  if (!attemptData) {
-    failedAttemptsStore.set(phoneNumber, {
-      attempts: 1,
-      freezeUntil: null,
-    });
+  let attemptData;
+  if (!attemptDataStr) {
+    attemptData = { attempts: 1 };
   } else {
+    attemptData = JSON.parse(attemptDataStr);
     attemptData.attempts += 1;
-    
-    if (attemptData.attempts >= MAX_FAILED_ATTEMPTS) {
-      attemptData.freezeUntil = now + FREEZE_DURATION_MINUTES * 60 * 1000;
-    }
-    
-    failedAttemptsStore.set(phoneNumber, attemptData);
   }
+
+  // Set TTL based on whether we've hit the freeze threshold
+  const ttl = attemptData.attempts >= MAX_FAILED_ATTEMPTS 
+    ? FREEZE_DURATION_SECONDS 
+    : OTP_EXPIRY_SECONDS; // Keep attempts alive as long as OTP could be valid
+
+  await redis.setex(failedKey, ttl, JSON.stringify(attemptData));
+  
+  return attemptData;
 };
 
 // Clear failed attempts on successful verification
-const clearFailedAttempts = (phoneNumber) => {
-  failedAttemptsStore.delete(phoneNumber);
+const clearFailedAttempts = async (phoneNumber) => {
+  await redis.del(FAILED_ATTEMPTS_PREFIX + phoneNumber);
 };
 
 // Send OTP via Twilio or log to console
@@ -190,7 +191,7 @@ export const sendOTP = async (req, res) => {
     }
 
     // Check if phone number is frozen due to failed attempts
-    const failedCheck = checkFailedAttempts(phoneNumber);
+    const failedCheck = await checkFailedAttempts(phoneNumber);
     if (!failedCheck.allowed) {
       return res.status(429).json({
         message: failedCheck.message,
@@ -200,7 +201,7 @@ export const sendOTP = async (req, res) => {
     }
 
     // Check throttling
-    const throttleCheck = checkThrottle(phoneNumber);
+    const throttleCheck = await checkThrottle(phoneNumber);
     if (!throttleCheck.allowed) {
       return res.status(429).json({
         message: throttleCheck.message,
@@ -232,16 +233,16 @@ export const sendOTP = async (req, res) => {
     }
 
     const otp = generateOTP();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
-    // Store OTP
-    otpStore.set(phoneNumber, { otp, expiresAt });
+    // Store OTP in Redis with TTL (auto-expires)
+    const otpKey = OTP_PREFIX + phoneNumber;
+    await redis.setex(otpKey, OTP_EXPIRY_SECONDS, JSON.stringify({ otp }));
 
     // Send OTP via Twilio or log to console
     await sendOTPMessage(phoneNumber, otp);
 
     // Update throttle data
-    updateThrottle(phoneNumber);
+    await updateThrottle(phoneNumber);
 
     res.json({
       message: "OTP sent successfully",
@@ -263,7 +264,7 @@ export const verifyOTP = async (req, res) => {
     }
 
     // Check if phone number is frozen due to failed attempts
-    const failedCheck = checkFailedAttempts(phoneNumber);
+    const failedCheck = await checkFailedAttempts(phoneNumber);
     if (!failedCheck.allowed) {
       return res.status(429).json({
         message: failedCheck.message,
@@ -272,29 +273,25 @@ export const verifyOTP = async (req, res) => {
       });
     }
 
-    // Check if OTP exists
-    const storedData = otpStore.get(phoneNumber);
-    if (!storedData) {
+    // Check if OTP exists in Redis
+    const otpKey = OTP_PREFIX + phoneNumber;
+    const storedDataStr = await redis.get(otpKey);
+    if (!storedDataStr) {
       return res.status(400).json({ message: "OTP not found or expired" });
     }
 
-    // Check if OTP expired
-    if (Date.now() > storedData.expiresAt) {
-      otpStore.delete(phoneNumber);
-      return res.status(400).json({ message: "OTP expired" });
-    }
+    const storedData = JSON.parse(storedDataStr);
 
     // Verify OTP
     if (storedData.otp !== otp) {
-      recordFailedAttempt(phoneNumber);
-      const attemptData = failedAttemptsStore.get(phoneNumber);
+      const attemptData = await recordFailedAttempt(phoneNumber);
       const remainingAttempts = MAX_FAILED_ATTEMPTS - attemptData.attempts;
       
       if (remainingAttempts <= 0) {
         return res.status(429).json({ 
-          message: `Too many failed attempts. Your number is frozen for ${FREEZE_DURATION_MINUTES} minutes.`,
+          message: `Too many failed attempts. Your number is frozen for ${Math.ceil(FREEZE_DURATION_SECONDS / 60)} minutes.`,
           reason: "frozen",
-          remainingMinutes: FREEZE_DURATION_MINUTES,
+          remainingMinutes: Math.ceil(FREEZE_DURATION_SECONDS / 60),
         });
       }
       
@@ -305,9 +302,9 @@ export const verifyOTP = async (req, res) => {
     }
 
     // OTP verified - delete it and clear throttle data and failed attempts
-    otpStore.delete(phoneNumber);
-    throttleStore.delete(phoneNumber);
-    clearFailedAttempts(phoneNumber);
+    await redis.del(otpKey);
+    await redis.del(THROTTLE_PREFIX + phoneNumber);
+    await clearFailedAttempts(phoneNumber);
 
     // Check if user exists
     let user = await User.findOne({ phoneNumber });
@@ -372,13 +369,14 @@ export const resendOTP = async (req, res) => {
     }
 
     // Check if there's an existing OTP for this phone number
-    const existingOTP = otpStore.get(phoneNumber);
+    const otpKey = OTP_PREFIX + phoneNumber;
+    const existingOTP = await redis.get(otpKey);
     if (!existingOTP) {
       return res.status(400).json({ message: "No OTP request found. Please request a new OTP first." });
     }
 
     // Check throttling
-    const throttleCheck = checkThrottle(phoneNumber);
+    const throttleCheck = await checkThrottle(phoneNumber);
     if (!throttleCheck.allowed) {
       return res.status(429).json({
         message: throttleCheck.message,
@@ -390,16 +388,15 @@ export const resendOTP = async (req, res) => {
 
     // Generate new OTP
     const otp = generateOTP();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
-    // Update OTP in store
-    otpStore.set(phoneNumber, { otp, expiresAt });
+    // Update OTP in Redis with fresh TTL
+    await redis.setex(otpKey, OTP_EXPIRY_SECONDS, JSON.stringify({ otp }));
 
     // Send OTP via Twilio or log to console
     await sendOTPMessage(phoneNumber, otp);
 
     // Update throttle data
-    updateThrottle(phoneNumber);
+    await updateThrottle(phoneNumber);
 
     res.json({
       message: "OTP resent successfully",
