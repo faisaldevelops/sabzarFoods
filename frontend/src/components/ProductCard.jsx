@@ -51,11 +51,11 @@ const ProductCard = ({ product }) => {
 
 	return (
 		<>
-			<div className='group relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white m-1 hover:shadow-lg transition-all duration-300'>
+			<div className='group relative flex w-full flex-col overflow-hidden bg-white rounded-xl border border-stone-200/60 shadow-sm hover:shadow-xl hover:shadow-stone-200/50 hover:border-stone-300/60 transition-all duration-300'>
 				{/* Image Container */}
-				<div className='relative flex h-64 overflow-hidden bg-stone-100 sm:rounded-t-lg'>
+				<div className='relative flex h-56 sm:h-64 overflow-hidden bg-stone-100 rounded-t-xl'>
 					<img 
-						className='object-cover w-full transition-transform duration-500 group-hover:scale-105' 
+						className='object-cover w-full transition-transform duration-500 ease-out group-hover:scale-[1.03]' 
 						src={product.image} 
 						alt={product.name} 
 					/>
@@ -82,66 +82,66 @@ const ProductCard = ({ product }) => {
 					{/* Low stock badge */}
 					{isLowStock && (
 						<div className='absolute top-3 right-3'>
-							<span className='bg-amber-500 text-white text-xs font-medium px-3 py-1.5 rounded-full flex items-center gap-1 shadow-md'>
-								<Tag size={12} />
-								{availableStock} LEFT
+							<span className='bg-amber-500/90 backdrop-blur-sm text-white text-[10px] sm:text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm'>
+								<Tag size={10} />
+								{availableStock} left
 							</span>
 						</div>
 					)}
 				</div>
 
 				{/* Content */}
-				<div className='p-4 flex flex-col flex-grow bg-white'>
-					<h5 className='text-sm font-medium text-stone-900 mb-1 line-clamp-2'>
+				<div className='p-3 sm:p-4 flex flex-col flex-grow bg-white rounded-b-xl'>
+					<h5 className='text-sm font-medium text-stone-800 mb-1.5 line-clamp-2 leading-snug'>
 						{product.name}
 					</h5>
 					
 					<div className='mt-auto pt-2'>
-						<div className='flex items-baseline gap-2 mb-2'>
-							{product.actualPrice && product.actualPrice > product.price && (
-								<span className='text-sm text-stone-400 line-through'>
-									₹{product.actualPrice}
-								</span>
-							)}
-							<span className='text-xl font-bold text-stone-900'>
+						<div className='flex items-baseline gap-2 mb-3'>
+							<span className='text-lg sm:text-xl font-semibold text-stone-900'>
 								₹{product.price}
 							</span>
 							{product.actualPrice && product.actualPrice > product.price && (
-								<span className='text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded'>
-									{Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
-								</span>
+								<>
+									<span className='text-xs sm:text-sm text-stone-400 line-through'>
+										₹{product.actualPrice}
+									</span>
+									<span className='text-[10px] sm:text-xs font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full'>
+										{Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
+									</span>
+								</>
 							)}
 						</div>
 						
 						<div className='flex sm:flex-row flex-col gap-2'>
 							{quantityInCart === 0 ? (
 								<button
-									className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
+									className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 ${
 										isOutOfStock
-											? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-											: 'bg-stone-800 text-white hover:bg-stone-700 hover:shadow-md'
+											? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+											: 'bg-stone-900 text-white hover:bg-stone-800 active:scale-[0.98]'
 									}`}
 									onClick={handleAddToCart}
 									disabled={isOutOfStock}
 								>
 									{!isOutOfStock && <ShoppingCart size={14} />}
-									{isOutOfStock ? 'OUT OF STOCK' : 'Add to Cart'}
+									{isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
 								</button>
 							) : (
-								<div className='flex-1 flex items-center justify-center gap-2 rounded-md bg-stone-800 px-2 py-2'>
+								<div className='flex-1 flex items-center justify-center gap-3 rounded-lg bg-stone-900 px-3 py-2'>
 									<button
-										className='h-7 w-7 flex items-center justify-center rounded-md
-										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors'
+										className='h-7 w-7 flex items-center justify-center rounded-full
+										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors active:scale-95'
 										onClick={handleDecreaseQuantity}
 									>
 										<Minus className='text-white' size={14} />
 									</button>
-									<span className='text-sm font-medium text-white min-w-[2rem] text-center'>
+									<span className='text-sm font-medium text-white min-w-[1.5rem] text-center'>
 										{quantityInCart}
 									</span>
 									<button
-										className='h-7 w-7 flex items-center justify-center rounded-md
-										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors'
+										className='h-7 w-7 flex items-center justify-center rounded-full
+										bg-stone-700 hover:bg-stone-600 focus:outline-none transition-colors active:scale-95'
 										onClick={handleIncreaseQuantity}
 									>
 										<Plus className='text-white' size={14} />
@@ -150,10 +150,10 @@ const ProductCard = ({ product }) => {
 							)}
 							
 							<button
-								className={`flex-1 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 flex items-center justify-center gap-2 ${
+								className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 flex items-center justify-center gap-1.5 ${
 									isOutOfStock
-										? 'bg-stone-200 text-stone-500 cursor-not-allowed'
-										: 'bg-white text-stone-900 border border-stone-300 hover:bg-stone-50 hover:shadow-md'
+										? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+										: 'bg-stone-100 text-stone-900 hover:bg-stone-200 active:scale-[0.98]'
 								}`}
 								onClick={handleBuyNow}
 								disabled={isOutOfStock}
