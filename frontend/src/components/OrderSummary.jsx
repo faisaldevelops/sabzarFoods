@@ -35,13 +35,11 @@ const OrderSummary = () => {
 	const formattedSavings = savings.toFixed(2);
 	
 	// Calculate total with pricing breakdown if available
-	// The backend calculates platform fee based on the subtotal we pass
-	// If we pass the discounted total, the breakdown.total will be correct
-	// But we need to adjust: breakdown.total = subtotal + delivery + platformFee
-	// We want: discountedTotal + delivery + platformFee (calculated on discountedTotal)
+	// Only show full total (with delivery + platform fee) when pricing breakdown is available
+	// Otherwise just show cart total without extra charges
 	const formattedTotal = pricingBreakdown 
 		? pricingBreakdown.total.toFixed(2)
-		: (total + 199).toFixed(2); // Fallback to old calculation
+		: total.toFixed(2);
 
 	// Fetch addresses when user is logged in
 	useEffect(() => {
@@ -462,28 +460,23 @@ const OrderSummary = () => {
 							<dd className='text-base font-medium text-stone-900'>-₹{formattedSavings}</dd>
 						</dl>
 					)}
-					{loadingPricing ? (
+				{loadingPricing ? (
+					<dl className='flex items-center justify-between gap-4'>
+						<dt className='text-base font-normal text-stone-700'>Calculating charges...</dt>
+						<dd className='text-base font-medium text-stone-900'>...</dd>
+					</dl>
+				) : pricingBreakdown ? (
+					<>
 						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Calculating charges...</dt>
-							<dd className='text-base font-medium text-stone-900'>...</dd>
+							<dt className='text-base font-normal text-stone-700'>Delivery Charges</dt>
+							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
 						</dl>
-					) : pricingBreakdown ? (
-						<>
-							<dl className='flex items-center justify-between gap-4'>
-								<dt className='text-base font-normal text-stone-700'>Delivery Charges ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
-								<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
-							</dl>
-							<dl className='flex items-center justify-between gap-4'>
-								<dt className='text-base font-normal text-stone-700'>Platform Fee</dt>
-								<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
-							</dl>
-						</>
-					) : (
 						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Extra Charges (Shipping + Platform Fee)</dt>
-							<dd className='text-base font-medium text-stone-900'>₹199.00</dd>
+							<dt className='text-base font-normal text-stone-700'>Platform Fee</dt>
+							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
 						</dl>
-					)}
+					</>
+				) : null}
 					<dl className='flex items-center justify-between gap-4 border-t border-stone-300 pt-2'>
 						<dt className='text-base font-bold text-stone-900'>Total</dt>
 						<dd className='text-base font-bold text-stone-900'>₹{formattedTotal}</dd>

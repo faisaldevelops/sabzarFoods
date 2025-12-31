@@ -474,7 +474,7 @@ const OrderSummaryPage = () => {
 									) : pricingBreakdown ? (
 										<>
 											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Shipping ({pricingBreakdown.deliveryType === 'local' ? 'Local' : 'National'})</dt>
+												<dt className='text-base font-normal text-gray-300'>Shipping</dt>
 												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
 											</dl>
 											<dl className='flex items-center justify-between gap-4'>
@@ -482,18 +482,7 @@ const OrderSummaryPage = () => {
 												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
 											</dl>
 										</>
-									) : (
-										<>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Shipping</dt>
-												<dd className='text-base font-medium text-white'>₹0.00</dd>
-											</dl>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Platform Fee</dt>
-												<dd className='text-base font-medium text-white'>₹0.00</dd>
-											</dl>
-										</>
-									)}
+									) : null}
 									
 									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
 										<dt className='text-base font-bold text-white'>Total</dt>
