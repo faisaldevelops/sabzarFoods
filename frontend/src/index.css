@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 html, body {
-	overscroll-behavior: none;
+	overscroll-behavior-x: none;
 	-webkit-overflow-scrolling: touch;
 }
 
