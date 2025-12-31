@@ -142,7 +142,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
         className="absolute inset-0 bg-black/50"
         initial={{ opacity: 0 }}
@@ -151,15 +151,15 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
         onClick={onClose}
       />
       <motion.div
-        className="relative z-10 w-full max-w-lg rounded-lg border border-stone-200 bg-white p-6 shadow-xl"
+        className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg border border-stone-200 bg-white p-4 sm:p-6 shadow-xl"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
       >
-        <div className="mb-4 flex items-start justify-between">
+        <div className="mb-4 flex items-start justify-between sticky top-0 bg-white pb-2">
           <h3 className="text-lg font-semibold text-stone-900">Add Address</h3>
-          <button onClick={onClose} className="text-stone-600 hover:text-stone-900">
-            <X size={18} />
+          <button onClick={onClose} className="text-stone-600 hover:text-stone-900 p-1 -mr-1">
+            <X size={20} />
           </button>
         </div>
 
@@ -170,13 +170,13 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               placeholder="Full name"
             />
             {errors.name && <p className="text-xs text-red-600">{errors.name}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm text-stone-700">Phone</label>
               <input
@@ -184,7 +184,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                 value={form.phoneNumber}
                 onChange={handleChange}
                 inputMode="numeric"
-                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
                 placeholder="10 digits"
               />
               {errors.phoneNumber && <p className="text-xs text-red-600">{errors.phoneNumber}</p>}
@@ -196,7 +196,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                 type="email"
                 value={form.email}
                 onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
                 placeholder="Optional"
               />
               {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
@@ -210,7 +210,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               value={form.pincode}
               onChange={handleChange}
               inputMode="numeric"
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               placeholder="6 digits"
             />
             {pincodeLoading && <p className="text-xs text-blue-600 mt-1">Fetching location details...</p>}
@@ -223,7 +223,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               name="houseNumber"
               value={form.houseNumber}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
             />
             {errors.houseNumber && <p className="text-xs text-red-600">{errors.houseNumber}</p>}
           </div>
@@ -234,7 +234,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               name="streetAddress"
               value={form.streetAddress}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
             />
             {errors.streetAddress && <p className="text-xs text-red-600">{errors.streetAddress}</p>}
           </div>
@@ -245,18 +245,18 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               name="landmark"
               value={form.landmark}
               onChange={handleChange}
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-sm text-stone-700">City</label>
               <input
                 name="city"
                 value={form.city}
                 onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               />
               {errors.city && <p className="text-xs text-red-600">{errors.city}</p>}
             </div>
@@ -267,7 +267,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                 name="state"
                 value={form.state}
                 onChange={handleChange}
-                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+                className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
               >
                 <option value="">Select state</option>
                 {INDIAN_STATES.map((s) => (
@@ -278,10 +278,10 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-3">
+          <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
             <button
               onClick={onClose}
-              className="rounded-lg border border-stone-300 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
+              className="rounded-lg border border-stone-300 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 w-full sm:w-auto"
             >
               Cancel
             </button>
@@ -289,7 +289,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleSave}
-              className="rounded-lg bg-stone-800 px-4 py-2 text-sm text-white hover:bg-stone-700 focus:ring-4 focus:ring-stone-300"
+              className="rounded-lg bg-stone-800 px-4 py-2.5 text-sm text-white hover:bg-stone-700 focus:ring-4 focus:ring-stone-300 w-full sm:w-auto"
             >
               Save Address
             </motion.button>
