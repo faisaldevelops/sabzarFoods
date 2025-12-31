@@ -48,7 +48,7 @@ function App() {
 	if (checkingAuth) return <LoadingSpinner />;
 
 	return (
-		<div className='min-h-screen bg-stone-50 text-stone-900 relative overflow-hidden flex flex-col'>
+		<div className='min-h-screen bg-stone-50 text-stone-900 relative flex flex-col'>
 			<div className='relative z-50 pt-16 flex-1'>
 				<Navbar />
 				<Routes>

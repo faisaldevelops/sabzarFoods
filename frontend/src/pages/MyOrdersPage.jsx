@@ -142,12 +142,12 @@ const MyOrdersPage = () => {
 		const totalItems = order.products.reduce((sum, item) => sum + item.quantity, 0);
 		
 		return (
-			<motion.div
-				initial={{ opacity: 0, y: 20 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.4, delay: index * 0.05 }}
-				className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg hover:border-emerald-500/30 transition-all duration-300"
-			>
+		<motion.div
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			transition={{ duration: 0.3, delay: index * 0.03 }}
+			className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg hover:border-emerald-500/30 transition-all duration-300"
+		>
 				{/* Compact Header - Always Visible */}
 				<div 
 					className="px-4 py-3 cursor-pointer"
@@ -387,7 +387,7 @@ const MyOrdersPage = () => {
 
 	if (orders.length === 0 && !isLoading) {
 		return (
-			<div className="min-h-screen bg-stone-900 flex items-center justify-center">
+			<div className="min-h-screen bg-stone-900 flex items-center justify-center overscroll-none">
 				<div className="text-center">
 					<Package className="w-16 h-16 text-gray-600 mx-auto mb-4" />
 					<h2 className="text-2xl font-semibold text-gray-300 mb-2">No Orders Yet</h2>
@@ -398,12 +398,12 @@ const MyOrdersPage = () => {
 	}
 
 	return (
-		<div className="min-h-screen bg-stone-900 py-8 px-4 sm:px-6 lg:px-8">
+		<div className="min-h-screen bg-stone-900 py-8 px-4 sm:px-6 lg:px-8 overscroll-none">
 			<div className="max-w-5xl mx-auto">
 				<motion.div
-					initial={{ opacity: 0, y: -20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.5 }}
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					transition={{ duration: 0.3 }}
 				>
 					<div className="flex items-center justify-between mb-2">
 						<h1 className="text-4xl font-bold text-emerald-400">My Orders</h1>

@@ -4,6 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body {
+	overscroll-behavior: none;
+	-webkit-overflow-scrolling: touch;
+}
+
 body {
 	font-feature-settings: 'kern' 1;
 	-webkit-font-smoothing: antialiased;
