@@ -101,8 +101,8 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
     setOtpError("");
     setOtpSuccess("");
     
-    if (!otp || otp.length !== 6) {
-      setOtpError("Please enter the 6-digit OTP");
+    if (!otp || otp.length !== 4) {
+      setOtpError("Please enter the 4-digit OTP");
       return;
     }
 
@@ -239,15 +239,15 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
                   type="text"
                   value={otp}
                   onChange={(e) => {
-                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 4));
                     setOtpError("");
                     setOtpSuccess("");
                   }}
-                  placeholder="Enter 6-digit OTP"
+                  placeholder="Enter 4-digit OTP"
                   className={`w-full rounded-md border px-10 py-2.5 text-center text-2xl tracking-widest focus:ring-2 focus:border-transparent ${otpError ? 'border-red-500 bg-red-50 text-red-900 focus:ring-red-500' : otpSuccess ? 'border-green-500 bg-green-50 text-green-900 focus:ring-green-500' : 'border-stone-300 bg-white text-stone-900 focus:ring-stone-800'}`}
                   required
                   disabled={loading}
-                  maxLength={6}
+                  maxLength={4}
                 />
               </div>
               {otpError && (

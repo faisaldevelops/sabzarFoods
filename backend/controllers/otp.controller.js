@@ -31,9 +31,9 @@ if (accountSid && authToken) {
   twilioClient = twilio(accountSid, authToken);
 }
 
-// Generate 6-digit OTP
+// Generate 4-digit OTP
 const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
 // Check if phone number is throttled
