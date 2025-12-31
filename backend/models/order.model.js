@@ -65,7 +65,6 @@ const orderSchema = new mongoose.Schema(
     labelPrintBatch: { type: String, default: null }, // Batch ID for group prints
     
     expiresAt: { type: Date, default: null }, // Hold expiration time (e.g., 15 minutes from creation)
-    couponCode: { type: String, default: null },
     trackingStatus: {
       type: String,
       enum: ["pending", "processing", "ready", "shipped", "delivered", "cancelled"],

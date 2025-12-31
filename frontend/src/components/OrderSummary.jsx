@@ -450,7 +450,7 @@ const OrderSummary = () => {
 
 				<div className='space-y-2'>
 					<dl className='flex items-center justify-between gap-4'>
-						<dt className='text-base font-normal text-stone-700'>Original price</dt>
+						<dt className='text-base font-normal text-stone-700'>Price</dt>
 						<dd className='text-base font-medium text-stone-900'>₹{formattedSubtotal}</dd>
 					</dl>
 

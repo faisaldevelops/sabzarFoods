@@ -51,6 +51,8 @@ export const useCartStore = create((set, get) => ({
 	cart: [],
 	total: 0,
 	subtotal: 0,
+	lastAddedItem: null,
+	showCartNotification: false,
 
 	getCartItems: async () => {
 		try {
@@ -73,7 +75,7 @@ export const useCartStore = create((set, get) => ({
 			// Ignore error if not authenticated
 		}
 		clearLocalCart();
-		set({ cart: [], coupon: null, total: 0, subtotal: 0 });
+		set({ cart: [], total: 0, subtotal: 0 });
 	},
 	
 	addToCart: async (product) => {
@@ -99,13 +101,11 @@ export const useCartStore = create((set, get) => ({
 						  )
 						: [...prevState.cart, { ...product, quantity: 1 }];
 					setLocalCart(newCart);
-					return { cart: newCart };
+					return { cart: newCart, lastAddedItem: product, showCartNotification: true };
 				});
 				get().calculateTotals();
-				toast.success("Product added to cart");
 			} else {
 				// Authenticated user - server handled it
-				toast.success("Product added to cart");
 				set((prevState) => {
 					const existingItem = prevState.cart.find((item) => item._id === product._id);
 					const newCart = existingItem
@@ -113,7 +113,7 @@ export const useCartStore = create((set, get) => ({
 								item._id === product._id ? { ...item, quantity: Math.min(item.quantity + 1, MAX_QUANTITY_PER_ITEM) } : item
 						  )
 						: [...prevState.cart, { ...product, quantity: 1 }];
-					return { cart: newCart };
+					return { cart: newCart, lastAddedItem: product, showCartNotification: true };
 				});
 				get().calculateTotals();
 			}
@@ -207,5 +207,10 @@ export const useCartStore = create((set, get) => ({
 			set({ cart: localCart });
 			get().calculateTotals();
 		}
+	},
+	
+	// Hide cart notification
+	hideCartNotification: () => {
+		set({ showCartNotification: false });
 	},
 }));

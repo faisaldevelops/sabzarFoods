@@ -13,6 +13,7 @@ import ShippingPolicyPage from "./pages/ShippingPolicyPage";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import CartNotification from "./components/CartNotification";
 import { Toaster } from "react-hot-toast";
 import { useUserStore } from "./stores/useUserStore";
 import { useEffect } from "react";
@@ -70,6 +71,7 @@ function App() {
 				</Routes>
 			</div>
 			<Footer />
+			<CartNotification />
 			<Toaster 
 				toastOptions={{
 					style: {
