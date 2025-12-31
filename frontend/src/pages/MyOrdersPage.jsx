@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package, Truck, CheckCircle, XCircle, Clock, MapPin, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -81,86 +81,206 @@ const MyOrdersPage = () => {
 		const Icon = config.icon;
 
 		return (
-			<div className="mt-4 space-y-3">
-				<div className="flex items-center justify-between">
-					<h4 className="text-sm font-semibold text-gray-300">Tracking History</h4>
-					{history.length > 1 && (
-						<button
-							onClick={() => setIsExpanded(!isExpanded)}
-							className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-400 transition-colors"
-						>
-							{isExpanded ? (
-								<>
-									<span>Hide History</span>
-									<ChevronUp className="w-4 h-4" />
-								</>
-							) : (
-								<>
-									<span>Show Full History</span>
-									<ChevronDown className="w-4 h-4" />
-								</>
+			<div className="mt-3 pt-3 border-t border-gray-700/50">
+				<button
+					onClick={() => setIsExpanded(!isExpanded)}
+					className="w-full flex items-center justify-between text-left"
+				>
+					<div className="flex items-center gap-2">
+						<div className={`w-5 h-5 rounded-full ${config.color} flex items-center justify-center`}>
+							<Icon className="w-2.5 h-2.5 text-white" />
+						</div>
+						<span className={`text-xs font-medium ${config.textColor}`}>{config.text}</span>
+						<span className="text-xs text-gray-500">
+							{new Date(currentStatus.timestamp).toLocaleDateString('en-IN', {
+								timeZone: 'Asia/Kolkata',
+								day: 'numeric',
+								month: 'short',
+							})}
+						</span>
+					</div>
+					<ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+				</button>
+
+				{/* Full History - Collapsible */}
+				{isExpanded && (
+					<div className="mt-3 relative border-l-2 border-gray-700 pl-5 ml-2.5 space-y-3">
+						{[...history].reverse().map((item, index) => {
+							const itemConfig = getStatusConfig(item.status);
+							const ItemIcon = itemConfig.icon;
+							
+							return (
+								<div key={index} className="relative">
+									<div className={`absolute -left-[1.4rem] w-4 h-4 rounded-full ${itemConfig.color} flex items-center justify-center`}>
+										<ItemIcon className="w-2 h-2 text-white" />
+									</div>
+									<div className="text-xs text-gray-400">
+										{new Date(item.timestamp).toLocaleString('en-IN', {
+											timeZone: 'Asia/Kolkata',
+											dateStyle: "medium",
+											timeStyle: "short",
+										})}
+									</div>
+									<div className={`text-xs font-medium ${itemConfig.textColor}`}>
+										{itemConfig.text}
+									</div>
+									{item.note && (
+										<div className="text-xs text-gray-500">{item.note}</div>
+									)}
+								</div>
+							);
+						})}
+					</div>
+				)}
+			</div>
+		);
+	};
+
+	// Collapsible Order Card Component
+	const OrderCard = ({ order, index }) => {
+		const [isExpanded, setIsExpanded] = useState(false);
+		const totalItems = order.products.reduce((sum, item) => sum + item.quantity, 0);
+		
+		return (
+			<motion.div
+				initial={{ opacity: 0, y: 20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.4, delay: index * 0.05 }}
+				className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg hover:border-emerald-500/30 transition-all duration-300"
+			>
+				{/* Compact Header - Always Visible */}
+				<div 
+					className="px-4 py-3 cursor-pointer"
+					onClick={() => setIsExpanded(!isExpanded)}
+				>
+					<div className="flex items-center gap-3">
+						{/* Product thumbnails */}
+						<div className="flex -space-x-2 flex-shrink-0">
+							{order.products.slice(0, 3).map((item, idx) => (
+								<div key={idx} className="w-10 h-10 rounded-lg overflow-hidden border-2 border-gray-800 bg-gray-700">
+									{item.image ? (
+										<img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+									) : (
+										<div className="w-full h-full flex items-center justify-center">
+											<Package className="w-4 h-4 text-gray-500" />
+										</div>
+									)}
+								</div>
+							))}
+							{order.products.length > 3 && (
+								<div className="w-10 h-10 rounded-lg border-2 border-gray-800 bg-gray-700 flex items-center justify-center">
+									<span className="text-xs text-gray-400">+{order.products.length - 3}</span>
+								</div>
 							)}
-						</button>
-					)}
+						</div>
+
+						{/* Order info */}
+						<div className="flex-1 min-w-0">
+							<div className="flex items-center gap-2 flex-wrap">
+								<span className="text-sm font-medium text-white">#{order.publicOrderId || order.orderId}</span>
+								<StatusBadge status={order.trackingStatus} />
+							</div>
+							<div className="text-xs text-gray-400 mt-0.5">
+								{totalItems} item{totalItems !== 1 ? 's' : ''} • {new Date(order.createdAt).toLocaleDateString('en-IN', {
+									timeZone: 'Asia/Kolkata',
+									day: 'numeric',
+									month: 'short',
+									year: 'numeric'
+								})}
+							</div>
+						</div>
+
+						{/* Amount & expand */}
+						<div className="flex items-center gap-3 flex-shrink-0">
+							<span className="text-lg font-bold text-emerald-400">₹{order.totalAmount.toFixed(0)}</span>
+							<ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+						</div>
+					</div>
 				</div>
 
-				{/* Current Status - Always Visible */}
-				<div className="relative border-l-2 border-gray-700 pl-6">
-					<div className="relative pb-4">
-						<div className={`absolute -left-[1.75rem] w-6 h-6 rounded-full ${config.color} flex items-center justify-center`}>
-							<Icon className="w-3 h-3 text-white" />
-						</div>
-						<div className="text-xs text-gray-400">
-							{new Date(currentStatus.timestamp).toLocaleString('en-IN', {
-								timeZone: 'Asia/Kolkata',
-								dateStyle: "medium",
-								timeStyle: "short",
-							})}
-						</div>
-						<div className={`text-sm font-medium ${config.textColor}`}>
-							{config.text}
-						</div>
-						{currentStatus.note && (
-							<div className="text-xs text-gray-500 mt-1">
-								{currentStatus.note}
-							</div>
-						)}
-					</div>
-
-					{/* Previous History - Collapsible */}
-					{isExpanded && history.length > 1 && (
-						<div className="space-y-4">
-							{history.slice(0, -1).reverse().map((item, index) => {
-								const itemConfig = getStatusConfig(item.status);
-								const ItemIcon = itemConfig.icon;
-								
-								return (
-									<div key={index} className="relative pb-4">
-										<div className={`absolute -left-[1.75rem] w-6 h-6 rounded-full ${itemConfig.color} flex items-center justify-center`}>
-											<ItemIcon className="w-3 h-3 text-white" />
-										</div>
-										<div className="text-xs text-gray-400">
-											{new Date(item.timestamp).toLocaleString('en-IN', {
+				{/* Expanded Details */}
+				{isExpanded && (
+					<div className="px-4 pb-4 border-t border-gray-700/50">
+						{/* Tracking Info */}
+						{(order.trackingNumber || order.deliveryPartner || order.estimatedDelivery) && (
+							<div className="py-3 space-y-1.5 border-b border-gray-700/50">
+								{order.deliveryPartner && (
+									<div className="flex items-center text-xs">
+										<Truck className="w-3.5 h-3.5 mr-2 text-purple-400" />
+										<span className="text-gray-400">Via</span>
+										<span className="ml-1 text-purple-400 font-medium">
+											{order.deliveryPartner === 'india_post' ? 'India Post' : 
+											 order.deliveryPartner === 'delhivery' ? 'Delhivery' : 
+											 order.deliveryPartner}
+										</span>
+									</div>
+								)}
+								{order.trackingNumber && (
+									<div className="flex items-center text-xs">
+										<Package className="w-3.5 h-3.5 mr-2 text-emerald-400" />
+										<span className="text-gray-400">Tracking:</span>
+										<span className="ml-1 font-mono text-emerald-400">{order.trackingNumber}</span>
+									</div>
+								)}
+								{order.estimatedDelivery && (
+									<div className="flex items-center text-xs">
+										<Clock className="w-3.5 h-3.5 mr-2 text-blue-400" />
+										<span className="text-gray-400">Expected:</span>
+										<span className="ml-1 text-blue-400">
+											{new Date(order.estimatedDelivery).toLocaleDateString('en-IN', {
 												timeZone: 'Asia/Kolkata',
 												dateStyle: "medium",
-												timeStyle: "short",
 											})}
-										</div>
-										<div className={`text-sm font-medium ${itemConfig.textColor}`}>
-											{itemConfig.text}
-										</div>
-										{item.note && (
-											<div className="text-xs text-gray-500 mt-1">
-												{item.note}
+										</span>
+									</div>
+								)}
+							</div>
+						)}
+
+						{/* Order Items */}
+						<div className="py-3 space-y-2">
+							{order.products.map((item, idx) => (
+								<div key={idx} className="flex items-center gap-3 bg-gray-900/30 rounded-lg p-2">
+									<div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-700">
+										{item.image ? (
+											<img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+										) : (
+											<div className="w-full h-full flex items-center justify-center">
+												<Package className="w-5 h-5 text-gray-500" />
 											</div>
 										)}
 									</div>
-								);
-							})}
+									<div className="flex-1 min-w-0">
+										<h5 className="text-xs font-medium text-white truncate">{item.name}</h5>
+										<div className="text-xs text-gray-400">
+											{item.quantity} × ₹{item.price} = <span className="text-emerald-400">₹{(item.price * item.quantity).toFixed(0)}</span>
+										</div>
+									</div>
+								</div>
+							))}
 						</div>
-					)}
-				</div>
-			</div>
+
+						{/* Shipping Address - Compact */}
+						{order.address && (
+							<div className="pt-3 border-t border-gray-700/50">
+								<div className="flex items-start gap-2">
+									<MapPin className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+									<div className="text-xs text-gray-400">
+										<span className="text-gray-300">{order.address.name}</span> • {order.address.phoneNumber}
+										<br />
+										{order.address.houseNumber}, {order.address.streetAddress}, {order.address.city} - {order.address.pincode}
+									</div>
+								</div>
+							</div>
+						)}
+
+						{/* Tracking History */}
+						{order.trackingHistory && order.trackingHistory.length > 0 && (
+							<TrackingTimeline history={order.trackingHistory} />
+						)}
+					</div>
+				)}
+			</motion.div>
 		);
 	};
 
@@ -303,146 +423,9 @@ const MyOrdersPage = () => {
 					<p className="text-gray-400 mb-8">Track and manage your orders</p>
 				</motion.div>
 
-				<div className="space-y-6">
+				<div className="space-y-3">
 					{orders.map((order, index) => (
-						<motion.div
-							key={order.orderId}
-							initial={{ opacity: 0, y: 20 }}
-							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.5, delay: index * 0.1 }}
-							className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden shadow-lg hover:border-emerald-500/30 transition-all duration-300"
-						>
-							{/* Order Header */}
-							<div className="bg-gray-900/50 px-6 py-4 border-b border-gray-700/50">
-								<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-									<div>
-										<div className="flex items-center gap-3 mb-2">
-											<h3 className="text-lg font-semibold text-white">
-												Order #{order.publicOrderId || order.orderId}
-											</h3>
-											<StatusBadge status={order.trackingStatus} />
-										</div>
-										<div className="flex items-center text-sm text-gray-400">
-											<Calendar className="w-4 h-4 mr-1" />
-											{new Date(order.createdAt).toLocaleString('en-IN', {
-												timeZone: 'Asia/Kolkata',
-												dateStyle: "medium",
-												timeStyle: "short",
-											})}
-										</div>
-									</div>
-									
-									<div className="text-right">
-										<div className="text-sm text-gray-400 mb-1">Total Amount</div>
-										<div className="text-2xl font-bold text-emerald-400">
-											₹{order.totalAmount.toFixed(2)}
-										</div>
-									</div>
-								</div>
-
-								{/* Tracking Information */}
-								{(order.trackingNumber || order.deliveryPartner) && (
-									<div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
-										{order.deliveryPartner && (
-											<div className="flex items-center text-sm">
-												<Truck className="w-4 h-4 mr-2 text-purple-400" />
-												<span className="text-gray-400">Delivery Partner:</span>
-												<span className="ml-2 text-purple-400 font-medium">
-													{order.deliveryPartner === 'india_post' ? 'India Post (Speed Post)' : 
-													 order.deliveryPartner === 'delhivery' ? 'Delhivery' : 
-													 order.deliveryPartner}
-												</span>
-											</div>
-										)}
-										{order.trackingNumber && (
-											<div className="flex items-center text-sm">
-												<Package className="w-4 h-4 mr-2 text-emerald-400" />
-												<span className="text-gray-400">Tracking Number:</span>
-												<span className="ml-2 font-mono text-emerald-400">{order.trackingNumber}</span>
-											</div>
-										)}
-									</div>
-								)}
-
-								{/* Estimated Delivery */}
-								{order.estimatedDelivery && (
-									<div className="mt-2">
-										<div className="flex items-center text-sm">
-											<Clock className="w-4 h-4 mr-2 text-blue-400" />
-											<span className="text-gray-400">Estimated Delivery:</span>
-											<span className="ml-2 text-blue-400">
-												{new Date(order.estimatedDelivery).toLocaleDateString('en-IN', {
-													timeZone: 'Asia/Kolkata',
-													dateStyle: "medium",
-												})}
-											</span>
-										</div>
-									</div>
-								)}
-							</div>
-
-							{/* Order Items */}
-							<div className="px-6 py-4">
-								<h4 className="text-sm font-semibold text-gray-300 mb-3">Order Items</h4>
-								<div className="space-y-3">
-									{order.products.map((item, idx) => (
-										<div key={idx} className="flex items-center gap-4 bg-gray-900/30 rounded-xl p-3">
-											<div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-700">
-												{item.image ? (
-													<img
-														src={item.image}
-														alt={item.name}
-														className="w-full h-full object-cover"
-													/>
-												) : (
-													<div className="w-full h-full flex items-center justify-center">
-														<Package className="w-6 h-6 text-gray-500" />
-													</div>
-												)}
-											</div>
-											<div className="flex-1 min-w-0">
-												<h5 className="text-sm font-medium text-white truncate">
-													{item.name}
-												</h5>
-												<div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-													<span>Qty: {item.quantity}</span>
-													<span>₹{item.price}</span>
-													<span className="font-medium text-emerald-400">
-														₹{(item.price * item.quantity).toFixed(2)}
-													</span>
-												</div>
-											</div>
-										</div>
-									))}
-								</div>
-
-								{/* Shipping Address */}
-								{order.address && (
-									<div className="mt-4 pt-4 border-t border-gray-700/50">
-										<div className="flex items-start gap-2">
-											<MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-											<div className="text-sm">
-												<div className="font-medium text-gray-300 mb-1">Shipping Address</div>
-												<div className="text-gray-400 space-y-0.5">
-													<div>{order.address.name} • {order.address.phoneNumber}</div>
-													<div>
-														{order.address.houseNumber}, {order.address.streetAddress}
-													</div>
-													<div>
-														{order.address.city}, {order.address.state} - {order.address.pincode}
-													</div>
-												</div>
-											</div>
-										</div>
-									</div>
-								)}
-
-								{/* Tracking History */}
-								{order.trackingHistory && order.trackingHistory.length > 0 && (
-									<TrackingTimeline history={order.trackingHistory} />
-								)}
-							</div>
-						</motion.div>
+						<OrderCard key={order.orderId} order={order} index={index} />
 					))}
 				</div>
 
