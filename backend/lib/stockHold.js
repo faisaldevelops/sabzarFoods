@@ -5,9 +5,13 @@
  * When a user starts checkout, we create a HOLD order and optionally reserve stock.
  * If payment succeeds, we atomically decrement stock.
  * If payment fails or hold expires, we release the reserved stock.
+ * 
+ * SECURITY: Uses MongoDB transactions and atomic operations to prevent race conditions.
  */
 
 import Order from "../models/order.model.js";
+import Product from "../models/product.model.js";
+import mongoose from "mongoose";
 import crypto from "crypto";
 
 // Helper: hash + base62 encode
@@ -16,7 +20,6 @@ function generatePublicOrderId(orderData) {
   const base62 = hash.toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 12).toUpperCase();
   return base62;
 }
-import Product from "../models/product.model.js";
 
 // Hold duration in milliseconds (15 minutes)
 const HOLD_DURATION_MS = 15 * 60 * 1000;
@@ -171,109 +174,220 @@ export const createHoldOrder = async (orderData) => {
 /**
  * Atomically finalize an order by decrementing stock
  * This is the critical section that prevents over-ordering
+ * 
+ * SECURITY: Uses atomic findOneAndUpdate to lock the order and MongoDB transactions
+ * to ensure all-or-nothing stock updates. This prevents race conditions where
+ * multiple requests could finalize the same order.
+ * 
  * @param {string} orderId - The order ID to finalize
+ * @param {string} razorpayPaymentId - Optional payment ID for idempotency check
  * @returns {Object} - { success: boolean, order?: Order, insufficientItems?: Array }
  */
-export const finalizeOrder = async (orderId) => {
-  const order = await Order.findById(orderId);
-  
+export const finalizeOrder = async (orderId, razorpayPaymentId = null) => {
+  // Step 1: Atomically check and lock the order to prevent race conditions
+  // This is the CRITICAL fix - we use findOneAndUpdate with status conditions
+  // to ensure only one request can transition the order from hold to processing
+  const order = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      status: { $in: ["hold", "pending"] }, // Only orders in these states can be finalized
+      $or: [
+        { expiresAt: { $gt: new Date() } }, // Not expired by time
+        { expiresAt: null } // No expiration set
+      ]
+    },
+    {
+      $set: { status: "processing_payment" } // Intermediate state to lock the order
+    },
+    { new: true }
+  );
+
+  // If no order found, check why
   if (!order) {
-    return { success: false, error: "Order not found" };
-  }
-  
-  if (order.status === "paid") {
-    return { success: true, order, message: "Order already paid" };
-  }
-  
-  if (order.status === "expired" || order.status === "cancelled") {
-    return { success: false, error: "Order has expired or been cancelled" };
-  }
-  
-  // Check if hold has expired
-  if (order.expiresAt && new Date() > new Date(order.expiresAt)) {
-    order.status = "expired";
-    await order.save();
-    // Release reserved stock
-    await releaseReservedStock(order.products);
-    return { success: false, error: "Order hold has expired" };
-  }
-  
-  // Atomically decrement stock for each product
-  const insufficientItems = [];
-  const successfulDecrements = [];
-  
-  for (const item of order.products) {
-    const productId = item.product;
-    const qty = item.quantity;
+    const existingOrder = await Order.findById(orderId);
     
-    // Atomically decrement stock only if sufficient quantity available
-    // Use aggregation pipeline to safely handle null reservedQuantity
-    const result = await Product.findOneAndUpdate(
-      {
-        _id: productId,
-        stockQuantity: { $gte: qty }
-      },
-      [
+    if (!existingOrder) {
+      return { success: false, error: "Order not found" };
+    }
+    
+    if (existingOrder.status === "paid") {
+      return { success: true, order: existingOrder, message: "Order already paid" };
+    }
+    
+    if (existingOrder.status === "processing_payment") {
+      // Another request is currently processing this order
+      return { success: false, error: "Order is being processed by another request" };
+    }
+    
+    if (existingOrder.status === "expired" || existingOrder.status === "cancelled") {
+      return { success: false, error: "Order has expired or been cancelled" };
+    }
+    
+    // Check if hold has expired by time
+    if (existingOrder.expiresAt && new Date() > new Date(existingOrder.expiresAt)) {
+      existingOrder.status = "expired";
+      await existingOrder.save();
+      await releaseReservedStock(existingOrder.products);
+      return { success: false, error: "Order hold has expired" };
+    }
+    
+    return { success: false, error: "Order cannot be finalized in current state" };
+  }
+
+  // Step 2: Attempt to use a MongoDB transaction for atomic stock updates
+  // Falls back to non-transactional operations if transactions aren't supported
+  // (e.g., standalone MongoDB without replica set)
+  
+  let useTransaction = true;
+  let session = null;
+  
+  try {
+    session = await mongoose.startSession();
+    await session.startTransaction();
+  } catch (sessionError) {
+    // Transactions not supported (standalone MongoDB without replica set)
+    console.warn("MongoDB transactions not available, using fallback mode:", sessionError.message);
+    useTransaction = false;
+    session = null;
+  }
+  
+  try {
+    const insufficientItems = [];
+    const successfulDecrements = [];
+    
+    for (const item of order.products) {
+      const productId = item.product;
+      const qty = item.quantity;
+      
+      // Atomically decrement stock only if sufficient quantity available
+      const updateOptions = { new: true };
+      if (useTransaction && session) {
+        updateOptions.session = session;
+      }
+      
+      const result = await Product.findOneAndUpdate(
         {
-          $set: {
-            stockQuantity: { $subtract: ["$stockQuantity", qty] },
-            reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ["$reservedQuantity", 0] }, qty] }] },
-            sold: { $add: [{ $ifNull: ["$sold", 0] }, qty] }
+          _id: productId,
+          stockQuantity: { $gte: qty }
+        },
+        [
+          {
+            $set: {
+              stockQuantity: { $subtract: ["$stockQuantity", qty] },
+              reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ["$reservedQuantity", 0] }, qty] }] },
+              sold: { $add: [{ $ifNull: ["$sold", 0] }, qty] }
+            }
           }
-        }
-      ],
-      { new: true }
-    );
+        ],
+        updateOptions
+      );
+      
+      if (!result) {
+        // Stock decrement failed - insufficient stock
+        const product = useTransaction && session 
+          ? await Product.findById(productId).session(session)
+          : await Product.findById(productId);
+        insufficientItems.push({
+          productId,
+          name: product?.name || "Unknown",
+          requested: qty,
+          available: product?.stockQuantity || 0
+        });
+      } else {
+        successfulDecrements.push({ productId, qty });
+      }
+    }
     
-    if (!result) {
-      // Stock decrement failed - insufficient stock
-      const product = await Product.findById(productId);
-      insufficientItems.push({
-        productId,
-        name: product?.name || "Unknown",
-        requested: qty,
-        available: product?.stockQuantity || 0
-      });
+    if (insufficientItems.length > 0) {
+      // Abort transaction if using one
+      if (useTransaction && session) {
+        await session.abortTransaction();
+      } else {
+        // Fallback: manually rollback successful decrements
+        for (const dec of successfulDecrements) {
+          await Product.findByIdAndUpdate(dec.productId, {
+            $inc: {
+              stockQuantity: dec.qty,
+              reservedQuantity: dec.qty,
+              sold: -dec.qty
+            }
+          });
+        }
+      }
+      
+      // Revert order status back to hold
+      order.status = "hold";
+      await order.save();
+      
+      return {
+        success: false,
+        error: "Insufficient stock for some items",
+        insufficientItems
+      };
+    }
+    
+    // All stock decrements successful - mark order as paid
+    order.status = "paid";
+    order.trackingStatus = "processing";
+    order.trackingHistory.push({
+      status: "processing",
+      timestamp: new Date(),
+      note: "Payment confirmed - order processing"
+    });
+    
+    // Store razorpayPaymentId if provided (for idempotency)
+    if (razorpayPaymentId) {
+      order.razorpayPaymentId = razorpayPaymentId;
+    }
+    
+    if (useTransaction && session) {
+      await order.save({ session });
+      await session.commitTransaction();
     } else {
-      successfulDecrements.push({ productId, qty });
-    }
-  }
-  
-  if (insufficientItems.length > 0) {
-    // Rollback successful decrements
-    for (const dec of successfulDecrements) {
-      await Product.findByIdAndUpdate(dec.productId, {
-        $inc: {
-          stockQuantity: dec.qty,
-          reservedQuantity: dec.qty,
-          sold: -dec.qty
-        }
-      });
+      await order.save();
     }
     
-    return {
-      success: false,
-      error: "Insufficient stock for some items",
-      insufficientItems
-    };
+    return { success: true, order };
+    
+  } catch (error) {
+    // Abort transaction on any error
+    if (useTransaction && session) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        console.error("Error aborting transaction:", abortError);
+      }
+    }
+    
+    // Revert order status back to hold if it was locked
+    try {
+      const revertedOrder = await Order.findByIdAndUpdate(
+        orderId,
+        { $set: { status: "hold" } },
+        { new: true }
+      );
+      if (revertedOrder) {
+        console.log(`Reverted order ${orderId} status to hold after error`);
+      }
+    } catch (revertError) {
+      console.error(`Failed to revert order ${orderId} status:`, revertError);
+    }
+    
+    console.error("Error in finalizeOrder:", error);
+    return { success: false, error: "Failed to finalize order: " + error.message };
+    
+  } finally {
+    if (session) {
+      session.endSession();
+    }
   }
-  
-  // All stock decrements successful - mark order as paid
-  order.status = "paid";
-  order.trackingStatus = "processing";
-  order.trackingHistory.push({
-    status: "processing",
-    timestamp: new Date(),
-    note: "Payment confirmed - order processing"
-  });
-  await order.save();
-  
-  return { success: true, order };
 };
 
 /**
  * Release expired holds - to be called periodically
- * Finds all HOLD orders that have expired and releases their reserved stock
+ * Finds all HOLD orders that have expired and releases their reserved stock.
+ * Also recovers stuck "processing_payment" orders that may have been left
+ * in that state due to server crashes or transaction failures.
  */
 export const releaseExpiredHolds = async () => {
   const now = new Date();
@@ -284,9 +398,19 @@ export const releaseExpiredHolds = async () => {
     expiresAt: { $lte: now }
   });
   
+  // Also find stuck processing_payment orders (older than 5 minutes)
+  // These are orders where the transaction started but never completed
+  const stuckThreshold = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
+  const stuckOrders = await Order.find({
+    status: "processing_payment",
+    updatedAt: { $lte: stuckThreshold }
+  });
+  
   let releasedCount = 0;
+  let recoveredCount = 0;
   let errors = 0;
   
+  // Handle expired hold orders
   for (const order of expiredOrders) {
     try {
       // Release reserved stock
@@ -308,15 +432,66 @@ export const releaseExpiredHolds = async () => {
     }
   }
   
+  // Handle stuck processing_payment orders
+  for (const order of stuckOrders) {
+    try {
+      console.log(`Recovering stuck order ${order._id} (status: processing_payment)`);
+      
+      // Check if this order actually has a payment
+      if (order.razorpayPaymentId) {
+        // Order has payment ID - mark as paid (payment likely succeeded)
+        order.status = "paid";
+        order.trackingStatus = "processing";
+        order.trackingHistory.push({
+          status: "processing",
+          timestamp: new Date(),
+          note: "Order recovered from stuck state - payment confirmed"
+        });
+        await order.save();
+        console.log(`Recovered order ${order._id} as paid (had payment ID)`);
+      } else if (order.expiresAt && new Date(order.expiresAt) < now) {
+        // Order expired while stuck - release stock and mark as expired
+        await releaseReservedStock(order.products);
+        order.status = "expired";
+        order.trackingHistory.push({
+          status: "cancelled",
+          timestamp: new Date(),
+          note: "Order recovered from stuck state - expired"
+        });
+        await order.save();
+        console.log(`Recovered order ${order._id} as expired`);
+      } else {
+        // Order hasn't expired and no payment - revert to hold
+        order.status = "hold";
+        order.trackingHistory.push({
+          status: "pending",
+          timestamp: new Date(),
+          note: "Order recovered from stuck state - awaiting payment"
+        });
+        await order.save();
+        console.log(`Recovered order ${order._id} back to hold status`);
+      }
+      
+      recoveredCount++;
+    } catch (err) {
+      console.error(`Error recovering stuck order ${order._id}:`, err);
+      errors++;
+    }
+  }
+  
   if (releasedCount > 0) {
     console.log(`✓ Released ${releasedCount} expired hold orders`);
   }
   
-  if (errors > 0) {
-    console.error(`✗ Failed to release ${errors} hold orders`);
+  if (recoveredCount > 0) {
+    console.log(`✓ Recovered ${recoveredCount} stuck processing_payment orders`);
   }
   
-  return releasedCount;
+  if (errors > 0) {
+    console.error(`✗ Failed to process ${errors} orders`);
+  }
+  
+  return releasedCount + recoveredCount;
 };
 
 /**

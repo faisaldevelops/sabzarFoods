@@ -37,7 +37,7 @@ const orderSchema = new mongoose.Schema(
     address: { type: addressSchema, required: true },
     razorpayOrderId: { type: String },    // new field for Razorpay
     razorpayPaymentId: { type: String },  // new field for Razorpay payment id
-    status: { type: String, enum: ["pending", "hold", "paid", "cancelled", "expired"], default: "pending" },
+    status: { type: String, enum: ["pending", "hold", "processing_payment", "paid", "cancelled", "expired"], default: "pending" },
     
     // Manual order fields
     isManualOrder: { type: Boolean, default: false },
