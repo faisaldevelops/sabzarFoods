@@ -21,19 +21,6 @@ const HomePage = () => {
 			<div className='absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-stone-100/50 to-transparent pointer-events-none' />
 			
 			<div className='relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12'>
-				{/* Refined header */}
-				<motion.div 
-					className='mb-8 sm:mb-10'
-					initial={{ opacity: 0, y: -10 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.4 }}
-				>
-					<h1 className='text-2xl sm:text-3xl font-light text-stone-800 tracking-tight'>
-						Our Collection
-					</h1>
-					<div className='mt-2 h-px w-12 bg-stone-300' />
-				</motion.div>
-
 				<motion.div
 					className='grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6'
 					initial={{ opacity: 0 }}
@@ -51,6 +38,7 @@ const HomePage = () => {
 					{products?.map((product, index) => (
 						<motion.div
 							key={product._id}
+							className='h-full'
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							transition={{ duration: 0.4, delay: index * 0.05 }}
