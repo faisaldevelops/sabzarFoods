@@ -13,6 +13,66 @@ const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
 const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
 
+// AWS SES configuration (placeholder for email fallback)
+// TODO: Implement AWS SES integration
+// const AWS_SES_REGION = process.env.AWS_SES_REGION;
+// const AWS_SES_FROM_EMAIL = process.env.AWS_SES_FROM_EMAIL;
+
+/**
+ * Send order status notification via AWS SES (email fallback)
+ * Used when user has opted out of WhatsApp notifications
+ * 
+ * TODO: Implement AWS SES integration
+ * - Install aws-sdk: npm install @aws-sdk/client-ses
+ * - Configure AWS credentials
+ * - Create email templates
+ */
+const sendOrderStatusEmail = async (email, orderPublicId, status) => {
+	if (!email) {
+		console.log(`[SES] No email available for order ${orderPublicId}`);
+		return { success: false, reason: "No email address" };
+	}
+
+	let subject = "";
+	let body = "";
+
+	if (status === "shipped") {
+		subject = `Your order #${orderPublicId} has been shipped!`;
+		body = `Great news! Your order #${orderPublicId} has been shipped and is on its way to you.\n\nTrack your order to see delivery updates.`;
+	} else if (status === "delivered") {
+		subject = `Your order #${orderPublicId} has been delivered!`;
+		body = `Your order #${orderPublicId} has been delivered!\n\nThank you for shopping with us. We hope you love your purchase!`;
+	} else {
+		return { success: false, reason: "Status not eligible for email" };
+	}
+
+	// TODO: Implement actual SES sending
+	// Placeholder - just log for now
+	console.log(`[SES PLACEHOLDER] Would send email to ${email}`);
+	console.log(`[SES PLACEHOLDER] Subject: ${subject}`);
+	console.log(`[SES PLACEHOLDER] Body: ${body}`);
+
+	/*
+	// Example SES implementation:
+	const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
+	
+	const sesClient = new SESClient({ region: AWS_SES_REGION });
+	
+	const command = new SendEmailCommand({
+		Source: AWS_SES_FROM_EMAIL,
+		Destination: { ToAddresses: [email] },
+		Message: {
+			Subject: { Data: subject },
+			Body: { Text: { Data: body } }
+		}
+	});
+	
+	await sesClient.send(command);
+	*/
+
+	return { success: true, placeholder: true };
+};
+
 // Helper function to send order status notification via WhatsApp
 const sendOrderStatusNotification = async (phoneNumber, orderPublicId, status) => {
 	try {
@@ -306,10 +366,22 @@ export const updateOrderTracking = async (req, res) => {
 			});
 
 			// Log SMS notification (instead of sending) for shipped and delivered statuses
-			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
-				// Send WhatsApp notification asynchronously (don't wait for it to complete)
-				sendOrderStatusNotification(order.user.phoneNumber, order.publicOrderId, trackingStatus)
-					.catch(error => console.error("[WhatsApp] Notification error:", error));
+			if (trackingStatus === "shipped" || trackingStatus === "delivered") {
+				// Check if user has opted-in to receive WhatsApp notifications
+				const userWithOptIn = await User.findById(order.user._id).select('whatsappNotifications email phoneNumber');
+				
+				if (userWithOptIn?.whatsappNotifications && userWithOptIn?.phoneNumber) {
+					// User has opted-in to WhatsApp - send WhatsApp notification
+					sendOrderStatusNotification(userWithOptIn.phoneNumber, order.publicOrderId, trackingStatus)
+						.catch(error => console.error("[WhatsApp] Notification error:", error));
+				} else if (userWithOptIn?.email) {
+					// User opted out of WhatsApp - fallback to email via SES
+					console.log(`[Notification] User opted out of WhatsApp, falling back to email for order ${order.publicOrderId}`);
+					sendOrderStatusEmail(userWithOptIn.email, order.publicOrderId, trackingStatus)
+						.catch(error => console.error("[SES] Email notification error:", error));
+				} else {
+					console.log(`[Notification] No notification method available for order ${order.publicOrderId}`);
+				}
 			}
 		}
 

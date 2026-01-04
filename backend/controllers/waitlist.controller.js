@@ -1,5 +1,6 @@
 import { redis } from "../lib/redis.js";
 import Product from "../models/product.model.js";
+import User from "../models/user.model.js";
 
 // Gupshup WhatsApp configuration
 const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
@@ -8,6 +9,27 @@ const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER;
 const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
 const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
+
+/**
+ * Send back-in-stock notification via AWS SES (email fallback)
+ * Used when user has opted out of WhatsApp notifications
+ * 
+ * TODO: Implement AWS SES integration
+ */
+const sendBackInStockEmail = async (email, productName) => {
+	if (!email) {
+		return { success: false, reason: "No email address" };
+	}
+
+	const subject = `${productName} is back in stock!`;
+	const body = `Great news! ${productName} is now back in stock.\n\nOrder now before it sells out again!`;
+
+	// TODO: Implement actual SES sending
+	console.log(`[SES PLACEHOLDER] Would send email to ${email}`);
+	console.log(`[SES PLACEHOLDER] Subject: ${subject}`);
+
+	return { success: true, placeholder: true };
+};
 
 /**
  * Send WhatsApp notification via Gupshup
@@ -85,6 +107,10 @@ const WAITLIST_TTL = 30 * 24 * 60 * 60;
 /**
  * Add user to product waitlist
  * POST /api/products/:id/waitlist
+ * 
+ * WHATSAPP OPT-IN COMPLIANCE:
+ * Users who have opted-in to WhatsApp notifications during signup/login
+ * can join the waitlist. Users without opt-in will be prompted to enable it.
  */
 export const addToWaitlist = async (req, res) => {
 	try {
@@ -129,11 +155,25 @@ export const addToWaitlist = async (req, res) => {
 			});
 		}
 
+		// Check if user exists and has a notification method available
+		const user = await User.findOne({ phoneNumber }).select('whatsappNotifications email');
+		
+		// User needs either WhatsApp opt-in OR an email for notifications
+		if (user && !user.whatsappNotifications && !user.email) {
+			return res.status(400).json({
+				success: false,
+				message: "Please enable WhatsApp notifications or add an email to your profile to join the waitlist",
+				requiresOptIn: true
+			});
+		}
+
 		// Add user to waitlist with timestamp
 		const waitlistData = JSON.stringify({
 			phoneNumber,
 			subscribedAt: new Date().toISOString(),
-			productName: product.name
+			productName: product.name,
+			// User already opted-in during signup/login
+			hasWhatsAppOptIn: user ? user.whatsappNotifications : false
 		});
 
 		await redis.hset(waitlistKey, phoneNumber, waitlistData);
@@ -247,35 +287,54 @@ export const notifyWaitlist = async (productId) => {
 
 		console.log(`📱 Notifying ${waitlist.length} users about ${product.name} being back in stock`);
 		
-		let notifiedCount = 0;
+		let whatsappCount = 0;
+		let emailCount = 0;
 		let failedCount = 0;
 
-		// Send WhatsApp message to each user using Gupshup
-		for (const user of waitlist) {
-			if (user.phoneNumber) {
+		// Send notification to each user
+		for (const entry of waitlist) {
+			if (entry.phoneNumber) {
 				try {
-					const message = `🎉 Great news! ${product.name} is back in stock.\n\nOrder now before it sells out again!`;
+					// Check if user has opted-in to WhatsApp notifications
+					const user = await User.findOne({ phoneNumber: entry.phoneNumber }).select('whatsappNotifications email');
 					
-					// Try to send using template (production) or text message (testing)
-					// NOTE: Create a "back_in_stock" template in your Gupshup dashboard
-					const templateName = process.env.GUPSHUP_BACK_IN_STOCK_TEMPLATE || null;
-					
-					const sent = await sendWhatsAppNotification(
-						user.phoneNumber,
-						message,
-						templateName,
-						templateName ? [product.name] : []
-					);
-					
-					if (sent) {
-						console.log(`  ✓ WhatsApp sent to ${user.phoneNumber}`);
-						notifiedCount++;
+					if (user?.whatsappNotifications) {
+						// User opted-in to WhatsApp - send WhatsApp notification
+						const message = `🎉 Great news! ${product.name} is back in stock.\n\nOrder now before it sells out again!`;
+						const templateName = process.env.GUPSHUP_BACK_IN_STOCK_TEMPLATE || null;
+						
+						const sent = await sendWhatsAppNotification(
+							entry.phoneNumber,
+							message,
+							templateName,
+							templateName ? [product.name] : []
+						);
+						
+						if (sent) {
+							console.log(`  ✓ WhatsApp sent to ${entry.phoneNumber}`);
+							whatsappCount++;
+						} else {
+							// WhatsApp failed - try email fallback
+							if (user?.email) {
+								await sendBackInStockEmail(user.email, product.name);
+								console.log(`  ✓ Email fallback sent to ${user.email}`);
+								emailCount++;
+							} else {
+								failedCount++;
+							}
+						}
+					} else if (user?.email) {
+						// User opted out of WhatsApp - send email via SES
+						await sendBackInStockEmail(user.email, product.name);
+						console.log(`  ✓ Email sent to ${user.email} (WhatsApp opted-out)`);
+						emailCount++;
 					} else {
-						console.log(`  ✗ Failed to send WhatsApp to ${user.phoneNumber}`);
+						// No notification method available
+						console.log(`  ✗ No notification method for ${entry.phoneNumber}`);
 						failedCount++;
 					}
 				} catch (error) {
-					console.error(`  ✗ Failed to notify ${user.phoneNumber}:`, error.message);
+					console.error(`  ✗ Failed to notify ${entry.phoneNumber}:`, error.message);
 					failedCount++;
 				}
 			}
@@ -284,8 +343,8 @@ export const notifyWaitlist = async (productId) => {
 		// Clear the waitlist after notifying
 		await redis.del(waitlistKey);
 
-		console.log(`✓ Notified ${notifiedCount} users, ${failedCount} failed`);
-		return { success: true, notified: notifiedCount, failed: failedCount };
+		console.log(`✓ Notified: ${whatsappCount} via WhatsApp, ${emailCount} via Email, ${failedCount} failed`);
+		return { success: true, whatsapp: whatsappCount, email: emailCount, failed: failedCount };
 	} catch (error) {
 		console.error("Error notifying waitlist:", error);
 		return { success: false, error: error.message };

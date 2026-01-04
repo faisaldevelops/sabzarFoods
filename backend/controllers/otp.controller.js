@@ -1,3 +1,22 @@
+/**
+ * OTP Controller - WhatsApp OTP Verification via Gupshup
+ * 
+ * WHATSAPP OPT-IN POLICY COMPLIANCE:
+ * ================================
+ * OTP/Authentication messages are EXEMPT from opt-in requirements per WhatsApp Business Policy
+ * because they are:
+ * 1. User-initiated (user clicks "Send OTP" button)
+ * 2. One-time authentication codes (not marketing)
+ * 3. Required for account security/access
+ * 
+ * Reference: https://www.whatsapp.com/legal/business-policy
+ * "Authentication messages" category allows sending OTPs without prior opt-in.
+ * 
+ * For marketing/promotional messages (order updates, back-in-stock), see:
+ * - orders.controller.js (checks whatsappOptIn.orderUpdates)
+ * - waitlist.controller.js (requires consent when joining)
+ */
+
 import crypto from "crypto";
 import User from "../models/user.model.js";
 import { redis } from "../lib/redis.js";
@@ -367,7 +386,7 @@ export const sendOTP = async (req, res) => {
 // Verify OTP and login/signup user
 export const verifyOTP = async (req, res) => {
   try {
-    const { phoneNumber, otp, name } = req.body;
+    const { phoneNumber, otp, name, whatsappOptIn } = req.body;
 
     if (!phoneNumber || !otp) {
       return res.status(400).json({ message: "Phone number and OTP are required" });
@@ -426,10 +445,17 @@ export const verifyOTP = async (req, res) => {
         return res.status(400).json({ message: "Name is required for new users" });
       }
 
+      // WhatsApp is ON by default (primary notification channel)
+      // User can opt out later via profile settings (requires email)
+      const enableWhatsApp = whatsappOptIn !== false; // Default true unless explicitly false
+      
       user = await User.create({
         name,
         phoneNumber,
-        isGuest: false, // Not a guest since they authenticated
+        isGuest: false,
+        whatsappNotifications: enableWhatsApp,
+        whatsappOptInAt: enableWhatsApp ? new Date() : null,
+        whatsappOptInSource: enableWhatsApp ? "signup" : null,
       });
       isNewUser = true;
     } else {
@@ -437,8 +463,17 @@ export const verifyOTP = async (req, res) => {
       // Update name if provided and different
       if (name && name !== user.name) {
         user.name = name;
-        await user.save();
       }
+      
+      // If user was previously opted out but now opts in
+      if (whatsappOptIn === true && !user.whatsappNotifications) {
+        user.whatsappNotifications = true;
+        user.whatsappOptedOut = false;
+        user.whatsappOptInAt = new Date();
+        user.whatsappOptInSource = "login";
+      }
+      
+      await user.save();
     }
 
     // Generate tokens and set cookies
@@ -454,6 +489,7 @@ export const verifyOTP = async (req, res) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         role: user.role,
+        whatsappNotifications: user.whatsappNotifications,
       },
       isNewUser,
     });

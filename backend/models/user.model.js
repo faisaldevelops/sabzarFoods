@@ -68,7 +68,32 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			enum: ["customer", "admin"],
 			default: "customer",
-		},	
+		},
+		// WhatsApp notifications (default ON - user can opt-out)
+		// If user opts out, they must provide email for fallback notifications
+		whatsappNotifications: {
+			type: Boolean,
+			default: true,  // Default to ON (WhatsApp is primary channel)
+		},
+		// Audit trail for compliance
+		whatsappOptInAt: {
+			type: Date,
+			default: null,
+		},
+		whatsappOptInSource: {
+			type: String,
+			enum: ["signup", "login", "profile", "checkout", null],
+			default: null,
+		},
+		// Track if user explicitly opted out (requires email)
+		whatsappOptedOut: {
+			type: Boolean,
+			default: false,
+		},
+		whatsappOptOutAt: {
+			type: Date,
+			default: null,
+		},
 	},
 	{
 		timestamps: true,

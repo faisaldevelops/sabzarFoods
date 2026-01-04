@@ -214,5 +214,157 @@ export const createGuestUser = async (req, res) => {
 	}
 };
 
+/**
+ * Get user's WhatsApp notification preference
+ * GET /api/auth/whatsapp-preferences
+ */
+export const getWhatsAppPreferences = async (req, res) => {
+	try {
+		const user = await User.findById(req.user._id).select('whatsappNotifications whatsappOptInAt whatsappOptedOut whatsappOptOutAt phoneNumber email');
+		
+		if (!user) {
+			return res.status(404).json({ message: "User not found" });
+		}
+
+		res.json({
+			phoneNumber: user.phoneNumber,
+			email: user.email || null,
+			whatsappNotifications: user.whatsappNotifications !== false, // Default true
+			optedOut: user.whatsappOptedOut || false,
+			optedInAt: user.whatsappOptInAt || null,
+			optedOutAt: user.whatsappOptOutAt || null,
+		});
+	} catch (error) {
+		console.error("Error getting WhatsApp preferences:", error);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+/**
+ * Update user's WhatsApp notification preference
+ * PUT /api/auth/whatsapp-preferences
+ * 
+ * FLOW:
+ * - WhatsApp is ON by default (primary notification channel)
+ * - If user opts OUT, they MUST provide an email for fallback notifications
+ * - Records timestamps for compliance audit trail
+ */
+export const updateWhatsAppPreferences = async (req, res) => {
+	try {
+		const { whatsappNotifications, email } = req.body;
+		const user = await User.findById(req.user._id);
+		
+		if (!user) {
+			return res.status(404).json({ message: "User not found" });
+		}
+
+		if (typeof whatsappNotifications !== "boolean") {
+			return res.status(400).json({ message: "whatsappNotifications must be a boolean" });
+		}
+
+		// If opting OUT of WhatsApp, require email for fallback notifications
+		if (whatsappNotifications === false) {
+			// Check if email is provided in request or user already has one
+			const userEmail = email || user.email;
+			
+			if (!userEmail) {
+				return res.status(400).json({ 
+					message: "Email is required to opt out of WhatsApp notifications",
+					requiresEmail: true
+				});
+			}
+			
+			// Validate email format
+			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+			if (!emailRegex.test(userEmail)) {
+				return res.status(400).json({ message: "Invalid email format" });
+			}
+			
+			// Update email if new one provided
+			if (email && email !== user.email) {
+				user.email = email;
+			}
+			
+			// Mark as opted out
+			user.whatsappNotifications = false;
+			user.whatsappOptedOut = true;
+			user.whatsappOptOutAt = new Date();
+			
+		} else {
+			// Opting IN to WhatsApp
+			const wasOptedIn = user.whatsappNotifications;
+			user.whatsappNotifications = true;
+			user.whatsappOptedOut = false;
+			
+			// Record opt-in timestamp
+			if (!wasOptedIn) {
+				user.whatsappOptInAt = new Date();
+				user.whatsappOptInSource = "profile";
+			}
+		}
+
+		await user.save();
+
+		res.json({
+			message: user.whatsappNotifications 
+				? "WhatsApp notifications enabled" 
+				: "WhatsApp notifications disabled - you will receive updates via email",
+			whatsappNotifications: user.whatsappNotifications,
+			email: user.email,
+			optedInAt: user.whatsappOptInAt,
+			optedOutAt: user.whatsappOptOutAt,
+		});
+	} catch (error) {
+		console.error("Error updating WhatsApp preferences:", error);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+/**
+ * Opt-in to WhatsApp notifications during checkout
+ * POST /api/auth/whatsapp-optin-checkout
+ * 
+ * This endpoint is for checkout flow where user can
+ * opt-in to notifications in a single action.
+ */
+export const optInAtCheckout = async (req, res) => {
+	try {
+		const { whatsappOptIn } = req.body;
+		
+		// Get user from request (could be authenticated or guest)
+		let user;
+		if (req.user) {
+			user = await User.findById(req.user._id);
+		} else {
+			// For guest checkout, find by phone number if provided
+			const { phoneNumber } = req.body;
+			if (phoneNumber) {
+				user = await User.findOne({ phoneNumber });
+			}
+		}
+		
+		if (!user) {
+			return res.status(404).json({ message: "User not found" });
+		}
+
+		// Only process if opting in (not opting out via this endpoint)
+		if (whatsappOptIn === true && !user.whatsappNotifications) {
+			user.whatsappNotifications = true;
+			user.whatsappOptInAt = new Date();
+			user.whatsappOptInSource = "checkout";
+			await user.save();
+		}
+
+		res.json({
+			success: true,
+			message: "Preferences saved",
+			whatsappNotifications: user.whatsappNotifications || false
+		});
+	} catch (error) {
+		console.error("Error in checkout opt-in:", error);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
 // Export helper functions for OTP controller
 export { generateTokens, storeRefreshToken, setCookies };
