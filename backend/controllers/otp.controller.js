@@ -39,7 +39,8 @@ const FREEZE_DURATION_SECONDS = 15 * 60; // 15 minutes freeze
 const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
 const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME;
 const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER; // Your WhatsApp Business number
-const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
+const GUPSHUP_TEMPLATE_API_URL = "https://api.gupshup.io/wa/api/v1/template/msg"; // For template messages
+const GUPSHUP_SESSION_API_URL = "https://api.gupshup.io/wa/api/v1/msg"; // For session messages
 
 // Check if Gupshup is configured
 const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
@@ -180,6 +181,10 @@ const clearFailedAttempts = async (phoneNumber) => {
  * 
  * For OTP, we use a template message with the OTP as a parameter.
  * You need to create an OTP template in your Gupshup dashboard first.
+ * 
+ * Gupshup Template API format:
+ * - Endpoint: /wa/api/v1/template/msg
+ * - template parameter: {"id":"<template_id>","params":["param1","param2",...]}
  */
 const sendOTPMessage = async (phoneNumber, otp) => {
   if (!isGupshupConfigured) {
@@ -192,44 +197,29 @@ const sendOTPMessage = async (phoneNumber, otp) => {
     // Format phone number with country code (India: 91)
     const formattedPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
     
-    // Prepare the template message payload
-    // NOTE: You need to create an OTP template in Gupshup dashboard
-    // Template name example: "otp_verification"
+    // Gupshup template format: {"id":"template_id","params":["otp_value"]}
+    // NOTE: You need to create an OTP template in Gupshup dashboard first
     // Template format example: "Your verification code is {{1}}. Valid for 5 minutes."
-    const templateMessage = {
-      type: "template",
-      template: {
-        name: process.env.GUPSHUP_OTP_TEMPLATE_NAME || "otp_verification",
-        language: {
-          code: "en"
-        },
-        components: [
-          {
-            type: "body",
-            parameters: [
-              {
-                type: "text",
-                text: otp
-              }
-            ]
-          }
-        ]
-      }
+    const templateId = process.env.GUPSHUP_OTP_TEMPLATE_ID || "otp_verification";
+    
+    const templatePayload = {
+      id: templateId,
+      params: [otp] // Parameters to replace {{1}}, {{2}}, etc. in the template
     };
 
-    // Build form data for Gupshup API
+    // Build form data for Gupshup Template API
     const formData = new URLSearchParams();
     formData.append("channel", "whatsapp");
     formData.append("source", GUPSHUP_SOURCE_NUMBER);
     formData.append("destination", formattedPhone);
-    formData.append("message", JSON.stringify(templateMessage));
+    formData.append("template", JSON.stringify(templatePayload));
     
-    // Optional: Add app name if configured
+    // Add app name (required by Gupshup)
     if (GUPSHUP_APP_NAME) {
       formData.append("src.name", GUPSHUP_APP_NAME);
     }
 
-    const response = await fetch(GUPSHUP_API_URL, {
+    const response = await fetch(GUPSHUP_TEMPLATE_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -262,6 +252,7 @@ const sendOTPMessage = async (phoneNumber, otp) => {
 /**
  * Fallback: Send OTP as a text message (session message)
  * This only works if user has initiated conversation in last 24 hours
+ * Uses the session message API: /wa/api/v1/msg
  */
 const sendOTPAsTextMessage = async (formattedPhone, otp) => {
   try {
@@ -280,7 +271,7 @@ const sendOTPAsTextMessage = async (formattedPhone, otp) => {
       formData.append("src.name", GUPSHUP_APP_NAME);
     }
 
-    const response = await fetch(GUPSHUP_API_URL, {
+    const response = await fetch(GUPSHUP_SESSION_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
