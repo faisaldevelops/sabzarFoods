@@ -7,37 +7,6 @@ export const useUserStore = create((set, get) => ({
 	loading: false,
 	checkingAuth: true,
 
-	signup: async ({ name, email, password, confirmPassword }) => {
-		set({ loading: true });
-
-		if (password !== confirmPassword) {
-			set({ loading: false });
-			return toast.error("Passwords do not match");
-		}
-
-		try {
-			const res = await axios.post("/auth/signup", { name, email, password });
-			set({ user: res.data, loading: false });
-			localStorage.setItem("isAuthenticated", "true");
-		} catch (error) {
-			set({ loading: false });
-			toast.error(error.response.data.message || "An error occurred");
-		}
-	},
-	login: async (email, password) => {
-		set({ loading: true });
-
-		try {
-			const res = await axios.post("/auth/login", { email, password });
-
-			set({ user: res.data, loading: false });
-			localStorage.setItem("isAuthenticated", "true");
-		} catch (error) {
-			set({ loading: false });
-			toast.error(error.response.data.message || "An error occurred");
-		}
-	},
-
 	logout: async () => {
 		try {
 			await axios.post("/auth/logout");
@@ -50,7 +19,7 @@ export const useUserStore = create((set, get) => ({
 
 	checkAuth: async (skipIfUnauthenticated = false) => {
 		set({ checkingAuth: true });
-		
+
 		if (skipIfUnauthenticated) {
 			const isAuthenticated = localStorage.getItem("isAuthenticated");
 			if (!isAuthenticated) {
@@ -58,7 +27,7 @@ export const useUserStore = create((set, get) => ({
 				return;
 			}
 		}
-		
+
 		try {
 			const response = await axios.get("/auth/profile");
 			set({ user: response.data, checkingAuth: false });

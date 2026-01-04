@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema(
 	{
@@ -9,23 +8,18 @@ const userSchema = new mongoose.Schema(
 		},
 		email: {
 			type: String,
+			unique: true,
 			sparse: true,
 			lowercase: true,
 			trim: true,
 		},
-		phoneNumber: {
+		googleId: {
 			type: String,
 			unique: true,
 			sparse: true,
-			trim: true,
 		},
-		password: {
+		picture: {
 			type: String,
-			select: false, // Don't return password in queries by default
-		},
-		isGuest: {
-			type: Boolean,
-			default: false,
 		},
 		cartItems: [
 			{
@@ -74,26 +68,6 @@ const userSchema = new mongoose.Schema(
 		timestamps: true,
 	}
 );
-
-// Pre-save hook to hash password before saving to database (only if password is modified)
-// Note: Password is optional for OTP-only users. Only users created via legacy email/password
-// signup or guest checkout will have passwords. This hook safely handles both cases.
-userSchema.pre("save", async function (next) {
-	if (!this.password || !this.isModified("password")) return next();
-
-	try {
-		const salt = await bcrypt.genSalt(10);
-		this.password = await bcrypt.hash(this.password, salt);
-		next();
-	} catch (error) {
-		next(error);
-	}
-});
-
-userSchema.methods.comparePassword = async function (password) {
-	if (!this.password) return false;
-	return bcrypt.compare(password, this.password);
-};
 
 const User = mongoose.model("User", userSchema);
 

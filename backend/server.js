@@ -10,7 +10,6 @@ import cartRoutes from "./routes/cart.route.js";
 import paymentRoutes from "./routes/payment.route.js";
 import orderRoutes from "./routes/order.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
-import otpRoutes from "./routes/otp.route.js";
 import addressRoutes from "./routes/address.route.js";
 import expenseRoutes from "./routes/expense.route.js";
 import bomRoutes from "./routes/bom.route.js";
@@ -63,7 +62,6 @@ app.use(cookieParser());
    Routes
 ======================= */
 app.use("/api/auth", authRoutes);
-app.use("/api/otp", otpRoutes);
 app.use("/api/address", addressRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);

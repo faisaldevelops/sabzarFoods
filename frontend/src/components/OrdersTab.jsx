@@ -11,7 +11,8 @@ const OrderslistTab = () => {
     // Store display IDs for orders
     // Filter states
     const [filters, setFilters] = useState({
-        phoneNumber: '',
+        email: '',
+        addressPhone: '',
         orderId: '',
         status: 'all'
     });
@@ -64,7 +65,8 @@ const OrderslistTab = () => {
             setIsLoading(true);
             // Build query parameters
             const params = new URLSearchParams();
-            if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
+            if (debouncedFilters.email) params.append('email', debouncedFilters.email);
+            if (debouncedFilters.addressPhone) params.append('addressPhone', debouncedFilters.addressPhone);
             if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
             if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
             // Add pagination parameters - use provided page or current page
@@ -242,7 +244,8 @@ const OrderslistTab = () => {
     
     const handleClearFilters = () => {
         setFilters({
-            phoneNumber: '',
+            email: '',
+            addressPhone: '',
             orderId: '',
             status: 'all'
         });
@@ -252,7 +255,8 @@ const OrderslistTab = () => {
         try {
             // Build query parameters
             const params = new URLSearchParams();
-            if (debouncedFilters.phoneNumber) params.append('phoneNumber', debouncedFilters.phoneNumber);
+            if (debouncedFilters.email) params.append('email', debouncedFilters.email);
+            if (debouncedFilters.addressPhone) params.append('addressPhone', debouncedFilters.addressPhone);
             if (debouncedFilters.orderId) params.append('publicOrderId', debouncedFilters.orderId);
             if (debouncedFilters.status && debouncedFilters.status !== 'all') params.append('status', debouncedFilters.status);
             const queryString = params.toString();
@@ -395,18 +399,34 @@ const OrderslistTab = () => {
         </div>
         
         {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                        Phone Number
+                        Customer Email
                     </label>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search by phone..."
-                            value={filters.phoneNumber}
-                            onChange={(e) => handleFilterChange('phoneNumber', e.target.value)}
+                            placeholder="Search by email..."
+                            value={filters.email}
+                            onChange={(e) => handleFilterChange('email', e.target.value)}
+                            className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Address Phone
+                    </label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by address phone..."
+                            value={filters.addressPhone}
+                            onChange={(e) => handleFilterChange('addressPhone', e.target.value)}
                             className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                         />
                     </div>
@@ -449,7 +469,7 @@ const OrderslistTab = () => {
             </div>
         )}
         
-        {showFilters && (filters.phoneNumber || filters.orderId || filters.status !== 'all') && (
+        {showFilters && (filters.email || filters.addressPhone || filters.orderId || filters.status !== 'all') && (
             <div className="mt-4 flex justify-end">
                 <button
                     onClick={handleClearFilters}
@@ -514,7 +534,7 @@ const OrderslistTab = () => {
                                 </span>
                             )}
                         </div>
-                        <p className="text-sm text-gray-400">{order.user.email || order.user.phoneNumber}</p>
+                        <p className="text-sm text-gray-400">{order.user.email}</p>
                         {order.isManualOrder && (
                             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                                 <span>Payment: <span className="text-gray-300 capitalize">{order.paymentMethod?.replace('_', ' ')}</span></span>

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShoppingBag, MapPin, Plus, ChevronDown } from "lucide-react";
+import { ShoppingBag, MapPin, Plus, ChevronDown, Check, ArrowLeft } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import { useUserStore } from "../stores/useUserStore";
 import { useAddressStore } from "../stores/useAddressStore";
+import { useCartStore } from "../stores/useCartStore";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import AddressModal from "../components/AddressModal";
+import LoginPromptModal from "../components/LoginPromptModal";
 import InsufficientStockModal from "../components/InsufficientStockModal";
 import CountdownTimer from "../components/CountdownTimer";
 import { SHOP_CONFIG, PAYMENT_CONFIG } from "../config/constants";
@@ -14,20 +17,22 @@ import { SHOP_CONFIG, PAYMENT_CONFIG } from "../config/constants";
 const OrderSummaryPage = () => {
 	const [orderData, setOrderData] = useState(null);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const [isSigningIn, setIsSigningIn] = useState(false);
 	const [showAddressForm, setShowAddressForm] = useState(false);
 	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 	const [showInsufficientStock, setShowInsufficientStock] = useState(false);
+	const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 	const [insufficientItems, setInsufficientItems] = useState([]);
 	const [holdInfo, setHoldInfo] = useState(null);
 	const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
 	const [pricingBreakdown, setPricingBreakdown] = useState(null);
 	const [loadingPricing, setLoadingPricing] = useState(false);
-	const { user } = useUserStore();
+	const { user, checkAuth } = useUserStore();
+	const { syncGuestCart } = useCartStore();
 	const { address: addresses, fetchAddresses, createAddress, loading: addressLoading } = useAddressStore();
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		// Retrieve pending order from localStorage
 		const pendingOrder = localStorage.getItem("pendingBuyNowOrder");
 		if (pendingOrder) {
 			try {
@@ -35,23 +40,20 @@ const OrderSummaryPage = () => {
 				setOrderData(parsed);
 			} catch (error) {
 				console.error("Failed to parse pending order:", error);
-				toast.error("Unable to load your order. Please try placing your order again.");
+				toast.error("Unable to load your order. Please try again.");
 				navigate("/");
 			}
 		} else {
-			// No pending order, redirect to home
 			navigate("/");
 		}
 	}, [navigate]);
 
-	// Fetch addresses when user is logged in
 	useEffect(() => {
 		if (user) {
 			fetchAddresses();
 		}
 	}, [user, fetchAddresses]);
 
-	// Fetch pricing breakdown when address is selected and order data is available
 	useEffect(() => {
 		const fetchPricing = async () => {
 			if (!orderData || !addresses || addresses.length === 0) {
@@ -77,7 +79,6 @@ const OrderSummaryPage = () => {
 				}
 			} catch (error) {
 				console.error("Error fetching pricing:", error);
-				// Silently fail - will use fallback
 			} finally {
 				setLoadingPricing(false);
 			}
@@ -86,14 +87,12 @@ const OrderSummaryPage = () => {
 		fetchPricing();
 	}, [addresses, selectedAddressIndex, orderData]);
 
-	// Set first address as selected by default when addresses are loaded
 	useEffect(() => {
 		if (addresses && addresses.length > 0 && selectedAddressIndex >= addresses.length) {
 			setSelectedAddressIndex(0);
 		}
 	}, [addresses, selectedAddressIndex]);
 
-	// Close dropdown when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event) => {
 			if (showAddressDropdown && !event.target.closest('.address-dropdown-container')) {
@@ -107,14 +106,48 @@ const OrderSummaryPage = () => {
 		}
 	}, [showAddressDropdown]);
 
+	// Handle Google sign-in success
+	const handleGoogleSuccess = async (credentialResponse) => {
+		setIsSigningIn(true);
+		try {
+			await axios.post("/auth/google", {
+				credential: credentialResponse.credential,
+			});
+			await checkAuth();
+			await syncGuestCart();
+			const fetchedAddresses = await fetchAddresses();
+			setShowLoginPrompt(false);
+			
+			// After successful login, check if user has addresses
+			// If no addresses, show address form to continue checkout
+			if (!fetchedAddresses || fetchedAddresses.length === 0) {
+				setShowAddressForm(true);
+			}
+		} catch (error) {
+			console.error("Login failed:", error);
+			toast.error(error.response?.data?.message || "Sign in failed. Please try again.");
+		} finally {
+			setIsSigningIn(false);
+		}
+	};
+
+	const handleGoogleError = () => {
+		toast.error("Sign in failed. Please try again.");
+	};
+
 	const handlePlaceOrder = () => {
-		// Check if address is selected
-		if (!addresses || addresses.length === 0) {
-			toast.error("Please add a delivery address");
+		// If user is not logged in, show login prompt
+		if (!user) {
+			setShowLoginPrompt(true);
 			return;
 		}
 
-		// Proceed to payment with selected address
+		// If user is logged in but has no addresses, show address form
+		if (!addresses || addresses.length === 0) {
+			setShowAddressForm(true);
+			return;
+		}
+
 		const selectedAddress = addresses[selectedAddressIndex];
 		handlePayment(selectedAddress);
 	};
@@ -123,7 +156,6 @@ const OrderSummaryPage = () => {
 		try {
 			await createAddress(addressData);
 			setShowAddressForm(false);
-			// Select the newly added address (will be at the end)
 			if (addresses) {
 				setSelectedAddressIndex(addresses.length);
 			}
@@ -138,7 +170,6 @@ const OrderSummaryPage = () => {
 
 		setIsProcessing(true);
 		try {
-			// Create order with single product
 			const orderProducts = [{
 				product: orderData.product._id,
 				quantity: orderData.quantity,
@@ -157,10 +188,8 @@ const OrderSummaryPage = () => {
 
 			const { orderId, amount, currency, keyId, localOrderId, expiresAt, holdDurationSeconds } = res.data;
 
-			// Store hold info for countdown timer
 			setHoldInfo({ expiresAt, localOrderId, holdDurationSeconds });
 
-			// dynamically load Razorpay script (if not loaded)
 			const rzpScriptLoaded = await new Promise((resolve) => {
 				if (window.Razorpay) return resolve(true);
 				const script = document.createElement("script");
@@ -196,11 +225,9 @@ const OrderSummaryPage = () => {
 						if (verifyRes.data?.success) {
 							toast.success("Payment successful!");
 							setHoldInfo(null);
-							// Clear pending order
 							localStorage.removeItem("pendingBuyNowOrder");
 							window.location.href = `/purchase-success?orderId=${encodeURIComponent(orderId)}`;
 						} else {
-							// Check for insufficient stock error
 							if (verifyRes.data?.insufficientStock) {
 								setInsufficientItems(verifyRes.data.insufficientItems || []);
 								setShowInsufficientStock(true);
@@ -229,26 +256,41 @@ const OrderSummaryPage = () => {
 				},
 				modal: {
 					ondismiss: async function () {
-						// User closed the payment modal without completing
 						setIsProcessing(false);
-						// Optionally cancel the hold
 						if (localOrderId) {
 							try {
 								await axios.post("/payments/cancel-hold", { localOrderId });
 							} catch {
-								// Silent fail - hold will expire automatically
+								// Silent fail
 							}
 						}
 						setHoldInfo(null);
 					}
 				},
-				prefill: {
-					email: user?.email || "",
-					name: user?.name || address?.name || "",
-					contact: user?.phoneNumber || address?.phoneNumber || "",
-				},
-				theme: PAYMENT_CONFIG.theme,
-			};
+			prefill: {
+				email: user?.email || "",
+				name: user?.name || address?.name || "",
+				contact: address?.phoneNumber || "",
+			},
+			theme: PAYMENT_CONFIG.theme,
+			config: {
+				display: {
+					blocks: {
+						payments: {
+							name: "Payment Methods",
+							instruments: [
+								{ method: "upi" },
+								{ method: "card" }
+							]
+						}
+					},
+					sequence: ["block.payments"],
+					preferences: {
+						show_default_blocks: false
+					}
+				}
+			}
+		};
 
 			const rzp = new window.Razorpay(options);
 			rzp.open();
@@ -266,9 +308,7 @@ const OrderSummaryPage = () => {
 		}
 	};
 
-	// Handle reduce quantity action from insufficient stock modal
 	const handleReduceQuantity = (items) => {
-		// Since this is a single product order, use the first item's available quantity
 		if (items.length > 0 && items[0].available > 0) {
 			setOrderData(prev => ({ ...prev, quantity: items[0].available }));
 			setShowInsufficientStock(false);
@@ -279,20 +319,17 @@ const OrderSummaryPage = () => {
 		}
 	};
 
-	// Handle browse similar items
 	const handleBrowseSimilar = () => {
 		setShowInsufficientStock(false);
 		localStorage.removeItem("pendingBuyNowOrder");
 		navigate("/");
 	};
 
-	// Handle join waitlist (placeholder)
 	const handleJoinWaitlist = () => {
 		toast.success("You'll be notified when this item is back in stock");
 		setShowInsufficientStock(false);
 	};
 
-	// Handle hold expiration
 	const handleHoldExpire = () => {
 		toast.error("Your checkout session has expired. Please try again.");
 		setHoldInfo(null);
@@ -302,7 +339,7 @@ const OrderSummaryPage = () => {
 	if (!orderData) {
 		return (
 			<div className='min-h-screen bg-stone-50 flex items-center justify-center'>
-				<div className='animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-stone-800'></div>
+				<div className='animate-spin rounded-full h-8 w-8 border-2 border-stone-800 border-t-transparent'></div>
 			</div>
 		);
 	}
@@ -310,211 +347,268 @@ const OrderSummaryPage = () => {
 	const totalPrice = (orderData.product.price * orderData.quantity).toFixed(2);
 	const finalTotal = pricingBreakdown 
 		? pricingBreakdown.total.toFixed(2)
-		: (parseFloat(totalPrice) + 199).toFixed(2); // Fallback to old calculation
+		: totalPrice;
+
+	const currentStep = !user ? 1 : (!addresses || addresses.length === 0) ? 2 : 3;
 
 	return (
-		<div className='py-8 md:py-16 bg-stone-50 min-h-screen'>
-			<div className='mx-auto max-w-screen-xl px-4 2xl:px-0'>				
-				<div className='mt-6 sm:mt-8 md:gap-6 lg:flex lg:items-start xl:gap-8'>
+		<div className='py-8 bg-stone-50 min-h-screen'>
+			<div className='mx-auto max-w-lg px-4'>
+				{/* Back Button */}
+				<button
+					onClick={() => {
+						localStorage.removeItem("pendingBuyNowOrder");
+						navigate(-1);
+					}}
+					className='flex items-center gap-1 text-sm text-stone-600 hover:text-stone-800 mb-4'
+				>
+					<ArrowLeft size={16} />
+					Back
+				</button>
 
-					{/* Right side - Order Summary */}
-					<motion.div
-						className='mx-auto mt-6 max-w-4xl flex-1 space-y-6 lg:mt-0 lg:w-full'
-						initial={{ opacity: 0, x: 20 }}
-						animate={{ opacity: 1, x: 0 }}
-						transition={{ duration: 0.4, delay: 0.2 }}
-					>
-						<div className='space-y-4 rounded-lg border border-gray-700 bg-gray-800 p-4 shadow-sm sm:p-6'>
-							<p className='text-xl font-semibold text-emerald-400'>Payment Summary</p>
+				<motion.div
+					className='rounded-lg border border-stone-200 bg-white p-5 shadow-sm'
+					initial={{ opacity: 0, y: 20 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.4 }}
+				>
+					<h1 className='text-xl font-semibold text-stone-900 mb-4'>Checkout</h1>
 
-							{/* Countdown Timer when hold is active */}
-							{holdInfo && (
-								<CountdownTimer 
-									expiresAt={holdInfo.expiresAt}
-									durationSeconds={holdInfo.holdDurationSeconds}
-									onExpire={handleHoldExpire}
-								/>
-							)}
+					{/* Progress Steps */}
+					<div className='flex items-center gap-2 pb-4 border-b border-stone-200 mb-4'>
+						<div className='flex items-center gap-2'>
+							<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+								user ? 'bg-stone-800 text-white' : 'bg-stone-200 text-stone-600'
+							}`}>
+								{user ? <Check size={14} /> : '1'}
+							</div>
+							<span className={`text-sm ${user ? 'text-stone-500' : 'text-stone-900 font-medium'}`}>
+								Sign in
+							</span>
+						</div>
+						<div className='flex-1 h-px bg-stone-200' />
+						<div className='flex items-center gap-2'>
+							<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+								addresses && addresses.length > 0 ? 'bg-stone-800 text-white' : user ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-400'
+							}`}>
+								{addresses && addresses.length > 0 ? <Check size={14} /> : '2'}
+							</div>
+							<span className={`text-sm ${currentStep === 2 ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>
+								Address
+							</span>
+						</div>
+						<div className='flex-1 h-px bg-stone-200' />
+						<div className='flex items-center gap-2'>
+							<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+								currentStep === 3 ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-400'
+							}`}>
+								3
+							</div>
+							<span className={`text-sm ${currentStep === 3 ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>
+								Pay
+							</span>
+						</div>
+					</div>
 
-							<div className='space-y-4'>
-								{/* Address Selection - Only show when user is logged in */}
-								{user && (
-									<div className='space-y-2'>
-										<p className='text-sm font-semibold text-gray-300'>Delivery Address</p>
-										{addresses && addresses.length > 0 ? (
-											<div className='relative address-dropdown-container'>
-												<button
-													onClick={() => setShowAddressDropdown(!showAddressDropdown)}
-													className='w-full text-left rounded-lg border border-gray-600 bg-gray-900 p-4 hover:bg-gray-800 transition-colors'
-												>
-													<div className='flex items-start gap-3'>
-														<MapPin className='text-emerald-400 mt-1 flex-shrink-0' size={20} />
-														<div className='flex-1 min-w-0'>
-															<p className='font-medium text-white'>
-																{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
-															</p>
-															{addresses[selectedAddressIndex]?.email && (
-																<p className='text-sm text-gray-400'>{addresses[selectedAddressIndex]?.email}</p>
-															)}
-															<p className='text-sm text-gray-300 mt-1'>
-																{addresses[selectedAddressIndex]?.houseNumber}, {addresses[selectedAddressIndex]?.streetAddress}
-																{addresses[selectedAddressIndex]?.landmark && `, ${addresses[selectedAddressIndex]?.landmark}`}
-															</p>
-															<p className='text-sm text-gray-300'>
-																{addresses[selectedAddressIndex]?.city}, {addresses[selectedAddressIndex]?.state} - {addresses[selectedAddressIndex]?.pincode}
-															</p>
-														</div>
-														<ChevronDown className={`text-gray-400 flex-shrink-0 transition-transform ${showAddressDropdown ? 'rotate-180' : ''}`} size={20} />
-													</div>
-												</button>
+					{/* Countdown Timer */}
+					{holdInfo && (
+						<CountdownTimer 
+							expiresAt={holdInfo.expiresAt}
+							durationSeconds={holdInfo.holdDurationSeconds}
+							onExpire={handleHoldExpire}
+						/>
+					)}
 
-												{/* Address Dropdown */}
-												{showAddressDropdown && (
-													<div className='absolute z-10 w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-lg flex flex-col max-h-64 address-dropdown-container'>
-														{/* Scrollable address list */}
-														<div className='overflow-y-auto flex-1'>
-															{addresses.map((addr, index) => (
-																<button
-																	key={addr._id || index}
-																	onClick={() => {
-																		setSelectedAddressIndex(index);
-																		setShowAddressDropdown(false);
-																	}}
-																	className={`w-full text-left p-4 hover:bg-gray-700 transition-colors border-b border-gray-700 ${
-																		selectedAddressIndex === index ? 'bg-gray-700' : ''
-																	}`}
-																>
-																	<div className='flex items-start gap-3'>
-																		<MapPin className='text-emerald-400 mt-1 flex-shrink-0' size={18} />
-																		<div className='flex-1 min-w-0'>
-																			<p className='font-medium text-white'>
-																				{addr.name} • {addr.phoneNumber}
-																			</p>
-																			{addr.email && <p className='text-sm text-gray-400'>{addr.email}</p>}
-																			<p className='text-sm text-gray-300 mt-1'>
-																				{addr.houseNumber}, {addr.streetAddress}
-																				{addr.landmark && `, ${addr.landmark}`}
-																			</p>
-																			<p className='text-sm text-gray-300'>
-																				{addr.city}, {addr.state} - {addr.pincode}
-																			</p>
-																		</div>
-																		{selectedAddressIndex === index && (
-																			<div className='h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0'>
-																				<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
-																					<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
-																				</svg>
-																			</div>
-																		)}
-																	</div>
-																</button>
-															))}
-														</div>
-														{/* Always visible Add New Address button */}
-														<button
-															onClick={() => {
-																setShowAddressForm(true);
-																setShowAddressDropdown(false);
-															}}
-															className='w-full flex items-center justify-center gap-2 p-4 text-gray-300 hover:bg-gray-700 transition-colors border-t border-gray-700 flex-shrink-0'
-														>
-															<Plus size={18} />
-															Add New Address
-														</button>
-													</div>
-												)}
-											</div>
-										) : (
-											<button
-												onClick={() => setShowAddressForm(true)}
-												className='w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-600 bg-gray-900 px-5 py-4 text-sm font-medium text-gray-300 hover:bg-gray-800 transition-colors'
-											>
-												<Plus size={20} />
-												Add Delivery Address
-											</button>
-										)}
+					<div className='space-y-4'>
+						{/* Step 1: Sign In */}
+						{!user && (
+							<div className='rounded-lg border-2 border-stone-800 bg-stone-50 p-4'>
+								<p className='text-sm font-medium text-stone-900 mb-3'>
+									Sign in to continue
+								</p>
+								{isSigningIn ? (
+									<div className='flex items-center justify-center py-3'>
+										<div className='w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin' />
+										<span className='ml-3 text-sm text-stone-600'>Signing in...</span>
+									</div>
+								) : (
+									<div className='flex justify-center'>
+										<GoogleLogin
+											onSuccess={handleGoogleSuccess}
+											onError={handleGoogleError}
+											theme="outline"
+											size="large"
+											text="continue_with"
+											shape="rectangular"
+										/>
 									</div>
 								)}
+							</div>
+						)}
 
-								{/* Item Breakdown */}
-								<div className='space-y-2'>
-									<p className='text-sm font-semibold text-gray-300'>Item Details:</p>
-									<div className='flex items-center justify-between gap-3 pb-2 border-b border-gray-700'>
-										<div className='flex items-center gap-2 flex-1'>
-											<img 
-												src={orderData.product.image} 
-												alt={orderData.product.name}
-												className='w-10 h-10 rounded object-cover flex-shrink-0'
-											/>
-											<div className='flex-1 min-w-0'>
-												<p className='text-xs text-gray-300 truncate'>{orderData.product.name}</p>
-												<p className='text-xs text-gray-400'>Qty: {orderData.quantity}</p>
+						{/* Step 2: Address Selection */}
+						{user && (
+							<div className={`rounded-lg p-4 ${addresses && addresses.length > 0 ? 'border border-stone-200 bg-white' : 'border-2 border-stone-800 bg-stone-50'}`}>
+								<p className='text-sm font-medium text-stone-900 mb-3'>Delivery Address</p>
+								{addresses && addresses.length > 0 ? (
+									<div className='relative address-dropdown-container'>
+										<button
+											onClick={() => setShowAddressDropdown(!showAddressDropdown)}
+											className='w-full text-left rounded-lg border border-stone-300 bg-white p-3 hover:bg-stone-50 transition-colors'
+										>
+											<div className='flex items-start gap-3'>
+												<MapPin className='text-stone-600 mt-0.5 flex-shrink-0' size={18} />
+												<div className='flex-1 min-w-0'>
+													<p className='font-medium text-stone-900 text-sm'>
+														{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
+													</p>
+													<p className='text-xs text-stone-600 mt-0.5'>
+														{addresses[selectedAddressIndex]?.houseNumber}, {addresses[selectedAddressIndex]?.streetAddress}, {addresses[selectedAddressIndex]?.city}
+													</p>
+												</div>
+												<ChevronDown className={`text-stone-500 flex-shrink-0 transition-transform ${showAddressDropdown ? 'rotate-180' : ''}`} size={18} />
 											</div>
-										</div>
-										<div className='flex flex-col items-end flex-shrink-0'>
-											{orderData.product.actualPrice && orderData.product.actualPrice > orderData.product.price && (
-												<span className='text-xs text-gray-500 line-through'>₹{(orderData.product.actualPrice * orderData.quantity).toFixed(2)}</span>
-											)}
-											<span className='text-sm font-medium text-white'>₹{totalPrice}</span>
-										</div>
+										</button>
+
+										{showAddressDropdown && (
+											<div className='absolute z-10 w-full mt-2 bg-white border border-stone-300 rounded-lg shadow-lg flex flex-col max-h-64 address-dropdown-container'>
+												<div className='overflow-y-auto flex-1'>
+													{addresses.map((addr, index) => (
+														<button
+															key={addr._id || index}
+															onClick={() => {
+																setSelectedAddressIndex(index);
+																setShowAddressDropdown(false);
+															}}
+															className={`w-full text-left p-3 hover:bg-stone-50 transition-colors border-b border-stone-200 ${
+																selectedAddressIndex === index ? 'bg-stone-100' : ''
+															}`}
+														>
+															<div className='flex items-start gap-3'>
+																<MapPin className='text-stone-600 mt-0.5 flex-shrink-0' size={16} />
+																<div className='flex-1 min-w-0'>
+																	<p className='font-medium text-stone-900 text-sm'>
+																		{addr.name} • {addr.phoneNumber}
+																	</p>
+																	<p className='text-xs text-stone-600 mt-0.5'>
+																		{addr.houseNumber}, {addr.streetAddress}, {addr.city}
+																	</p>
+																</div>
+																{selectedAddressIndex === index && (
+																	<div className='h-4 w-4 rounded-full bg-stone-800 flex items-center justify-center flex-shrink-0'>
+																		<Check className='h-2.5 w-2.5 text-white' />
+																	</div>
+																)}
+															</div>
+														</button>
+													))}
+												</div>
+												<button
+													onClick={() => {
+														setShowAddressForm(true);
+														setShowAddressDropdown(false);
+													}}
+													className='w-full flex items-center justify-center gap-2 p-3 text-sm text-stone-700 hover:bg-stone-50 transition-colors border-t border-stone-200 flex-shrink-0'
+												>
+													<Plus size={16} />
+													Add New Address
+												</button>
+											</div>
+										)}
 									</div>
+								) : (
+									<button
+										onClick={() => setShowAddressForm(true)}
+										className='w-full flex items-center justify-center gap-2 rounded-lg bg-stone-800 text-white px-4 py-3 text-sm font-medium hover:bg-stone-700 transition-colors'
+									>
+										<Plus size={18} />
+										Add Delivery Address
+									</button>
+								)}
+							</div>
+						)}
+
+						{/* Product Details */}
+						<div className='pt-2'>
+							<p className='text-sm font-medium text-stone-700 mb-2'>Your order</p>
+							<div className='flex items-center gap-3 py-3 border-b border-stone-100'>
+								<img 
+									src={orderData.product.image} 
+									alt={orderData.product.name}
+									className='w-14 h-14 rounded-md object-cover'
+								/>
+								<div className='flex-1 min-w-0'>
+									<p className='text-sm text-stone-800 font-medium truncate'>{orderData.product.name}</p>
+									<p className='text-xs text-stone-500 mt-0.5'>Qty: {orderData.quantity}</p>
 								</div>
-
-								<div className='space-y-2'>
-									<dl className='flex items-center justify-between gap-4'>
-										<dt className='text-base font-normal text-gray-300'>Subtotal</dt>
-										<dd className='text-base font-medium text-white'>₹{totalPrice}</dd>
-									</dl>
-
-									{loadingPricing ? (
-										<dl className='flex items-center justify-between gap-4'>
-											<dt className='text-base font-normal text-gray-300'>Calculating charges...</dt>
-											<dd className='text-base font-medium text-white'>...</dd>
-										</dl>
-									) : pricingBreakdown ? (
-										<>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Shipping</dt>
-												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
-											</dl>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Platform Fee</dt>
-												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
-											</dl>
-										</>
-									) : null}
-									
-									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
-										<dt className='text-base font-bold text-white'>Total</dt>
-										<dd className='text-base font-bold text-emerald-400'>₹{finalTotal}</dd>
-									</dl>
+								<div className='text-right'>
+									{orderData.product.actualPrice && orderData.product.actualPrice > orderData.product.price && (
+										<p className='text-xs text-stone-400 line-through'>₹{(orderData.product.actualPrice * orderData.quantity).toFixed(2)}</p>
+									)}
+									<p className='text-sm font-semibold text-stone-900'>₹{totalPrice}</p>
 								</div>
-
-								<motion.button
-									className='flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed'
-									whileHover={{ scale: isProcessing ? 1 : 1.05 }}
-									whileTap={{ scale: isProcessing ? 1 : 0.95 }}
-									onClick={handlePlaceOrder}
-									disabled={isProcessing}
-								>
-									<ShoppingBag size={16} className="mr-2" />
-									{isProcessing ? "Processing..." : "Proceed to Buy"}
-								</motion.button>
-
-								<button
-									onClick={() => {
-										localStorage.removeItem("pendingBuyNowOrder");
-										navigate("/");
-									}}
-									className='w-full text-center text-sm text-emerald-400 hover:text-emerald-300 transition-colors'
-								>
-									Cancel and go back
-								</button>
 							</div>
 						</div>
-					</motion.div>
-				</div>
+
+						{/* Pricing Summary */}
+						<div className='space-y-2 pt-2'>
+							<dl className='flex items-center justify-between'>
+								<dt className='text-sm text-stone-600'>Subtotal</dt>
+								<dd className='text-sm font-medium text-stone-900'>₹{totalPrice}</dd>
+							</dl>
+
+							{loadingPricing ? (
+								<dl className='flex items-center justify-between'>
+									<dt className='text-sm text-stone-500'>Calculating...</dt>
+									<dd className='text-sm text-stone-500'>...</dd>
+								</dl>
+							) : pricingBreakdown ? (
+								<>
+									<dl className='flex items-center justify-between'>
+										<dt className='text-sm text-stone-600'>Delivery</dt>
+										<dd className='text-sm font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
+									</dl>
+									<dl className='flex items-center justify-between'>
+										<dt className='text-sm text-stone-600'>Platform Fee</dt>
+										<dd className='text-sm font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
+									</dl>
+								</>
+							) : null}
+
+							<dl className='flex items-center justify-between pt-3 border-t border-stone-200'>
+								<dt className='text-base font-bold text-stone-900'>Total</dt>
+								<dd className='text-base font-bold text-stone-900'>₹{finalTotal}</dd>
+							</dl>
+						</div>
+
+						{/* Pay Button - Always enabled, will prompt for login/address if needed */}
+						<motion.button
+							className={`flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-medium transition-colors ${
+								isProcessing
+									? 'bg-stone-400 text-white cursor-not-allowed'
+									: 'bg-stone-800 text-white hover:bg-stone-700'
+							}`}
+							whileHover={{ scale: !isProcessing ? 1.02 : 1 }}
+							whileTap={{ scale: !isProcessing ? 0.98 : 1 }}
+							onClick={handlePlaceOrder}
+							disabled={isProcessing}
+						>
+							<ShoppingBag size={16} className="mr-2" />
+							{isProcessing ? "Processing..." : "Pay Now"}
+						</motion.button>
+					</div>
+				</motion.div>
 			</div>
+
+			<LoginPromptModal
+				isOpen={showLoginPrompt}
+				onClose={() => setShowLoginPrompt(false)}
+				onSuccess={handleGoogleSuccess}
+				onError={handleGoogleError}
+				isLoading={isSigningIn}
+				title="Sign in to continue"
+				description="Please sign in with your Google account to complete your order."
+			/>
 
 			<AddressModal
 				isOpen={showAddressForm}

@@ -3,27 +3,29 @@ import { useCartStore } from "../stores/useCartStore";
 import { useUserStore } from "../stores/useUserStore";
 import { useAddressStore } from "../stores/useAddressStore";
 import { Link, useNavigate } from "react-router-dom";
-import { MoveRight, MapPin, Plus, ChevronDown } from "lucide-react";
+import { MoveRight, MapPin, Plus, ChevronDown, Check } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useState, useEffect } from "react";
-import PhoneAuthModal from "./PhoneAuthModal";
 import AddressModal from "./AddressModal";
+import LoginPromptModal from "./LoginPromptModal";
 import InsufficientStockModal from "./InsufficientStockModal";
 import CountdownTimer from "./CountdownTimer";
 import { SHOP_CONFIG } from "../config/constants";
 
 const OrderSummary = () => {
 	const [isProcessing, setIsProcessing] = useState(false);
-	const [showPhoneAuth, setShowPhoneAuth] = useState(false);
+	const [isSigningIn, setIsSigningIn] = useState(false);
 	const [showAddressForm, setShowAddressForm] = useState(false);
 	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 	const [showInsufficientStock, setShowInsufficientStock] = useState(false);
+	const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 	const [insufficientItems, setInsufficientItems] = useState([]);
-	const [holdInfo, setHoldInfo] = useState(null); // { expiresAt, localOrderId }
+	const [holdInfo, setHoldInfo] = useState(null);
 	const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
-	const { total, subtotal, cart, updateQuantity, clearCart } = useCartStore();
-	const { user } = useUserStore();
+	const { total, subtotal, cart, updateQuantity, clearCart, syncGuestCart } = useCartStore();
+	const { user, checkAuth } = useUserStore();
 	const { address: addresses, fetchAddresses, createAddress, loading: addressLoading } = useAddressStore();
 	const navigate = useNavigate();
 
@@ -34,9 +36,6 @@ const OrderSummary = () => {
 	const formattedSubtotal = subtotal.toFixed(2);
 	const formattedSavings = savings.toFixed(2);
 	
-	// Calculate total with pricing breakdown if available
-	// Only show full total (with delivery + platform fee) when pricing breakdown is available
-	// Otherwise just show cart total without extra charges
 	const formattedTotal = pricingBreakdown 
 		? pricingBreakdown.total.toFixed(2)
 		: total.toFixed(2);
@@ -64,10 +63,8 @@ const OrderSummary = () => {
 
 			setLoadingPricing(true);
 			try {
-				// Use discounted subtotal (total) for platform fee calculation
-				// Platform fee should be calculated on the amount actually being charged
 				const res = await axios.post("/payments/calculate-pricing", {
-					subtotal: total, // Use cart total (after discounts) for fee calculation
+					subtotal: total,
 					address: selectedAddress,
 				});
 				if (res.data.success) {
@@ -75,7 +72,6 @@ const OrderSummary = () => {
 				}
 			} catch (error) {
 				console.error("Error fetching pricing:", error);
-				// Silently fail - will use fallback
 			} finally {
 				setLoadingPricing(false);
 			}
@@ -105,37 +101,57 @@ const OrderSummary = () => {
 		}
 	}, [showAddressDropdown]);
 
-	// Handle place order button click
-	const handlePlaceOrder = () => {
-		// Check if user is authenticated
-		if (!user) {
-			// Show phone auth modal
-			setShowPhoneAuth(true);
-			return;
+	// Handle Google sign-in success - inline flow
+	const handleGoogleSuccess = async (credentialResponse) => {
+		setIsSigningIn(true);
+		try {
+			await axios.post("/auth/google", {
+				credential: credentialResponse.credential,
+			});
+			await checkAuth();
+			await syncGuestCart();
+			const fetchedAddresses = await fetchAddresses();
+			setShowLoginPrompt(false);
+			
+			// After successful login, check if user has addresses
+			// If no addresses, show address form to continue checkout
+			if (!fetchedAddresses || fetchedAddresses.length === 0) {
+				setShowAddressForm(true);
+			}
+		} catch (error) {
+			console.error("Login failed:", error);
+			toast.error(error.response?.data?.message || "Sign in failed. Please try again.");
+		} finally {
+			setIsSigningIn(false);
 		}
-
-		// Check if address is selected
-		if (!addresses || addresses.length === 0) {
-			toast.error("Please add a delivery address");
-			return;
-		}
-
-		// Proceed to payment with selected address
-		const selectedAddress = addresses[selectedAddressIndex];
-		handlePayment(selectedAddress);
 	};
 
-	const handleAuthSuccess = async () => {
-		// Close phone auth modal
-		setShowPhoneAuth(false);
-		// Addresses will be fetched automatically via useEffect
+	const handleGoogleError = () => {
+		toast.error("Sign in failed. Please try again.");
+	};
+
+	// Handle place order button click
+	const handlePlaceOrder = () => {
+		// If user is not logged in, show login prompt
+		if (!user) {
+			setShowLoginPrompt(true);
+			return;
+		}
+
+		// If user is logged in but has no addresses, show address form
+		if (!addresses || addresses.length === 0) {
+			setShowAddressForm(true);
+			return;
+		}
+
+		const selectedAddress = addresses[selectedAddressIndex];
+		handlePayment(selectedAddress);
 	};
 
 	const handleSaveNewAddress = async (addressData) => {
 		try {
 			await createAddress(addressData);
 			setShowAddressForm(false);
-			// Select the newly added address (will be at the end)
 			if (addresses) {
 				setSelectedAddressIndex(addresses.length);
 			}
@@ -157,10 +173,8 @@ const OrderSummary = () => {
 
 			const { orderId, amount, currency, keyId, localOrderId, expiresAt, holdDurationSeconds } = res.data;
 
-			// Store hold info for countdown timer
 			setHoldInfo({ expiresAt, localOrderId, holdDurationSeconds });
 
-			// dynamically load Razorpay script (if not loaded)
 			const rzpScriptLoaded = await new Promise((resolve) => {
 				if (window.Razorpay) return resolve(true);
 				const script = document.createElement("script");
@@ -196,10 +210,9 @@ const OrderSummary = () => {
 						if (verifyRes.data?.success) {
 							toast.success("Payment successful!");
 							setHoldInfo(null);
-							clearCart(); // Clear cart on successful payment
+							clearCart();
 							window.location.href = `/purchase-success?orderId=${encodeURIComponent(orderId)}`;
 						} else {
-							// Check for insufficient stock error
 							if (verifyRes.data?.insufficientStock) {
 								setInsufficientItems(verifyRes.data.insufficientItems || []);
 								setShowInsufficientStock(true);
@@ -228,28 +241,43 @@ const OrderSummary = () => {
 				},
 				modal: {
 					ondismiss: async function () {
-						// User closed the payment modal without completing
 						setIsProcessing(false);
-						// Optionally cancel the hold
 						if (localOrderId) {
 							try {
 								await axios.post("/payments/cancel-hold", { localOrderId });
 							} catch {
-								// Silent fail - hold will expire automatically
+								// Silent fail
 							}
 						}
 						setHoldInfo(null);
 					}
 				},
-				prefill: {
-					email: user?.email || "",
-					name: user?.name || address?.name || "",
-					contact: user?.phoneNumber || address?.phoneNumber || "",
-				},
-				theme: {
-					color: "#10B981",
-				},
-			};
+			prefill: {
+				email: user?.email || "",
+				name: user?.name || address?.name || "",
+				contact: address?.phoneNumber || "",
+			},
+			theme: {
+				color: "#10B981",
+			},
+			config: {
+				display: {
+					blocks: {
+						payments: {
+							name: "Payment Methods",
+							instruments: [
+								{ method: "upi" },
+								{ method: "card" }
+							]
+						}
+					},
+					sequence: ["block.payments"],
+					preferences: {
+						show_default_blocks: false
+					}
+				}
+			}
+		};
 
 			const rzp = new window.Razorpay(options);
 			rzp.open();
@@ -267,15 +295,12 @@ const OrderSummary = () => {
 		}
 	};
 
-	// Handle reduce quantity action from insufficient stock modal
 	const handleReduceQuantity = async (items) => {
-		// Use Promise.all for parallel updates
 		await Promise.all(
 			items.map(item => {
 				if (item.available > 0 && item.productId) {
 					return updateQuantity(item.productId.toString(), item.available);
 				} else if (item.available === 0 && item.productId) {
-					// Remove item from cart
 					return updateQuantity(item.productId.toString(), 0);
 				}
 				return Promise.resolve();
@@ -285,24 +310,24 @@ const OrderSummary = () => {
 		toast.success("Cart updated with available quantities");
 	};
 
-	// Handle browse similar items
 	const handleBrowseSimilar = () => {
 		setShowInsufficientStock(false);
 		navigate("/");
 	};
 
-	// Handle join waitlist (placeholder - could be implemented later)
 	const handleJoinWaitlist = () => {
 		toast.success("You'll be notified when items are back in stock");
 		setShowInsufficientStock(false);
 	};
 
-	// Handle hold expiration
 	const handleHoldExpire = () => {
 		toast.error("Your checkout session has expired. Please try again.");
 		setHoldInfo(null);
 		setIsProcessing(false);
 	};
+
+	// Calculate current step for progress indicator
+	const currentStep = !user ? 1 : (!addresses || addresses.length === 0) ? 2 : 3;
 
 	return (
 		<motion.div
@@ -311,7 +336,46 @@ const OrderSummary = () => {
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.5 }}
 		>
-			<p className='text-xl font-semibold text-stone-900'>Order summary</p>
+			<p className='text-xl font-semibold text-stone-900'>Checkout</p>
+
+			{/* Progress Steps */}
+			<div className='flex items-center gap-2 pb-4 border-b border-stone-200'>
+				{/* Step 1: Sign In */}
+				<div className='flex items-center gap-2'>
+					<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+						user ? 'bg-stone-800 text-white' : 'bg-stone-200 text-stone-600'
+					}`}>
+						{user ? <Check size={14} /> : '1'}
+					</div>
+					<span className={`text-sm ${user ? 'text-stone-500' : 'text-stone-900 font-medium'}`}>
+						Sign in
+					</span>
+				</div>
+				<div className='flex-1 h-px bg-stone-200' />
+				{/* Step 2: Address */}
+				<div className='flex items-center gap-2'>
+					<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+						addresses && addresses.length > 0 ? 'bg-stone-800 text-white' : user ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-400'
+					}`}>
+						{addresses && addresses.length > 0 ? <Check size={14} /> : '2'}
+					</div>
+					<span className={`text-sm ${currentStep === 2 ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>
+						Address
+					</span>
+				</div>
+				<div className='flex-1 h-px bg-stone-200' />
+				{/* Step 3: Pay */}
+				<div className='flex items-center gap-2'>
+					<div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+						currentStep === 3 ? 'bg-stone-200 text-stone-600' : 'bg-stone-100 text-stone-400'
+					}`}>
+						3
+					</div>
+					<span className={`text-sm ${currentStep === 3 ? 'text-stone-900 font-medium' : 'text-stone-500'}`}>
+						Pay
+					</span>
+				</div>
+			</div>
 
 			{/* Countdown Timer when hold is active */}
 			{holdInfo && (
@@ -323,41 +387,58 @@ const OrderSummary = () => {
 			)}
 
 			<div className='space-y-4'>
-				{/* Address Selection - Only show when user is logged in */}
+				{/* Step 1: Sign In - Inline */}
+				{!user && (
+					<div className='rounded-lg border-2 border-stone-800 bg-stone-50 p-4'>
+						<p className='text-sm font-medium text-stone-900 mb-3'>
+							Sign in to continue
+						</p>
+						{isSigningIn ? (
+							<div className='flex items-center justify-center py-3'>
+								<div className='w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin' />
+								<span className='ml-3 text-sm text-stone-600'>Signing in...</span>
+							</div>
+						) : (
+							<div className='flex justify-center'>
+								<GoogleLogin
+									onSuccess={handleGoogleSuccess}
+									onError={handleGoogleError}
+									theme="outline"
+									size="large"
+									text="continue_with"
+									shape="rectangular"
+								/>
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* Step 2: Address Selection - Shows when signed in */}
 				{user && (
-					<div className='space-y-2'>
-						<p className='text-sm font-semibold text-stone-700'>Delivery Address</p>
+					<div className={`rounded-lg p-4 ${addresses && addresses.length > 0 ? 'border border-stone-200 bg-white' : 'border-2 border-stone-800 bg-stone-50'}`}>
+						<p className='text-sm font-medium text-stone-900 mb-3'>Delivery Address</p>
 						{addresses && addresses.length > 0 ? (
 							<div className='relative address-dropdown-container'>
 								<button
 									onClick={() => setShowAddressDropdown(!showAddressDropdown)}
-									className='w-full text-left rounded-lg border border-stone-300 bg-stone-50 p-4 hover:bg-stone-100 transition-colors'
+									className='w-full text-left rounded-lg border border-stone-300 bg-white p-3 hover:bg-stone-50 transition-colors'
 								>
 									<div className='flex items-start gap-3'>
-										<MapPin className='text-stone-600 mt-1 flex-shrink-0' size={20} />
+										<MapPin className='text-stone-600 mt-0.5 flex-shrink-0' size={18} />
 										<div className='flex-1 min-w-0'>
-											<p className='font-medium text-stone-900'>
+											<p className='font-medium text-stone-900 text-sm'>
 												{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
 											</p>
-											{addresses[selectedAddressIndex]?.email && (
-												<p className='text-sm text-stone-600'>{addresses[selectedAddressIndex]?.email}</p>
-											)}
-											<p className='text-sm text-stone-700 mt-1'>
-												{addresses[selectedAddressIndex]?.houseNumber}, {addresses[selectedAddressIndex]?.streetAddress}
-												{addresses[selectedAddressIndex]?.landmark && `, ${addresses[selectedAddressIndex]?.landmark}`}
-											</p>
-											<p className='text-sm text-stone-700'>
-												{addresses[selectedAddressIndex]?.city}, {addresses[selectedAddressIndex]?.state} - {addresses[selectedAddressIndex]?.pincode}
+											<p className='text-xs text-stone-600 mt-0.5'>
+												{addresses[selectedAddressIndex]?.houseNumber}, {addresses[selectedAddressIndex]?.streetAddress}, {addresses[selectedAddressIndex]?.city}
 											</p>
 										</div>
-										<ChevronDown className={`text-stone-600 flex-shrink-0 transition-transform ${showAddressDropdown ? 'rotate-180' : ''}`} size={20} />
+										<ChevronDown className={`text-stone-500 flex-shrink-0 transition-transform ${showAddressDropdown ? 'rotate-180' : ''}`} size={18} />
 									</div>
 								</button>
 
-								{/* Address Dropdown */}
 								{showAddressDropdown && (
 									<div className='absolute z-10 w-full mt-2 bg-white border border-stone-300 rounded-lg shadow-lg flex flex-col max-h-64 address-dropdown-container'>
-										{/* Scrollable address list */}
 										<div className='overflow-y-auto flex-1'>
 											{addresses.map((addr, index) => (
 												<button
@@ -366,45 +447,37 @@ const OrderSummary = () => {
 														setSelectedAddressIndex(index);
 														setShowAddressDropdown(false);
 													}}
-													className={`w-full text-left p-4 hover:bg-stone-50 transition-colors border-b border-stone-200 ${
+													className={`w-full text-left p-3 hover:bg-stone-50 transition-colors border-b border-stone-200 ${
 														selectedAddressIndex === index ? 'bg-stone-100' : ''
 													}`}
 												>
 													<div className='flex items-start gap-3'>
-														<MapPin className='text-stone-600 mt-1 flex-shrink-0' size={18} />
+														<MapPin className='text-stone-600 mt-0.5 flex-shrink-0' size={16} />
 														<div className='flex-1 min-w-0'>
-															<p className='font-medium text-stone-900'>
+															<p className='font-medium text-stone-900 text-sm'>
 																{addr.name} • {addr.phoneNumber}
 															</p>
-															{addr.email && <p className='text-sm text-stone-600'>{addr.email}</p>}
-															<p className='text-sm text-stone-700 mt-1'>
-																{addr.houseNumber}, {addr.streetAddress}
-																{addr.landmark && `, ${addr.landmark}`}
-															</p>
-															<p className='text-sm text-stone-700'>
-																{addr.city}, {addr.state} - {addr.pincode}
+															<p className='text-xs text-stone-600 mt-0.5'>
+																{addr.houseNumber}, {addr.streetAddress}, {addr.city}
 															</p>
 														</div>
 														{selectedAddressIndex === index && (
-															<div className='h-5 w-5 rounded-full bg-stone-800 flex items-center justify-center flex-shrink-0'>
-																<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
-																	<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
-																</svg>
+															<div className='h-4 w-4 rounded-full bg-stone-800 flex items-center justify-center flex-shrink-0'>
+																<Check className='h-2.5 w-2.5 text-white' />
 															</div>
 														)}
 													</div>
 												</button>
 											))}
 										</div>
-										{/* Always visible Add New Address button */}
 										<button
 											onClick={() => {
 												setShowAddressForm(true);
 												setShowAddressDropdown(false);
 											}}
-											className='w-full flex items-center justify-center gap-2 p-4 text-stone-700 hover:bg-stone-50 transition-colors border-t border-stone-200 flex-shrink-0'
+											className='w-full flex items-center justify-center gap-2 p-3 text-sm text-stone-700 hover:bg-stone-50 transition-colors border-t border-stone-200 flex-shrink-0'
 										>
-											<Plus size={18} />
+											<Plus size={16} />
 											Add New Address
 										</button>
 									</div>
@@ -413,20 +486,20 @@ const OrderSummary = () => {
 						) : (
 							<button
 								onClick={() => setShowAddressForm(true)}
-								className='w-full flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-stone-300 bg-stone-50 px-5 py-4 text-sm font-medium text-stone-700 hover:bg-stone-100 transition-colors'
+								className='w-full flex items-center justify-center gap-2 rounded-lg bg-stone-800 text-white px-4 py-3 text-sm font-medium hover:bg-stone-700 transition-colors'
 							>
-								<Plus size={20} />
+								<Plus size={18} />
 								Add Delivery Address
 							</button>
 						)}
 					</div>
 				)}
 
-				{/* Item Breakdown */}
-				<div className='space-y-2'>
-					<p className='text-sm font-semibold text-stone-700'>Items in your order:</p>
+				{/* Order Items */}
+				<div className='space-y-2 pt-2'>
+					<p className='text-sm font-medium text-stone-700'>Your order</p>
 					{cart.map((item) => (
-						<div key={item._id} className='flex items-center justify-between gap-3 pb-2 border-b border-stone-200'>
+						<div key={item._id} className='flex items-center justify-between gap-3 py-2 border-b border-stone-100'>
 							<div className='flex items-center gap-2 flex-1'>
 								<img 
 									src={item.image} 
@@ -434,8 +507,8 @@ const OrderSummary = () => {
 									className='w-10 h-10 rounded object-cover flex-shrink-0'
 								/>
 								<div className='flex-1 min-w-0'>
-									<p className='text-xs text-stone-700 truncate'>{item.name}</p>
-									<p className='text-xs text-stone-500'>Qty: {item.quantity}</p>
+									<p className='text-xs text-stone-800 truncate'>{item.name}</p>
+									<p className='text-xs text-stone-500'>×{item.quantity}</p>
 								</div>
 							</div>
 							<div className='flex flex-col items-end flex-shrink-0'>
@@ -448,69 +521,79 @@ const OrderSummary = () => {
 					))}
 				</div>
 
-				<div className='space-y-2'>
+				{/* Pricing Summary */}
+				<div className='space-y-2 pt-2'>
 					<dl className='flex items-center justify-between gap-4'>
-						<dt className='text-base font-normal text-stone-700'>Price</dt>
-						<dd className='text-base font-medium text-stone-900'>₹{formattedSubtotal}</dd>
+						<dt className='text-sm text-stone-600'>Subtotal</dt>
+						<dd className='text-sm font-medium text-stone-900'>₹{formattedSubtotal}</dd>
 					</dl>
 
 					{savings > 0 && (
 						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Savings</dt>
-							<dd className='text-base font-medium text-stone-900'>-₹{formattedSavings}</dd>
+							<dt className='text-sm text-stone-600'>Savings</dt>
+							<dd className='text-sm font-medium text-green-600'>-₹{formattedSavings}</dd>
 						</dl>
 					)}
-				{loadingPricing ? (
-					<dl className='flex items-center justify-between gap-4'>
-						<dt className='text-base font-normal text-stone-700'>Calculating charges...</dt>
-						<dd className='text-base font-medium text-stone-900'>...</dd>
-					</dl>
-				) : pricingBreakdown ? (
-					<>
+
+					{loadingPricing ? (
 						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Delivery Charges</dt>
-							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
+							<dt className='text-sm text-stone-500'>Calculating...</dt>
+							<dd className='text-sm text-stone-500'>...</dd>
 						</dl>
-						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Platform Fee</dt>
-							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
-						</dl>
-					</>
-				) : null}
-					<dl className='flex items-center justify-between gap-4 border-t border-stone-300 pt-2'>
+					) : pricingBreakdown ? (
+						<>
+							<dl className='flex items-center justify-between gap-4'>
+								<dt className='text-sm text-stone-600'>Delivery</dt>
+								<dd className='text-sm font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
+							</dl>
+							<dl className='flex items-center justify-between gap-4'>
+								<dt className='text-sm text-stone-600'>Platform Fee</dt>
+								<dd className='text-sm font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
+							</dl>
+						</>
+					) : null}
+
+					<dl className='flex items-center justify-between gap-4 border-t border-stone-200 pt-3'>
 						<dt className='text-base font-bold text-stone-900'>Total</dt>
 						<dd className='text-base font-bold text-stone-900'>₹{formattedTotal}</dd>
 					</dl>
 				</div>
 
+				{/* Pay Button - Always enabled, will prompt for login/address if needed */}
 				<motion.button
-					className='flex w-full items-center justify-center rounded-lg bg-stone-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:opacity-50 disabled:cursor-not-allowed'
-					whileHover={{ scale: isProcessing ? 1 : 1.05 }}
-					whileTap={{ scale: isProcessing ? 1 : 0.95 }}
+					className={`flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-medium transition-colors ${
+						isProcessing
+							? 'bg-stone-400 text-white cursor-not-allowed'
+							: 'bg-stone-800 text-white hover:bg-stone-700'
+					}`}
+					whileHover={{ scale: !isProcessing ? 1.02 : 1 }}
+					whileTap={{ scale: !isProcessing ? 0.98 : 1 }}
 					onClick={handlePlaceOrder}
 					disabled={isProcessing}
 				>
-					{isProcessing ? "Processing..." : "Buy"}
+					{isProcessing ? "Processing..." : "Pay Now"}
 				</motion.button>
 
 				<div className='flex items-center justify-center gap-2'>
-					<span className='text-sm font-normal text-stone-600'>or</span>
 					<Link
 						to='/'
-						className='inline-flex items-center gap-2 text-sm font-medium text-stone-800 underline hover:text-stone-700 hover:no-underline'
+						className='inline-flex items-center gap-1 text-sm text-stone-600 hover:text-stone-800'
 					>
-						Continue Shopping
-						<MoveRight size={16} />
+						← Continue Shopping
 					</Link>
 				</div>
 			</div>
 			
-			<PhoneAuthModal 
-				isOpen={showPhoneAuth} 
-				onClose={() => setShowPhoneAuth(false)}
-				onSuccess={handleAuthSuccess}
+			<LoginPromptModal
+				isOpen={showLoginPrompt}
+				onClose={() => setShowLoginPrompt(false)}
+				onSuccess={handleGoogleSuccess}
+				onError={handleGoogleError}
+				isLoading={isSigningIn}
+				title="Sign in to continue"
+				description="Please sign in with your Google account to complete your order."
 			/>
-			
+
 			<AddressModal
 				isOpen={showAddressForm}
 				onClose={() => setShowAddressForm(false)}
@@ -529,4 +612,5 @@ const OrderSummary = () => {
 		</motion.div>
 	);
 };
+
 export default OrderSummary;

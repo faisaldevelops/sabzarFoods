@@ -51,7 +51,7 @@ const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
 export const getOrdersData = async (req, res) => {
 	try {
 		// Extract filter parameters from query
-		const { phoneNumber, publicOrderId, status, page, limit } = req.query;
+		const { email, addressPhone, publicOrderId, status, page, limit } = req.query;
 		
 		// Pagination parameters
 		const pageNumber = parseInt(page) || 1;
@@ -79,13 +79,12 @@ export const getOrdersData = async (req, res) => {
 			filter.trackingStatus = status;
 		}
 		
-		// Filter by user phone number (not address)
-		if (phoneNumber) {
-			const sanitizedPhone = phoneNumber.replace(/[^0-9+\-\s()]/g, '');
-			if (sanitizedPhone) {
-				// Find user IDs matching phone number
-				const User = mongoose.model('User');
-				const users = await User.find({ phoneNumber: { $regex: sanitizedPhone, $options: 'i' } }, '_id');
+		// Filter by user email
+		if (email) {
+			const sanitizedEmail = email.trim().toLowerCase();
+			if (sanitizedEmail) {
+				// Find user IDs matching email
+				const users = await User.find({ email: { $regex: sanitizedEmail, $options: 'i' } }, '_id');
 				const userIds = users.map(u => u._id);
 				if (userIds.length > 0) {
 					filter.user = { $in: userIds };
@@ -96,6 +95,14 @@ export const getOrdersData = async (req, res) => {
 			}
 		}
 		
+		// Filter by address phone number
+		if (addressPhone) {
+			const sanitizedPhone = addressPhone.replace(/[^0-9+\-\s()]/g, '');
+			if (sanitizedPhone) {
+				filter['address.phoneNumber'] = { $regex: sanitizedPhone, $options: 'i' };
+			}
+		}
+		
 		// Get total count for pagination
 		const totalOrders = await Order.countDocuments(filter);
 		const totalPages = Math.ceil(totalOrders / pageSize);
@@ -103,7 +110,7 @@ export const getOrdersData = async (req, res) => {
 		// Find orders with filters, pagination, and populate the user and product references.
 		// Sort by createdAt in ascending order (oldest first)
 		const orders = await Order.find(filter)
-			.populate('user', 'name email phoneNumber')
+			.populate('user', 'name email')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
@@ -136,7 +143,6 @@ export const getOrdersData = async (req, res) => {
 					userId: order.user._id,
 					name: order.user.name,
 					email: order.user.email,
-					phoneNumber: order.user.phoneNumber,
 				} : null,
 				products,
 				address: order.address,
@@ -240,7 +246,7 @@ export const updateOrderTracking = async (req, res) => {
 		const { orderId } = req.params;
 		const { trackingStatus, trackingNumber, deliveryPartner, estimatedDelivery, note } = req.body;
 
-		const order = await Order.findById(orderId).populate('user', 'phoneNumber');
+		const order = await Order.findById(orderId);
 		if (!order) {
 			return res.status(404).json({ message: "Order not found" });
 		}
@@ -257,9 +263,10 @@ export const updateOrderTracking = async (req, res) => {
 			});
 
 			// Log SMS notification (instead of sending) for shipped and delivered statuses
-			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
+			// Use address phone number since users now use Google OAuth and don't have phone numbers
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.address?.phoneNumber) {
 				// Log SMS instead of sending (asynchronously, don't wait for it to complete)
-				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
+				sendOrderStatusSMS(order.address.phoneNumber, order.publicOrderId, trackingStatus)
 					.catch(error => console.error("[SMS LOG] SMS notification error:", error));
 			}
 		}
@@ -428,7 +435,7 @@ export const getAddressSheet = async (req, res) => {
 		
 		<div class="section">
 			<div class="label">Phone:</div>
-			<div class="value phone">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
+			<div class="value phone">${address.phoneNumber || 'N/A'}</div>
 		</div>
 		
 		<div class="section">
@@ -672,7 +679,7 @@ export const getBulkAddressSheets = async (req, res) => {
 					
 					<div class="section" style="margin-top: 8px;">
 						<div class="value name" style="font-size: 16px;">${address.name || user.name || 'N/A'}</div>
-						<div class="value phone" style="font-size: 14px; font-weight: bold;">${address.phoneNumber || user.phoneNumber || 'N/A'}</div>
+						<div class="value phone" style="font-size: 14px; font-weight: bold;">${address.phoneNumber || 'N/A'}</div>
 					</div>
 					
 					<div class="section">
@@ -890,7 +897,7 @@ export const exportOrdersCSV = async (req, res) => {
 		
 		// Find orders with filters
 		const orders = await Order.find(filter)
-			.populate('user', 'name email phoneNumber')
+			.populate('user', 'name email')
 			.populate({
 				path: 'products.product',
 				select: 'name price category',
@@ -905,8 +912,8 @@ export const exportOrdersCSV = async (req, res) => {
 			'Order ID',
 			'Order Date',
 			'Customer Name',
-			'Customer Phone',
 			'Customer Email',
+			'Address Phone',
 			'Product Name',
 			'Quantity',
 			'Price',
@@ -933,8 +940,8 @@ export const exportOrdersCSV = async (req, res) => {
 					`"${order.publicOrderId || order._id}"`,
 					`"${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
 					`"${user.name || 'N/A'}"`,
-					`"${user.phoneNumber || 'N/A'}"`,
 					`"${user.email || 'N/A'}"`,
+					`"${address.phoneNumber || 'N/A'}"`,
 					'',
 					'',
 					'',
@@ -955,8 +962,8 @@ export const exportOrdersCSV = async (req, res) => {
 						`"${order.publicOrderId || order._id}"`,
 						`"${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
 						`"${user.name || 'N/A'}"`,
-						`"${user.phoneNumber || 'N/A'}"`,
 						`"${user.email || 'N/A'}"`,
+						`"${address.phoneNumber || 'N/A'}"`,
 						`"${prod?.name || 'PRODUCT_REMOVED'}"`,
 						`"${p.quantity}"`,
 						`"${prod?.price || p.price}"`,
@@ -1079,7 +1086,7 @@ export const getOrdersForLabels = async (req, res) => {
 				createdAt: order.createdAt,
 				customer: {
 					name: order.address?.name || order.user?.name || 'N/A',
-					phone: order.address?.phoneNumber || order.user?.phoneNumber || 'N/A',
+					phone: order.address?.phoneNumber || 'N/A',
 					city: order.address?.city || 'N/A',
 					state: order.address?.state || 'N/A',
 					pincode: order.address?.pincode || 'N/A',
@@ -1184,7 +1191,7 @@ export const exportLabelsSummaryCSV = async (req, res) => {
 				`"${order.publicOrderId || order._id}"`,
 				`"${new Date(order.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
 				`"${address.name || user.name || 'N/A'}"`,
-				`"${address.phoneNumber || user.phoneNumber || 'N/A'}"`,
+				`"${address.phoneNumber || 'N/A'}"`,
 				`"${address.city || ''}"`,
 				`"${address.state || ''}"`,
 				`"${address.pincode || ''}"`,
@@ -1364,7 +1371,6 @@ export const createManualOrder = async (req, res) => {
 				platformFee: platformFeeAmount,
 				customer: {
 					name: populatedOrder.user.name,
-					phone: populatedOrder.user.phoneNumber,
 					email: populatedOrder.user.email
 				},
 				products: populatedOrder.products.map(p => ({
