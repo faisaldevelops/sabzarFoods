@@ -279,7 +279,10 @@ const OrderSummaryPage = () => {
 						payments: {
 							name: "Payment Methods",
 							instruments: [
-								{ method: "upi" },
+								{
+									method: "upi",
+									apps: ["google_pay", "phonepe", "paytm"]
+								},
 								{ method: "card" }
 							]
 						}
