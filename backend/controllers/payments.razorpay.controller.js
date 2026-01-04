@@ -164,6 +164,12 @@ export const createRazorpayOrder = async (req, res) => {
 /**
  * Verify Razorpay payment returned by client after Checkout and finalize the order.
  * Uses atomic stock decrement to prevent over-ordering.
+ * 
+ * SECURITY FEATURES:
+ * - Idempotency check: If payment ID was already processed, returns success without re-processing
+ * - Order consistency: Validates localOrderId matches razorpayOrderId to prevent tampering
+ * - Atomic finalization: Uses transactions to prevent race conditions
+ * 
  * Expects: { razorpay_order_id, razorpay_payment_id, razorpay_signature, localOrderId }
  */
 export const verifyRazorpayPayment = async (req, res) => {
@@ -172,6 +178,19 @@ export const verifyRazorpayPayment = async (req, res) => {
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ message: "Missing payment fields" });
+    }
+
+    // IDEMPOTENCY CHECK: Check if this payment was already processed
+    // This prevents double-processing if client retries or webhook also fires
+    const existingOrderWithPayment = await Order.findOne({ razorpayPaymentId: razorpay_payment_id });
+    if (existingOrderWithPayment) {
+      console.log(`Payment ${razorpay_payment_id} already processed for order ${existingOrderWithPayment._id}`);
+      return res.json({
+        success: true,
+        orderId: existingOrderWithPayment._id,
+        publicOrderId: existingOrderWithPayment.publicOrderId,
+        message: "Payment already processed"
+      });
     }
 
     // verify signature using HMAC SHA256
@@ -204,9 +223,24 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    // Check if already paid
+    // ORDER CONSISTENCY CHECK: Ensure localOrderId matches the razorpayOrderId
+    // This prevents potential tampering where someone could try to pay for a different order
+    if (localOrderId && order.razorpayOrderId && order.razorpayOrderId !== razorpay_order_id) {
+      console.warn(`Order ID mismatch: localOrderId ${localOrderId} has razorpayOrderId ${order.razorpayOrderId} but received ${razorpay_order_id}`);
+      return res.status(400).json({
+        success: false,
+        message: "Order verification failed - please try again or contact support"
+      });
+    }
+
+    // Check if already paid (additional check after idempotency)
     if (order.status === "paid") {
-      return res.status(200).json({ success: true, orderId: order._id, message: "Order already paid" });
+      return res.status(200).json({ 
+        success: true, 
+        orderId: order._id, 
+        publicOrderId: order.publicOrderId,
+        message: "Order already paid" 
+      });
     }
 
     // Check if order has expired
@@ -218,24 +252,30 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    // Check if hold is still valid (not expired by time)
-    if (order.expiresAt && new Date() > new Date(order.expiresAt)) {
-      // Mark as expired and release stock
-      order.status = "expired";
-      await order.save();
-      await releaseReservedStock(order.products);
-      
+    // Check if order is cancelled
+    if (order.status === "cancelled") {
       return res.status(400).json({
         success: false,
-        message: "Your order hold has expired. Please try again.",
+        message: "This order has been cancelled.",
         holdExpired: true
       });
     }
 
     // Atomically finalize the order (decrement stock)
-    const finalizeResult = await finalizeOrder(order._id);
+    // Pass razorpay_payment_id for atomic idempotency within the transaction
+    const finalizeResult = await finalizeOrder(order._id, razorpay_payment_id);
 
     if (!finalizeResult.success) {
+      // Check if it was already processed (race condition with another request)
+      if (finalizeResult.message === "Order already paid") {
+        return res.json({
+          success: true,
+          orderId: finalizeResult.order._id,
+          publicOrderId: finalizeResult.order.publicOrderId,
+          message: "Payment verified & order confirmed"
+        });
+      }
+      
       // Finalization failed - return friendly error with options
       return res.status(400).json({
         success: false,
@@ -246,10 +286,7 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
-    // Update with Razorpay payment ID
     const finalizedOrder = finalizeResult.order;
-    finalizedOrder.razorpayPaymentId = razorpay_payment_id;
-    await finalizedOrder.save();
 
     return res.json({ 
       success: true, 
@@ -317,12 +354,17 @@ export const cancelHold = async (req, res) => {
 /**
  * Webhook handler for Razorpay events (recommended as source-of-truth).
  * This route must receive raw body (see server.js change below) and verify webhook signature.
+ * 
+ * SECURITY FEATURES:
+ * - Idempotency: Checks if payment was already processed before finalizing
+ * - Atomic operations: Uses finalizeOrder which has built-in race condition protection
+ * - Handles both payment.captured and payment.authorized events
  */
 export const razorpayWebhook = async (req, res) => {
   try {
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET; // optional, set in Razorpay dashboard & .env
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers["x-razorpay-signature"];
-    const body = req.rawBody || req.body; // raw body set at middleware
+    const body = req.rawBody || req.body;
 
     if (webhookSecret) {
       const expectedSignature = crypto.createHmac("sha256", webhookSecret).update(body).digest("hex");
@@ -333,49 +375,116 @@ export const razorpayWebhook = async (req, res) => {
     }
 
     const event = JSON.parse(body.toString());
-    // handle event types you care about
-    if (event.event === "payment.captured") {
+    const eventType = event.event;
+    
+    // Handle payment success events (both captured and authorized)
+    if (eventType === "payment.captured" || eventType === "payment.authorized") {
       const payment = event.payload.payment.entity;
-      // find order by razorpay order id
-      const order = await Order.findOne({ razorpayOrderId: payment.order_id });
-      if (order) {
-        // Use finalize to atomically update stock
-        if (order.status !== "paid") {
-          const result = await finalizeOrder(order._id);
-          if (result.success) {
-            order.razorpayPaymentId = payment.id;
-            await order.save();
-          } else {
-            console.warn("Webhook: finalize failed for order", order._id, result.error);
-          }
-        }
-      } else {
-        // optionally create order record here (if you didn't create pending before)
-        console.warn("Webhook payment.captured: no local order found for", payment.order_id);
+      const paymentId = payment.id;
+      const razorpayOrderId = payment.order_id;
+      
+      console.log(`Webhook: Received ${eventType} for payment ${paymentId}, order ${razorpayOrderId}`);
+      
+      // IDEMPOTENCY CHECK: Check if this payment was already processed
+      const existingOrderWithPayment = await Order.findOne({ razorpayPaymentId: paymentId });
+      if (existingOrderWithPayment) {
+        console.log(`Webhook: Payment ${paymentId} already processed for order ${existingOrderWithPayment._id}`);
+        return res.json({ status: "ok", message: "already processed" });
       }
-    } else if (event.event === "payment.failed") {
+      
+      // Find order by razorpay order id
+      const order = await Order.findOne({ razorpayOrderId: razorpayOrderId });
+      
+      if (!order) {
+        console.warn(`Webhook ${eventType}: no local order found for razorpay order ${razorpayOrderId}`);
+        // Respond OK to prevent Razorpay from retrying - we'll handle this manually if needed
+        return res.json({ status: "ok", message: "order not found" });
+      }
+      
+      // Check if order is already in a final state
+      if (order.status === "paid") {
+        console.log(`Webhook: Order ${order._id} already paid`);
+        return res.json({ status: "ok", message: "already paid" });
+      }
+      
+      if (order.status === "cancelled" || order.status === "expired") {
+        console.warn(`Webhook: Order ${order._id} is ${order.status}, cannot process payment`);
+        // This is a problematic situation - payment was made but order expired
+        // Log for manual review
+        console.error(`ALERT: Payment ${paymentId} received for ${order.status} order ${order._id}. Manual review required.`);
+        return res.json({ status: "ok", message: "order not eligible" });
+      }
+      
+      // Use atomic finalize to update stock and mark as paid
+      // This handles race conditions with client-side verification
+      const result = await finalizeOrder(order._id, paymentId);
+      
+      if (result.success) {
+        console.log(`Webhook: Successfully finalized order ${order._id} with payment ${paymentId}`);
+      } else if (result.message === "Order already paid") {
+        console.log(`Webhook: Order ${order._id} was already paid (race condition handled)`);
+      } else {
+        console.warn(`Webhook: finalize failed for order ${order._id}:`, result.error);
+        // Don't return error - we've recorded the attempt, manual review may be needed
+      }
+      
+    } else if (eventType === "payment.failed") {
       const payment = event.payload.payment.entity;
-      // find order by razorpay order id
-      const order = await Order.findOne({ razorpayOrderId: payment.order_id });
-      if (order && order.status === "hold") {
-        // Update order status to cancelled
-        order.status = "cancelled";
-        order.trackingStatus = "cancelled";
-        order.trackingHistory.push({
-          status: "cancelled",
-          timestamp: new Date(),
-          note: "Payment failed - order cancelled"
-        });
-        await order.save();
+      const razorpayOrderId = payment.order_id;
+      
+      console.log(`Webhook: Received payment.failed for order ${razorpayOrderId}`);
+      
+      // Find order by razorpay order id
+      // Use atomic update to prevent race conditions
+      const order = await Order.findOneAndUpdate(
+        { 
+          razorpayOrderId: razorpayOrderId,
+          status: { $in: ["hold", "pending", "processing_payment"] } // Only update if in these states
+        },
+        {
+          $set: {
+            status: "cancelled",
+            trackingStatus: "cancelled"
+          },
+          $push: {
+            trackingHistory: {
+              status: "cancelled",
+              timestamp: new Date(),
+              note: `Payment failed - ${payment.error_description || "order cancelled"}`
+            }
+          }
+        },
+        { new: true }
+      );
+      
+      if (order) {
         // Release reserved stock
         await releaseReservedStock(order.products);
+        console.log(`Webhook: Cancelled order ${order._id} and released stock due to payment failure`);
+      } else {
+        // Order might already be paid, expired, or cancelled - that's fine
+        console.log(`Webhook: No eligible order found to cancel for razorpay order ${razorpayOrderId}`);
+      }
+      
+    } else if (eventType === "order.paid") {
+      // This is a backup event that fires when an order is fully paid
+      const orderData = event.payload.order.entity;
+      const razorpayOrderId = orderData.id;
+      
+      console.log(`Webhook: Received order.paid for ${razorpayOrderId}`);
+      
+      // Check if order exists and is not yet paid
+      const order = await Order.findOne({ razorpayOrderId: razorpayOrderId });
+      if (order && order.status !== "paid") {
+        console.warn(`Webhook order.paid: Order ${order._id} not marked as paid, may need manual review`);
       }
     }
 
-    // respond quickly
+    // Respond quickly to acknowledge receipt
     res.json({ status: "ok" });
   } catch (err) {
-    console.error("razorpayWebhook:", err);
+    console.error("razorpayWebhook error:", err);
+    // Return 500 so Razorpay will retry the webhook
     res.status(500).send("server error");
   }
 };
