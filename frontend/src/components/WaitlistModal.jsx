@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { X, MessageCircle } from "lucide-react";
+import { X, Mail } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useUserStore } from "../stores/useUserStore";
 
 const WaitlistModal = ({ isOpen, onClose, product }) => {
 	const { user } = useUserStore();
-	const [phoneNumber, setPhoneNumber] = useState("");
+	const [email, setEmail] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	if (!isOpen) return null;
@@ -14,20 +14,20 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 		
-		// Use logged-in user's phone number if available, otherwise use input
-		const userPhoneNumber = user?.phoneNumber;
-		const finalPhoneNumber = userPhoneNumber || phoneNumber;
+		// Use logged-in user's email if available, otherwise use input
+		const userEmail = user?.email;
+		const finalEmail = userEmail || email;
 		
-		if (!finalPhoneNumber) {
-			toast.error("Please enter your phone number");
+		if (!finalEmail) {
+			toast.error("Please enter your email");
 			return;
 		}
 
-		// Phone validation (10 digits for Indian numbers) - only validate if not using user's phone
-		if (!userPhoneNumber) {
-			const cleanedPhone = phoneNumber.replace(/[\s\-\(\)\+]/g, "");
-			if (!/^\d{10}$/.test(cleanedPhone)) {
-				toast.error("Please enter a valid 10-digit phone number");
+		// Email validation - only validate if not using user's email
+		if (!userEmail) {
+			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+			if (!emailRegex.test(email)) {
+				toast.error("Please enter a valid email address");
 				return;
 			}
 		}
@@ -35,9 +35,8 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 		setIsSubmitting(true);
 
 		try {
-			const cleanedPhone = userPhoneNumber || phoneNumber.replace(/[\s\-\(\)\+]/g, "");
 			const response = await axios.post(`/products/${product._id}/waitlist`, {
-				phoneNumber: cleanedPhone
+				email: finalEmail
 			});
 
 			if (response.data.success) {
@@ -46,7 +45,7 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 				} else {
 					toast.success(`✅ ${response.data.message}`);
 				}
-				setPhoneNumber("");
+				setEmail("");
 				onClose();
 			}
 		} catch (error) {
@@ -73,48 +72,47 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 				<div className="mb-6">
 					<div className="flex items-center gap-3 mb-2">
 						<div className="bg-emerald-100 p-2 rounded-full">
-							<MessageCircle className="text-emerald-600" size={24} />
+							<Mail className="text-emerald-600" size={24} />
 						</div>
 						<h2 className="text-2xl font-bold text-gray-900">
 							Notify Me
 						</h2>
 					</div>
 					<p className="text-gray-600">
-						Get notified on WhatsApp when <span className="font-semibold">{product.name}</span> is back in stock
+						Get notified when <span className="font-semibold">{product.name}</span> is back in stock
 					</p>
 				</div>
 
 				{/* Form */}
 				<form onSubmit={handleSubmit}>
-					{/* WhatsApp notification option */}
+					{/* Email notification option */}
 					<div className="mb-4">
 						<div className="flex items-center gap-3 p-4 rounded-md border-2 border-emerald-500 bg-emerald-50">
-							<MessageCircle className="text-emerald-600" size={24} />
+							<Mail className="text-emerald-600" size={24} />
 							<div className="flex-1">
-								<div className="font-medium text-emerald-700">WhatsApp Notification</div>
+								<div className="font-medium text-emerald-700">Email Notification</div>
 								<div className="text-sm text-emerald-600">
-									{user ? `We'll notify ${user.phoneNumber}` : "Enter your number to get notified"}
+									{user ? `We'll notify ${user.email}` : "Enter your email to get notified"}
 								</div>
 							</div>
 						</div>
 					</div>
 
-					{/* Phone input - only show if user is not logged in */}
+					{/* Email input - only show if user is not logged in */}
 					{!user && (
 						<div className="mb-4">
-							<label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-								Phone Number
+							<label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+								Email Address
 							</label>
 							<input
-								type="tel"
-								id="phone"
-								value={phoneNumber}
-								onChange={(e) => setPhoneNumber(e.target.value)}
-								placeholder="1234567890"
+								type="email"
+								id="email"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								placeholder="you@example.com"
 								className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
 								required
 							/>
-							<p className="mt-1 text-xs text-gray-500">Enter 10-digit mobile number (without +91)</p>
 						</div>
 					)}
 
@@ -141,7 +139,7 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 								</>
 							) : (
 								<>
-									<MessageCircle size={18} />
+									<Mail size={18} />
 									Notify Me
 								</>
 							)}
@@ -151,7 +149,7 @@ const WaitlistModal = ({ isOpen, onClose, product }) => {
 
 				{/* Privacy note */}
 				<p className="mt-4 text-xs text-gray-500 text-center">
-					We'll send you a WhatsApp message when this product is available.
+					We'll send you an email when this product is available.
 				</p>
 			</div>
 		</div>

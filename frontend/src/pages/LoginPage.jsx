@@ -1,286 +1,90 @@
-import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import axios from "../lib/axios";
-import toast from "react-hot-toast";
+import { GoogleLogin } from "@react-oauth/google";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
+import axios from "../lib/axios";
+import toast from "react-hot-toast";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const LoginPage = () => {
-	const [step, setStep] = useState("phone"); // "phone" or "otp"
-	const [phoneNumber, setPhoneNumber] = useState("");
-	const [otp, setOtp] = useState("");
 	const [loading, setLoading] = useState(false);
-	const [resendCooldown, setResendCooldown] = useState(0);
-	const [resendLoading, setResendLoading] = useState(false);
-	const [phoneError, setPhoneError] = useState("");
-	const [otpError, setOtpError] = useState("");
-	const [otpSuccess, setOtpSuccess] = useState("");
 	const { checkAuth } = useUserStore();
 	const { syncGuestCart } = useCartStore();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 
-	const handleSendOTP = async (e) => {
-		e.preventDefault();
-		setPhoneError("");
-		
-		if (!/^\d{10}$/.test(phoneNumber)) {
-			setPhoneError("Please enter a valid 10-digit phone number");
-			return;
-		}
-
+	const handleGoogleSuccess = async (credentialResponse) => {
 		setLoading(true);
 		try {
-			const response = await axios.post("/otp/send", { phoneNumber, isSignup: false });
-			setOtpSuccess("OTP sent successfully");
-			
-			// In development, show OTP in toast
-			if (response.data.otp) {
-				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
-			}
-			
-			setStep("otp");
-			setResendCooldown(60); // Start 60-second cooldown
-			
-			// Clear success message after 3 seconds
-			setTimeout(() => setOtpSuccess(""), 3000);
-		} catch (error) {
-			const errorData = error.response?.data;
-			if (errorData?.reason === "frozen") {
-				setPhoneError(errorData.message);
-			} else {
-				setPhoneError(errorData?.message || "Failed to send OTP");
-			}
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const handleResendOTP = async () => {
-		if (resendCooldown > 0) {
-			return;
-		}
-
-		setResendLoading(true);
-		setOtpError("");
-		setOtpSuccess("");
-		try {
-			const response = await axios.post("/otp/resend", { phoneNumber });
-			setOtpSuccess("OTP resent successfully");
-			
-			// In development, show OTP in toast
-			if (response.data.otp) {
-				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
-			}
-			
-			setResendCooldown(60); // Reset 60-second cooldown
-			
-			// Clear success message after 3 seconds
-			setTimeout(() => setOtpSuccess(""), 3000);
-		} catch (error) {
-			const errorData = error.response?.data;
-			if (errorData?.reason === "cooldown" && errorData?.waitTime) {
-				setOtpError(`Please wait ${errorData.waitTime} seconds before resending`);
-			} else if (errorData?.reason === "limit_reached" && errorData?.resetInMinutes) {
-				setOtpError(`Too many attempts. Try again in ${errorData.resetInMinutes} minute(s)`);
-			} else {
-				setOtpError(errorData?.message || "Failed to resend OTP");
-			}
-		} finally {
-			setResendLoading(false);
-		}
-	};
-
-	// Countdown timer effect
-	useEffect(() => {
-		if (resendCooldown > 0) {
-			const timer = setTimeout(() => {
-				setResendCooldown(resendCooldown - 1);
-			}, 1000);
-			return () => clearTimeout(timer);
-		}
-	}, [resendCooldown]);
-
-	const handleVerifyOTP = async (e) => {
-		e.preventDefault();
-		setOtpError("");
-		setOtpSuccess("");
-		
-		if (!otp || otp.length !== 4) {
-			setOtpError("Please enter the 4-digit OTP");
-			return;
-		}
-
-		setLoading(true);
-		try {
-			const response = await axios.post("/otp/verify", {
-				phoneNumber,
-				otp,
+			await axios.post("/auth/google", {
+				credential: credentialResponse.credential,
 			});
-			
-			setOtpSuccess(response.data.message);
-			
-			// Refresh auth state
+
 			await checkAuth();
-			
-			// Sync guest cart to database after successful login
 			await syncGuestCart();
+
+			toast.success("Welcome!");
+
+			// Redirect to specified page or home
+			const redirect = searchParams.get("redirect") || "/";
+			navigate(redirect);
 		} catch (error) {
-			const errorData = error.response?.data;
-			if (errorData?.reason === "frozen") {
-				setOtpError(errorData.message);
-			} else if (errorData?.remainingAttempts !== undefined) {
-				setOtpError(`Invalid OTP. ${errorData.remainingAttempts} attempt(s) remaining`);
-			} else {
-				setOtpError(errorData?.message || "Failed to verify OTP");
-			}
+			console.error("Login failed:", error);
+			toast.error(error.response?.data?.message || "Login failed. Please try again.");
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	const handleGoogleError = () => {
+		toast.error("Google sign-in failed. Please try again.");
 	};
 
 	return (
-		<div className='min-h-screen flex flex-col justify-center py-12 px-4 bg-stone-50'>
+		<div className="min-h-screen flex flex-col justify-center py-12 px-4 bg-stone-50">
 			<motion.div
-				className='sm:mx-auto sm:w-full sm:max-w-md'
+				className="sm:mx-auto sm:w-full sm:max-w-md"
 				initial={{ opacity: 0, y: -20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.4 }}
 			>
-				<h2 className='text-3xl font-bold text-stone-900 mb-2 tracking-tight'>
-					{step === "phone" ? "Login" : "Verify Code"}
+				<h2 className="text-2xl font-semibold text-stone-900 mb-2 tracking-tight text-center">
+					Welcome
 				</h2>
-				<p className='text-sm text-stone-600 font-light'>
-					{step === "phone" ? "Enter your phone number to continue" : `Code sent to +91${phoneNumber}`}
+				<p className="text-sm text-stone-600 text-center">
+					Sign in to continue
 				</p>
 			</motion.div>
 
 			<motion.div
-				className='mt-8 sm:mx-auto sm:w-full sm:max-w-md'
+				className="mt-6 sm:mx-auto sm:w-full sm:max-w-md"
 				initial={{ opacity: 0, y: 20 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ duration: 0.4, delay: 0.1 }}
 			>
-				<div className='bg-white py-8 px-6 shadow-lg rounded-lg border border-stone-200'>
-					{step === "phone" ? (
-						<form onSubmit={handleSendOTP} className='space-y-6'>
-							<div>
-								<label htmlFor='phoneNumber' className='block text-sm font-medium text-stone-700 mb-2'>
-									Phone Number
-								</label>
-								<input
-									id='phoneNumber'
-									type='tel'
-									required
-									value={phoneNumber}
-									onChange={(e) => {
-										setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10));
-										setPhoneError("");
-									}}
-									className={`block w-full px-4 py-3 bg-white border rounded-md
-									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:border-transparent
-									sm:text-sm transition-all ${phoneError ? 'border-red-500 focus:ring-red-500' : 'border-stone-300 focus:ring-stone-800'}`}
-									placeholder='10-digit mobile number'
-								/>
-								{phoneError && (
-									<p className='mt-2 text-sm text-red-600'>{phoneError}</p>
-								)}
+				<div className="bg-white py-8 px-6 shadow-sm rounded-lg border border-stone-200">
+					<div className="flex flex-col items-center">
+						{loading ? (
+							<div className="flex items-center justify-center py-4">
+								<div className="w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin" />
+								<span className="ml-3 text-sm text-stone-600">Signing in...</span>
 							</div>
-
-							<button
-								type='submit'
-								className='w-full flex justify-center items-center py-3 px-4 rounded-md
-								text-sm font-medium text-white bg-stone-800
-								hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-stone-800
-								transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm'
-								disabled={loading}
-							>
-								{loading ? 'Sending...' : 'Send Code'}
-							</button>
-						</form>
-					) : (
-						<form onSubmit={handleVerifyOTP} className='space-y-6'>
-							<div>
-								<label htmlFor='otp' className='block text-sm font-medium text-stone-700 mb-2'>
-									Verification Code
-								</label>
-								<input
-									id='otp'
-									type='text'
-									required
-									value={otp}
-									onChange={(e) => {
-										setOtp(e.target.value.replace(/\D/g, "").slice(0, 4));
-										setOtpError("");
-										setOtpSuccess("");
-									}}
-									className={`block w-full px-4 py-3 bg-white border rounded-md
-									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:border-transparent
-									sm:text-sm text-center text-lg font-mono tracking-widest transition-all ${otpError ? 'border-red-500 focus:ring-red-500' : otpSuccess ? 'border-green-500 focus:ring-green-500' : 'border-stone-300 focus:ring-stone-800'}`}
-									placeholder='0000'
-									maxLength={4}
-								/>
-								{otpError && (
-									<p className='mt-2 text-sm text-red-600'>{otpError}</p>
-								)}
-								{otpSuccess && (
-									<p className='mt-2 text-sm text-green-600'>{otpSuccess}</p>
-								)}
-							</div>
-
-							<button
-								type='submit'
-								className='w-full flex justify-center items-center py-3 px-4 rounded-md
-								text-sm font-medium text-white bg-stone-800
-								hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-stone-800
-								transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm'
-								disabled={loading}
-							>
-								{loading ? 'Verifying...' : 'Verify & Login'}
-							</button>
-
-							<div className='flex items-center justify-between'>
-								<button
-									type="button"
-									onClick={() => {
-										setStep("phone");
-										setOtp("");
-										setResendCooldown(0);
-									}}
-									className="text-sm text-stone-600 hover:text-stone-900 transition-colors py-2 font-medium"
-									disabled={loading || resendLoading}
-								>
-									← Change phone number
-								</button>
-
-								<button
-									type="button"
-									onClick={handleResendOTP}
-									className="text-sm text-stone-800 hover:text-stone-900 transition-colors py-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-									disabled={loading || resendLoading || resendCooldown > 0}
-								>
-									{resendLoading ? (
-										"Sending..."
-									) : resendCooldown > 0 ? (
-										`Resend in ${resendCooldown}s`
-									) : (
-										"Resend Code"
-									)}
-								</button>
-							</div>
-						</form>
-					)}
-
-					<div className='mt-6 text-center'>
-						<p className='text-sm text-stone-600'>
-							Don't have an account?{" "}
-							<Link to='/signup' className='text-stone-900 font-medium hover:underline'>
-								Sign up
-							</Link>
-						</p>
+						) : (
+							<GoogleLogin
+								onSuccess={handleGoogleSuccess}
+								onError={handleGoogleError}
+								theme="outline"
+								size="large"
+								text="continue_with"
+								shape="rectangular"
+							/>
+						)}
 					</div>
 				</div>
 			</motion.div>
 		</div>
 	);
 };
+
 export default LoginPage;

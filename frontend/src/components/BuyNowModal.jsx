@@ -2,16 +2,12 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { X, Plus, Minus, ShoppingBag } from "lucide-react";
 import toast from "react-hot-toast";
-import { useUserStore } from "../stores/useUserStore";
 import { useNavigate } from "react-router-dom";
-import PhoneAuthModal from "./PhoneAuthModal";
 
-const MAX_QUANTITY_PER_ITEM = 5; // Maximum quantity allowed per item
+const MAX_QUANTITY_PER_ITEM = 5;
 
 const BuyNowModal = ({ isOpen, onClose, product }) => {
   const [quantity, setQuantity] = useState(1);
-  const [showPhoneAuth, setShowPhoneAuth] = useState(false);
-  const { user } = useUserStore();
   const navigate = useNavigate();
 
   const handleIncrement = () => {
@@ -40,20 +36,7 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
     };
     localStorage.setItem("pendingBuyNowOrder", JSON.stringify(orderData));
 
-    if (!user) {
-      // Show phone auth modal - user will be redirected after login
-      setShowPhoneAuth(true);
-      return;
-    }
-
-    // User is authenticated, navigate to order summary page
-    handleClose();
-    navigate("/order-summary");
-  };
-
-  const handleAuthSuccess = async () => {
-    // Close phone auth modal and navigate to order summary page
-    setShowPhoneAuth(false);
+    // Navigate to order summary - sign-in happens inline there if needed
     handleClose();
     navigate("/order-summary");
   };
@@ -68,120 +51,100 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
   const totalPrice = (product.price * quantity).toFixed(2);
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        <motion.div
-          className="absolute inset-0 bg-black/50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={handleClose}
-        />
-        <motion.div
-          className="relative z-10 w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-        >
-          <div className="mb-4 flex items-start justify-between">
-            <h3 className="text-2xl font-bold text-stone-900">
-              Buy Now
-            </h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        className="absolute inset-0 bg-black/50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={handleClose}
+      />
+      <motion.div
+        className="relative z-10 w-full max-w-md rounded-lg border border-stone-200 bg-white p-6 shadow-xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+      >
+        <div className="mb-4 flex items-start justify-between">
+          <h3 className="text-xl font-bold text-stone-900">
+            Buy Now
+          </h3>
+          <button
+            onClick={handleClose}
+            className="text-stone-400 hover:text-stone-900"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Product Info */}
+        <div className="mb-5 flex gap-4">
+          <img 
+            src={product.image} 
+            alt={product.name}
+            className="h-20 w-20 rounded-md object-cover border border-stone-200"
+          />
+          <div className="flex-1">
+            <h4 className="font-medium text-stone-900 line-clamp-2 text-sm">
+              {product.name}
+            </h4>
+            <div className="flex items-baseline gap-2 mt-1">
+              {product.actualPrice && product.actualPrice > product.price && (
+                <span className="text-sm text-stone-400 line-through">
+                  ₹{product.actualPrice}
+                </span>
+              )}
+              <span className="text-lg font-bold text-stone-900">
+                ₹{product.price}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quantity Selector */}
+        <div className="mb-5">
+          <label className="block text-sm font-medium text-stone-700 mb-2">
+            Quantity
+          </label>
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleClose}
-              className="text-stone-400 hover:text-stone-900"
-              disabled={false}
+              onClick={handleDecrement}
+              disabled={quantity <= 1}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-900 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <X size={20} />
+              <Minus size={16} />
+            </button>
+            <span className="text-lg font-semibold text-stone-900 w-10 text-center">
+              {quantity}
+            </span>
+            <button
+              onClick={handleIncrement}
+              disabled={quantity >= product.stockQuantity || quantity >= MAX_QUANTITY_PER_ITEM}
+              className="flex h-9 w-9 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-900 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Plus size={16} />
             </button>
           </div>
+        </div>
 
-          {/* Product Info */}
-          <div className="mb-6 flex gap-4">
-            <img 
-              src={product.image} 
-              alt={product.name}
-              className="h-24 w-24 rounded-md object-cover border border-stone-200"
-            />
-            <div className="flex-1">
-              <h4 className="font-medium text-stone-900 line-clamp-2">
-                {product.name}
-              </h4>
-              <div className="flex items-baseline gap-2 mt-1">
-                {product.actualPrice && product.actualPrice > product.price && (
-                  <span className="text-sm text-stone-400 line-through">
-                    ₹{product.actualPrice}
-                  </span>
-                )}
-                <span className="text-lg font-bold text-stone-900">
-                  ₹{product.price}
-                </span>
-                {product.actualPrice && product.actualPrice > product.price && (
-                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                    {Math.round(((product.actualPrice - product.price) / product.actualPrice) * 100)}% off
-                  </span>
-                )}
-              </div>
-              <p className="text-sm text-stone-600 mt-1">
-                {product.stockQuantity} in stock
-              </p>
-            </div>
-          </div>
+        {/* Total */}
+        <div className="mb-5 flex justify-between items-center py-3 border-t border-stone-200">
+          <span className="text-base font-medium text-stone-700">Total</span>
+          <span className="text-xl font-bold text-stone-900">₹{totalPrice}</span>
+        </div>
 
-          {/* Countdown Timer when hold is active */}
-
-          {/* Quantity Selector */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-stone-700 mb-2">
-              Quantity
-            </label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleDecrement}
-                disabled={quantity <= 1}
-                className="flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-900 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Minus size={16} />
-              </button>
-              <span className="text-xl font-semibold text-stone-900 w-12 text-center">
-                {quantity}
-              </span>
-              <button
-                onClick={handleIncrement}
-                disabled={quantity >= product.stockQuantity}
-                className="flex h-10 w-10 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-900 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Total */}
-          <div className="mb-6 flex justify-between items-center py-3 border-t border-stone-200">
-            <span className="text-lg font-medium text-stone-900">Total:</span>
-            <span className="text-2xl font-bold text-stone-900">₹{totalPrice}</span>
-          </div>
-
-          {/* Proceed Button */}
-          <motion.button
-            onClick={handleProceed}
-            disabled={false}
-            className="w-full rounded-md bg-stone-800 px-6 py-3 text-sm font-medium text-white hover:bg-stone-700 hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <ShoppingBag size={16} />
-            Proceed to Buy
-          </motion.button>
-        </motion.div>
-      </div>
-
-      <PhoneAuthModal 
-        isOpen={showPhoneAuth} 
-        onClose={() => setShowPhoneAuth(false)}
-        onSuccess={handleAuthSuccess}
-      />
-    </>
+        {/* Proceed Button */}
+        <motion.button
+          onClick={handleProceed}
+          className="w-full rounded-md bg-stone-800 px-6 py-3 text-sm font-medium text-white hover:bg-stone-700 transition-colors flex items-center justify-center gap-2"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <ShoppingBag size={16} />
+          Proceed to Checkout
+        </motion.button>
+      </motion.div>
+    </div>
   );
 };
 

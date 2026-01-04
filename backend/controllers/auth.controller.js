@@ -1,9 +1,10 @@
 import { redis } from "../lib/redis.js";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
-import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 
 const isProd = process.env.NODE_ENV === "production";
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateTokens = (userId) => {
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
@@ -23,73 +24,82 @@ const storeRefreshToken = async (userId, refreshToken) => {
 
 const setCookies = (res, accessToken, refreshToken) => {
 	res.cookie("accessToken", accessToken, {
-		httpOnly: true, // prevent XSS attacks, cross site scripting attack
+		httpOnly: true,
 		secure: isProd,
 		sameSite: "lax",
-		domain: isProd ? ".sabzarfoods.in" : undefined, 
+		domain: isProd ? ".sabzarfoods.in" : undefined,
 		maxAge: 60 * 24 * 60 * 60 * 1000, // 60 days
 	});
 	res.cookie("refreshToken", refreshToken, {
-		httpOnly: true, // prevent XSS attacks, cross site scripting attack
+		httpOnly: true,
 		secure: isProd,
 		sameSite: "lax",
-		domain: isProd ? ".sabzarfoods.in" : undefined, 
+		domain: isProd ? ".sabzarfoods.in" : undefined,
 		path: "/api/auth/refresh-token",
 		maxAge: 60 * 24 * 60 * 60 * 1000, // 60 days
 	});
 };
 
-export const signup = async (req, res) => {
-	const { email, password, name } = req.body;
+export const googleAuth = async (req, res) => {
 	try {
-		const userExists = await User.findOne({ email });
+		const { credential } = req.body;
 
-		if (userExists) {
-			return res.status(400).json({ message: "User already exists" });
+		if (!credential) {
+			return res.status(400).json({ message: "Google credential is required" });
 		}
-		const user = await User.create({ name, email, password });
 
-		// authenticate
+		// Verify the Google ID token
+		const ticket = await googleClient.verifyIdToken({
+			idToken: credential,
+			audience: process.env.GOOGLE_CLIENT_ID,
+		});
+
+		const payload = ticket.getPayload();
+		const { sub: googleId, email, name, picture } = payload;
+
+		// Find or create user
+		let user = await User.findOne({ googleId });
+
+		if (!user) {
+			// Check if user exists with same email
+			user = await User.findOne({ email });
+			if (user) {
+				// Link Google account to existing user
+				user.googleId = googleId;
+				user.picture = picture;
+				await user.save();
+			} else {
+				// Create new user
+				user = await User.create({
+					googleId,
+					email,
+					name,
+					picture,
+				});
+			}
+		} else {
+			// Update picture if changed
+			if (user.picture !== picture) {
+				user.picture = picture;
+				await user.save();
+			}
+		}
+
+		// Generate tokens and set cookies
 		const { accessToken, refreshToken } = generateTokens(user._id);
 		await storeRefreshToken(user._id, refreshToken);
-
 		setCookies(res, accessToken, refreshToken);
 
-		res.status(201).json({
+		res.json({
 			_id: user._id,
 			name: user.name,
 			email: user.email,
+			picture: user.picture,
 			role: user.role,
 		});
 	} catch (error) {
-		console.log("Error in signup controller", error.message);
-		res.status(500).json({ message: error.message });
-	}
-};
-
-export const login = async (req, res) => {
-	try {
-		const { email, password } = req.body;
-		// Include password field explicitly since it has select: false in the schema
-		const user = await User.findOne({ email }).select('+password');
-
-		if (user && (await user.comparePassword(password))) {
-			const { accessToken, refreshToken } = generateTokens(user._id);
-			await storeRefreshToken(user._id, refreshToken);
-			setCookies(res, accessToken, refreshToken);
-
-			res.json({
-				_id: user._id,
-				name: user.name,
-				email: user.email,
-				role: user.role,
-			});
-		} else {
-			res.status(400).json({ message: "Invalid email or password" });
-		}
-	} catch (error) {
-		console.log("Error in login controller", error.message);
-		res.status(500).json({ message: error.message });
+		console.log("Error in googleAuth controller", error.message);
+		res.status(500).json({ message: "Authentication failed" });
 	}
 };
 
@@ -105,14 +115,14 @@ export const logout = async (req, res) => {
 			httpOnly: true,
 			secure: isProd,
 			domain: isProd ? ".sabzarfoods.in" : undefined,
-			sameSite: isProd ? "none" : "lax"
+			sameSite: isProd ? "none" : "lax",
 		});
 		res.clearCookie("refreshToken", {
 			httpOnly: true,
 			secure: isProd,
 			domain: isProd ? ".sabzarfoods.in" : undefined,
 			sameSite: isProd ? "none" : "lax",
-			path: "/api/auth/refresh-token"
+			path: "/api/auth/refresh-token",
 		});
 		res.json({ message: "Logged out successfully" });
 	} catch (error) {
@@ -121,7 +131,6 @@ export const logout = async (req, res) => {
 	}
 };
 
-// this will refresh the access token
 export const refreshToken = async (req, res) => {
 	try {
 		const refreshToken = req.cookies.refreshToken;
@@ -161,58 +170,5 @@ export const getProfile = async (req, res) => {
 	}
 };
 
-export const createGuestUser = async (req, res) => {
-	const { phoneNumber, email, name } = req.body;
-	try {
-		if (!phoneNumber || !name) {
-			return res.status(400).json({ message: "Phone number and name are required" });
-		}
-
-		// Check if user already exists with this phone number
-		let user = await User.findOne({ phoneNumber });
-		
-		if (user) {
-			// User already exists, return existing user
-			const { accessToken, refreshToken } = generateTokens(user._id);
-			await storeRefreshToken(user._id, refreshToken);
-			setCookies(res, accessToken, refreshToken);
-			
-			return res.status(200).json({
-				_id: user._id,
-				name: user.name,
-				email: user.email,
-				phoneNumber: user.phoneNumber,
-				role: user.role,
-				isGuest: user.isGuest,
-			});
-		}
-
-		// Create new guest user
-		user = await User.create({ 
-			name, 
-			phoneNumber,
-			email: email || undefined,
-			isGuest: true,
-		});
-
-		// Authenticate guest user
-		const { accessToken, refreshToken } = generateTokens(user._id);
-		await storeRefreshToken(user._id, refreshToken);
-		setCookies(res, accessToken, refreshToken);
-
-		res.status(201).json({
-			_id: user._id,
-			name: user.name,
-			email: user.email,
-			phoneNumber: user.phoneNumber,
-			role: user.role,
-			isGuest: user.isGuest,
-		});
-	} catch (error) {
-		console.log("Error in createGuestUser controller", error.message);
-		res.status(500).json({ message: error.message });
-	}
-};
-
-// Export helper functions for OTP controller
+// Export helper functions for potential use elsewhere
 export { generateTokens, storeRefreshToken, setCookies };

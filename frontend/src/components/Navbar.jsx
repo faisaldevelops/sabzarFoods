@@ -1,4 +1,4 @@
-import { Home, ShoppingCart, User, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react";
+import { Home, ShoppingCart, User, LogOut, LogIn, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
