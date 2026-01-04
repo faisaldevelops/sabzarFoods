@@ -15,6 +15,7 @@ import {
 } from "../lib/stockHold.js";
 import { calculatePricingBreakdown } from "../lib/pricing.js";
 import { validateIndianAddress } from "../lib/addressValidation.js";
+import { sendOrderConfirmation } from "../lib/ses.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -288,6 +289,11 @@ export const verifyRazorpayPayment = async (req, res) => {
 
     const finalizedOrder = finalizeResult.order;
 
+    // Send order confirmation email (async, don't wait)
+    sendOrderConfirmationEmail(finalizedOrder).catch(err => 
+      console.error("[Email] Failed to send order confirmation:", err.message)
+    );
+
     return res.json({ 
       success: true, 
       orderId: finalizedOrder._id, 
@@ -299,6 +305,63 @@ export const verifyRazorpayPayment = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
+
+/**
+ * Helper function to send order confirmation email
+ * Extracts customer email from order (user email or address email)
+ */
+async function sendOrderConfirmationEmail(order) {
+  try {
+    // Populate order if needed
+    const populatedOrder = await Order.findById(order._id)
+      .populate('user', 'name email')
+      .populate({
+        path: 'products.product',
+        select: 'name price image'
+      })
+      .lean();
+    
+    if (!populatedOrder) {
+      console.warn("[Email] Order not found for confirmation email");
+      return;
+    }
+    
+    // Get customer email - try user email first, then address email
+    const customerEmail = populatedOrder.user?.email || populatedOrder.address?.email;
+    
+    if (!customerEmail) {
+      console.log("[Email] No email found for order confirmation - skipping");
+      return;
+    }
+    
+    // Prepare products data
+    const products = (populatedOrder.products || []).map(p => ({
+      name: p.product?.name || 'Product',
+      price: p.price || p.product?.price || 0,
+      quantity: p.quantity || 1,
+      image: p.product?.image
+    }));
+    
+    const result = await sendOrderConfirmation({
+      email: customerEmail,
+      customerName: populatedOrder.address?.name || populatedOrder.user?.name || 'Customer',
+      orderId: populatedOrder.publicOrderId,
+      products,
+      totalAmount: populatedOrder.totalAmount,
+      address: populatedOrder.address,
+      deliveryFee: populatedOrder.deliveryFee || 0,
+      platformFee: populatedOrder.platformFee || 0,
+    });
+    
+    if (result.success) {
+      console.log(`[Email] Order confirmation sent to ${customerEmail} for order ${populatedOrder.publicOrderId}`);
+    } else {
+      console.warn(`[Email] Failed to send order confirmation: ${result.error}`);
+    }
+  } catch (error) {
+    console.error("[Email] Error sending order confirmation:", error.message);
+  }
+}
 
 /**
  * Get hold order status including time remaining
@@ -421,6 +484,10 @@ export const razorpayWebhook = async (req, res) => {
       
       if (result.success) {
         console.log(`Webhook: Successfully finalized order ${order._id} with payment ${paymentId}`);
+        // Send order confirmation email (async, don't wait)
+        sendOrderConfirmationEmail(result.order).catch(err => 
+          console.error("[Webhook Email] Failed to send order confirmation:", err.message)
+        );
       } else if (result.message === "Order already paid") {
         console.log(`Webhook: Order ${order._id} was already paid (race condition handled)`);
       } else {

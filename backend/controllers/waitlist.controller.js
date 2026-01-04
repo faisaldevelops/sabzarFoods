@@ -1,5 +1,6 @@
 import { redis } from "../lib/redis.js";
 import Product from "../models/product.model.js";
+import { sendWaitlistNotification } from "../lib/ses.js";
 
 // TTL for waitlist entries (30 days in seconds)
 const WAITLIST_TTL = 30 * 24 * 60 * 60;
@@ -142,7 +143,7 @@ export const getWaitlist = async (req, res) => {
 
 /**
  * Notify waitlist users when product is back in stock
- * Logs notifications (email service integration can be added later)
+ * Sends email notifications via Amazon SES
  */
 export const notifyWaitlist = async (productId) => {
 	try {
@@ -171,21 +172,48 @@ export const notifyWaitlist = async (productId) => {
 		console.log(`📧 Notifying ${waitlist.length} users about ${product.name} being back in stock`);
 		
 		let notifiedCount = 0;
+		let failedCount = 0;
 
-		// Log email notifications (email service integration can be added later)
-		for (const user of waitlist) {
+		// Send email notifications via Amazon SES
+		const emailPromises = waitlist.map(async (user) => {
 			if (user.email) {
-				// Log the notification - in production, integrate with email service like SendGrid
-				console.log(`  📧 Would send email to ${user.email}: ${product.name} is back in stock!`);
-				notifiedCount++;
+				try {
+					const result = await sendWaitlistNotification(
+						user.email,
+						product.name,
+						productId
+					);
+					if (result.success) {
+						console.log(`  ✅ Email sent to ${user.email}`);
+						return { success: true, email: user.email };
+					} else {
+						console.log(`  ❌ Failed to send email to ${user.email}: ${result.error}`);
+						return { success: false, email: user.email, error: result.error };
+					}
+				} catch (error) {
+					console.error(`  ❌ Error sending email to ${user.email}:`, error.message);
+					return { success: false, email: user.email, error: error.message };
+				}
 			}
-		}
+			return { success: false, email: null };
+		});
 
-		// Clear the waitlist after notifying
+		// Wait for all emails to be sent (with some parallelism)
+		const results = await Promise.allSettled(emailPromises);
+		
+		results.forEach(result => {
+			if (result.status === 'fulfilled' && result.value.success) {
+				notifiedCount++;
+			} else {
+				failedCount++;
+			}
+		});
+
+		// Clear the waitlist after notifying (even if some failed)
 		await redis.del(waitlistKey);
 
-		console.log(`✓ Notified ${notifiedCount} users`);
-		return { success: true, notified: notifiedCount };
+		console.log(`✓ Notified ${notifiedCount} users, ${failedCount} failed`);
+		return { success: true, notified: notifiedCount, failed: failedCount };
 	} catch (error) {
 		console.error("Error notifying waitlist:", error);
 		return { success: false, error: error.message };

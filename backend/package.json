@@ -13,6 +13,7 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"@aws-sdk/client-ses": "^3.700.0",
 		"bcryptjs": "^2.4.3",
 		"body-parser": "^2.2.0",
 		"cloudinary": "^2.4.0",

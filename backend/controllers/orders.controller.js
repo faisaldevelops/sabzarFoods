@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import crypto from "crypto";
 import twilio from "twilio";
 import { getDeliveryType } from "../lib/pricing.js";
+import { sendOrderConfirmation, sendOrderShippedNotification, sendOrderDeliveredNotification } from "../lib/ses.js";
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -44,6 +45,62 @@ const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
 		return { success: true, logged: true };
 	} catch (error) {
 		console.error(`[SMS LOG] Error logging SMS for ${phoneNumber}:`, error.message);
+		return { success: false, reason: error.message };
+	}
+};
+
+// Helper function to send email notification for order status changes
+const sendOrderStatusEmail = async (order, status, options = {}) => {
+	try {
+		// Populate order to get user email if needed
+		const populatedOrder = await Order.findById(order._id)
+			.populate('user', 'name email')
+			.lean();
+		
+		if (!populatedOrder) {
+			console.warn("[Email] Order not found for status email");
+			return { success: false, reason: "Order not found" };
+		}
+		
+		// Get customer email - try user email first, then address email
+		const customerEmail = populatedOrder.user?.email || populatedOrder.address?.email;
+		
+		if (!customerEmail) {
+			console.log(`[Email] No email found for order ${order.publicOrderId} - skipping status notification`);
+			return { success: false, reason: "No email available" };
+		}
+		
+		const customerName = populatedOrder.address?.name || populatedOrder.user?.name || 'Customer';
+		
+		let result;
+		if (status === "shipped") {
+			result = await sendOrderShippedNotification({
+				email: customerEmail,
+				customerName,
+				orderId: populatedOrder.publicOrderId,
+				trackingNumber: options.trackingNumber || populatedOrder.trackingNumber,
+				deliveryPartner: options.deliveryPartner || populatedOrder.deliveryPartner,
+				estimatedDelivery: options.estimatedDelivery || populatedOrder.estimatedDelivery,
+			});
+		} else if (status === "delivered") {
+			result = await sendOrderDeliveredNotification({
+				email: customerEmail,
+				customerName,
+				orderId: populatedOrder.publicOrderId,
+			});
+		} else {
+			return { success: false, reason: "Invalid status for email" };
+		}
+		
+		if (result.success) {
+			console.log(`[Email] ${status} notification sent to ${customerEmail} for order ${populatedOrder.publicOrderId}`);
+		} else {
+			console.warn(`[Email] Failed to send ${status} notification: ${result.error}`);
+		}
+		
+		return result;
+	} catch (error) {
+		console.error(`[Email] Error sending ${status} notification:`, error.message);
 		return { success: false, reason: error.message };
 	}
 };
@@ -268,6 +325,15 @@ export const updateOrderTracking = async (req, res) => {
 				// Log SMS instead of sending (asynchronously, don't wait for it to complete)
 				sendOrderStatusSMS(order.address.phoneNumber, order.publicOrderId, trackingStatus)
 					.catch(error => console.error("[SMS LOG] SMS notification error:", error));
+			}
+
+			// Send email notification for shipped and delivered statuses
+			if (trackingStatus === "shipped" || trackingStatus === "delivered") {
+				sendOrderStatusEmail(order, trackingStatus, {
+					trackingNumber,
+					deliveryPartner,
+					estimatedDelivery
+				}).catch(error => console.error("[Email] Status notification error:", error));
 			}
 		}
 
@@ -1358,6 +1424,32 @@ export const createManualOrder = async (req, res) => {
 				select: 'name price image'
 			})
 			.lean();
+
+		// Send order confirmation email if email is available
+		const orderEmail = customerEmail || populatedOrder.user?.email || populatedOrder.address?.email;
+		if (orderEmail) {
+			sendOrderConfirmation({
+				email: orderEmail,
+				customerName: customerName,
+				orderId: populatedOrder.publicOrderId,
+				products: populatedOrder.products.map(p => ({
+					name: p.product?.name || 'Product',
+					price: p.price,
+					quantity: p.quantity,
+					image: p.product?.image
+				})),
+				totalAmount: totalAmount,
+				address: populatedOrder.address,
+				deliveryFee: deliveryFeeAmount,
+				platformFee: platformFeeAmount,
+			}).then(result => {
+				if (result.success) {
+					console.log(`[Email] Manual order confirmation sent to ${orderEmail}`);
+				}
+			}).catch(err => {
+				console.error('[Email] Failed to send manual order confirmation:', err.message);
+			});
+		}
 
 		res.status(201).json({
 			success: true,
