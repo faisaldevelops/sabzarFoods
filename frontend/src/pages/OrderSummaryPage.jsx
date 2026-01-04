@@ -9,6 +9,7 @@ import { useCartStore } from "../stores/useCartStore";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import AddressModal from "../components/AddressModal";
+import LoginPromptModal from "../components/LoginPromptModal";
 import InsufficientStockModal from "../components/InsufficientStockModal";
 import CountdownTimer from "../components/CountdownTimer";
 import { SHOP_CONFIG, PAYMENT_CONFIG } from "../config/constants";
@@ -20,6 +21,7 @@ const OrderSummaryPage = () => {
 	const [showAddressForm, setShowAddressForm] = useState(false);
 	const [showAddressDropdown, setShowAddressDropdown] = useState(false);
 	const [showInsufficientStock, setShowInsufficientStock] = useState(false);
+	const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 	const [insufficientItems, setInsufficientItems] = useState([]);
 	const [holdInfo, setHoldInfo] = useState(null);
 	const [selectedAddressIndex, setSelectedAddressIndex] = useState(0);
@@ -113,7 +115,14 @@ const OrderSummaryPage = () => {
 			});
 			await checkAuth();
 			await syncGuestCart();
-			await fetchAddresses();
+			const fetchedAddresses = await fetchAddresses();
+			setShowLoginPrompt(false);
+			
+			// After successful login, check if user has addresses
+			// If no addresses, show address form to continue checkout
+			if (!fetchedAddresses || fetchedAddresses.length === 0) {
+				setShowAddressForm(true);
+			}
 		} catch (error) {
 			console.error("Login failed:", error);
 			toast.error(error.response?.data?.message || "Sign in failed. Please try again.");
@@ -127,8 +136,15 @@ const OrderSummaryPage = () => {
 	};
 
 	const handlePlaceOrder = () => {
+		// If user is not logged in, show login prompt
+		if (!user) {
+			setShowLoginPrompt(true);
+			return;
+		}
+
+		// If user is logged in but has no addresses, show address form
 		if (!addresses || addresses.length === 0) {
-			toast.error("Please add a delivery address");
+			setShowAddressForm(true);
 			return;
 		}
 
@@ -565,17 +581,17 @@ const OrderSummaryPage = () => {
 							</dl>
 						</div>
 
-						{/* Pay Button */}
+						{/* Pay Button - Always enabled, will prompt for login/address if needed */}
 						<motion.button
 							className={`flex w-full items-center justify-center rounded-lg px-5 py-3 text-sm font-medium transition-colors ${
-								user && addresses && addresses.length > 0
-									? 'bg-stone-800 text-white hover:bg-stone-700'
-									: 'bg-stone-200 text-stone-400 cursor-not-allowed'
+								isProcessing
+									? 'bg-stone-400 text-white cursor-not-allowed'
+									: 'bg-stone-800 text-white hover:bg-stone-700'
 							}`}
-							whileHover={{ scale: user && addresses?.length > 0 && !isProcessing ? 1.02 : 1 }}
-							whileTap={{ scale: user && addresses?.length > 0 && !isProcessing ? 0.98 : 1 }}
+							whileHover={{ scale: !isProcessing ? 1.02 : 1 }}
+							whileTap={{ scale: !isProcessing ? 0.98 : 1 }}
 							onClick={handlePlaceOrder}
-							disabled={isProcessing || !user || !addresses || addresses.length === 0}
+							disabled={isProcessing}
 						>
 							<ShoppingBag size={16} className="mr-2" />
 							{isProcessing ? "Processing..." : "Pay Now"}
@@ -583,6 +599,16 @@ const OrderSummaryPage = () => {
 					</div>
 				</motion.div>
 			</div>
+
+			<LoginPromptModal
+				isOpen={showLoginPrompt}
+				onClose={() => setShowLoginPrompt(false)}
+				onSuccess={handleGoogleSuccess}
+				onError={handleGoogleError}
+				isLoading={isSigningIn}
+				title="Sign in to continue"
+				description="Please sign in with your Google account to complete your order."
+			/>
 
 			<AddressModal
 				isOpen={showAddressForm}
