@@ -236,15 +236,32 @@ const OrderSummary = () => {
 						setHoldInfo(null);
 					}
 				},
-				prefill: {
-					email: user?.email || "",
-					name: user?.name || address?.name || "",
-					contact: address?.phoneNumber || "",
-				},
-				theme: {
-					color: "#10B981",
-				},
-			};
+			prefill: {
+				email: user?.email || "",
+				name: user?.name || address?.name || "",
+				contact: address?.phoneNumber || "",
+			},
+			theme: {
+				color: "#10B981",
+			},
+			config: {
+				display: {
+					blocks: {
+						payments: {
+							name: "Payment Methods",
+							instruments: [
+								{ method: "upi" },
+								{ method: "card" }
+							]
+						}
+					},
+					sequence: ["block.payments"],
+					preferences: {
+						show_default_blocks: false
+					}
+				}
+			}
+		};
 
 			const rzp = new window.Razorpay(options);
 			rzp.open();

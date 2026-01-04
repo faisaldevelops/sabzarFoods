@@ -251,13 +251,30 @@ const OrderSummaryPage = () => {
 						setHoldInfo(null);
 					}
 				},
-				prefill: {
-					email: user?.email || "",
-					name: user?.name || address?.name || "",
-					contact: address?.phoneNumber || "",
-				},
-				theme: PAYMENT_CONFIG.theme,
-			};
+			prefill: {
+				email: user?.email || "",
+				name: user?.name || address?.name || "",
+				contact: address?.phoneNumber || "",
+			},
+			theme: PAYMENT_CONFIG.theme,
+			config: {
+				display: {
+					blocks: {
+						payments: {
+							name: "Payment Methods",
+							instruments: [
+								{ method: "upi" },
+								{ method: "card" }
+							]
+						}
+					},
+					sequence: ["block.payments"],
+					preferences: {
+						show_default_blocks: false
+					}
+				}
+			}
+		};
 
 			const rzp = new window.Razorpay(options);
 			rzp.open();
