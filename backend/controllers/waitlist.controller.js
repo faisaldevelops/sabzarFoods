@@ -1,16 +1,83 @@
 import { redis } from "../lib/redis.js";
 import Product from "../models/product.model.js";
-import twilio from "twilio";
 
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+// Gupshup WhatsApp configuration
+const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
+const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME;
+const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER;
+const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
-let twilioClient = null;
-if (accountSid && authToken) {
-	twilioClient = twilio(accountSid, authToken);
-}
+const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
+
+/**
+ * Send WhatsApp notification via Gupshup
+ */
+const sendWhatsAppNotification = async (phoneNumber, message, templateName = null, templateParams = []) => {
+	if (!isGupshupConfigured) {
+		console.log(`[DEV MODE] WhatsApp to ${phoneNumber}: ${message}`);
+		return true;
+	}
+
+	try {
+		const formattedPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+		
+		let messagePayload;
+		
+		if (templateName) {
+			// Use template message
+			messagePayload = {
+				type: "template",
+				template: {
+					name: templateName,
+					language: { code: "en" },
+					components: [
+						{
+							type: "body",
+							parameters: templateParams.map(text => ({ type: "text", text }))
+						}
+					]
+				}
+			};
+		} else {
+			// Use text message (only works within 24-hour session window)
+			messagePayload = {
+				type: "text",
+				text: message
+			};
+		}
+
+		const formData = new URLSearchParams();
+		formData.append("channel", "whatsapp");
+		formData.append("source", GUPSHUP_SOURCE_NUMBER);
+		formData.append("destination", formattedPhone);
+		formData.append("message", JSON.stringify(messagePayload));
+		
+		if (GUPSHUP_APP_NAME) {
+			formData.append("src.name", GUPSHUP_APP_NAME);
+		}
+
+		const response = await fetch(GUPSHUP_API_URL, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"apikey": GUPSHUP_API_KEY,
+			},
+			body: formData.toString(),
+		});
+
+		const responseData = await response.json();
+
+		if (response.ok && responseData.status === "submitted") {
+			return true;
+		} else {
+			console.error("Gupshup notification error:", responseData);
+			return false;
+		}
+	} catch (error) {
+		console.error("Error sending WhatsApp notification:", error);
+		return false;
+	}
+};
 
 // TTL for waitlist entries (30 days in seconds)
 const WAITLIST_TTL = 30 * 24 * 60 * 60;
@@ -150,7 +217,7 @@ export const getWaitlist = async (req, res) => {
 
 /**
  * Notify waitlist users when product is back in stock
- * Uses Twilio SMS for notifications (same as OTP flow)
+ * Uses Gupshup WhatsApp for notifications
  */
 export const notifyWaitlist = async (productId) => {
 	try {
@@ -183,26 +250,32 @@ export const notifyWaitlist = async (productId) => {
 		let notifiedCount = 0;
 		let failedCount = 0;
 
-		// Send SMS to each user using Twilio
+		// Send WhatsApp message to each user using Gupshup
 		for (const user of waitlist) {
 			if (user.phoneNumber) {
 				try {
-					if (twilioClient && twilioPhoneNumber) {
-						const message = `Great news! ${product.name} is back in stock. Order now!`;
-						await twilioClient.messages.create({
-							body: message,
-							from: twilioPhoneNumber,
-							to: `+91${user.phoneNumber}`, // Assuming Indian phone numbers
-						});
-						console.log(`  ✓ SMS sent to ${user.phoneNumber}`);
+					const message = `🎉 Great news! ${product.name} is back in stock.\n\nOrder now before it sells out again!`;
+					
+					// Try to send using template (production) or text message (testing)
+					// NOTE: Create a "back_in_stock" template in your Gupshup dashboard
+					const templateName = process.env.GUPSHUP_BACK_IN_STOCK_TEMPLATE || null;
+					
+					const sent = await sendWhatsAppNotification(
+						user.phoneNumber,
+						message,
+						templateName,
+						templateName ? [product.name] : []
+					);
+					
+					if (sent) {
+						console.log(`  ✓ WhatsApp sent to ${user.phoneNumber}`);
 						notifiedCount++;
 					} else {
-						// Development mode - just log
-						console.log(`  📱 Would send SMS to ${user.phoneNumber}: ${product.name} is back in stock!`);
-						notifiedCount++;
+						console.log(`  ✗ Failed to send WhatsApp to ${user.phoneNumber}`);
+						failedCount++;
 					}
 				} catch (error) {
-					console.error(`  ✗ Failed to send SMS to ${user.phoneNumber}:`, error.message);
+					console.error(`  ✗ Failed to notify ${user.phoneNumber}:`, error.message);
 					failedCount++;
 				}
 			}

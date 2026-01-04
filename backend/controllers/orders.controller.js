@@ -3,47 +3,96 @@ import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
-import twilio from "twilio";
 import { getDeliveryType } from "../lib/pricing.js";
 
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+// Gupshup WhatsApp configuration
+const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
+const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME;
+const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER;
+const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
-let twilioClient = null;
-if (accountSid && authToken) {
-	twilioClient = twilio(accountSid, authToken);
-}
+const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
 
-// Helper function to send SMS notification (currently logging instead of sending)
-const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
+// Helper function to send order status notification via WhatsApp
+const sendOrderStatusNotification = async (phoneNumber, orderPublicId, status) => {
 	try {
 		let message = "";
+		let templateName = null;
+		let templateParams = [];
+
 		if (status === "shipped") {
-			message = `Your order #${orderPublicId} has been shipped! Track your order to see delivery updates.`;
+			message = `📦 Your order #${orderPublicId} has been shipped!\n\nTrack your order to see delivery updates.`;
+			templateName = process.env.GUPSHUP_ORDER_SHIPPED_TEMPLATE || null;
+			templateParams = [orderPublicId];
 		} else if (status === "delivered") {
-			message = `Your order #${orderPublicId} has been delivered! Thank you for shopping with us.`;
+			message = `✅ Your order #${orderPublicId} has been delivered!\n\nThank you for shopping with us. We hope you love your purchase!`;
+			templateName = process.env.GUPSHUP_ORDER_DELIVERED_TEMPLATE || null;
+			templateParams = [orderPublicId];
 		} else {
-			// Don't send SMS for other statuses
-			return { success: false, reason: "Status not eligible for SMS" };
+			// Don't send notification for other statuses
+			return { success: false, reason: "Status not eligible for notification" };
 		}
 
-		// Log SMS instead of sending (SMS sending disabled)
-		console.log(`[SMS LOG] Would send SMS to ${phoneNumber} for order ${orderPublicId}`);
-		console.log(`[SMS LOG] Message: ${message}`);
-		console.log(`[SMS LOG] Status: ${status}`);
-		
-		// Original SMS sending code (commented out):
-		// await twilioClient.messages.create({
-		// 	body: message,
-		// 	from: twilioPhoneNumber,
-		// 	to: `+91${phoneNumber}`,
-		// });
+		if (!isGupshupConfigured) {
+			// Development mode - just log
+			console.log(`[DEV MODE] WhatsApp to ${phoneNumber} for order ${orderPublicId}: ${message}`);
+			return { success: true, logged: true };
+		}
 
-		return { success: true, logged: true };
+		const formattedPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+		
+		let messagePayload;
+		if (templateName) {
+			messagePayload = {
+				type: "template",
+				template: {
+					name: templateName,
+					language: { code: "en" },
+					components: [
+						{
+							type: "body",
+							parameters: templateParams.map(text => ({ type: "text", text }))
+						}
+					]
+				}
+			};
+		} else {
+			messagePayload = {
+				type: "text",
+				text: message
+			};
+		}
+
+		const formData = new URLSearchParams();
+		formData.append("channel", "whatsapp");
+		formData.append("source", GUPSHUP_SOURCE_NUMBER);
+		formData.append("destination", formattedPhone);
+		formData.append("message", JSON.stringify(messagePayload));
+		
+		if (GUPSHUP_APP_NAME) {
+			formData.append("src.name", GUPSHUP_APP_NAME);
+		}
+
+		const response = await fetch(GUPSHUP_API_URL, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"apikey": GUPSHUP_API_KEY,
+			},
+			body: formData.toString(),
+		});
+
+		const responseData = await response.json();
+
+		if (response.ok && responseData.status === "submitted") {
+			console.log(`WhatsApp sent to ${phoneNumber} for order ${orderPublicId} (${status})`);
+			return { success: true };
+		} else {
+			console.error(`Failed to send WhatsApp to ${phoneNumber}:`, responseData);
+			return { success: false, reason: responseData.message || "API error" };
+		}
 	} catch (error) {
-		console.error(`[SMS LOG] Error logging SMS for ${phoneNumber}:`, error.message);
+		console.error(`Error sending WhatsApp to ${phoneNumber}:`, error.message);
 		return { success: false, reason: error.message };
 	}
 };
@@ -258,9 +307,9 @@ export const updateOrderTracking = async (req, res) => {
 
 			// Log SMS notification (instead of sending) for shipped and delivered statuses
 			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
-				// Log SMS instead of sending (asynchronously, don't wait for it to complete)
-				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
-					.catch(error => console.error("[SMS LOG] SMS notification error:", error));
+				// Send WhatsApp notification asynchronously (don't wait for it to complete)
+				sendOrderStatusNotification(order.user.phoneNumber, order.publicOrderId, trackingStatus)
+					.catch(error => console.error("[WhatsApp] Notification error:", error));
 			}
 		}
 

@@ -1,4 +1,3 @@
-import twilio from "twilio";
 import crypto from "crypto";
 import User from "../models/user.model.js";
 import { redis } from "../lib/redis.js";
@@ -17,15 +16,14 @@ const THROTTLE_WINDOW_SECONDS = 15 * 60; // 15 minutes
 const MAX_FAILED_ATTEMPTS = 3; // Maximum failed OTP attempts
 const FREEZE_DURATION_SECONDS = 15 * 60; // 15 minutes freeze
 
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+// Gupshup WhatsApp configuration
+const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
+const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME;
+const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER; // Your WhatsApp Business number
+const GUPSHUP_API_URL = "https://api.gupshup.io/wa/api/v1/msg";
 
-let twilioClient = null;
-if (accountSid && authToken) {
-  twilioClient = twilio(accountSid, authToken);
-}
+// Check if Gupshup is configured
+const isGupshupConfigured = !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER);
 
 // Generate 4-digit OTP
 const generateOTP = () => {
@@ -154,24 +152,136 @@ const clearFailedAttempts = async (phoneNumber) => {
   await redis.del(FAILED_ATTEMPTS_PREFIX + phoneNumber);
 };
 
-// Send OTP via Twilio or log to console
+/**
+ * Send OTP via Gupshup WhatsApp API
+ * 
+ * Gupshup supports two message types for OTP:
+ * 1. Template messages (pre-approved by WhatsApp) - recommended for production
+ * 2. Session messages (if user initiated conversation within 24 hours)
+ * 
+ * For OTP, we use a template message with the OTP as a parameter.
+ * You need to create an OTP template in your Gupshup dashboard first.
+ */
 const sendOTPMessage = async (phoneNumber, otp) => {
-  if (twilioClient && twilioPhoneNumber) {
-    try {
-      await twilioClient.messages.create({
-        body: `Your verification code is: ${otp}. Valid for 5 minutes.`,
-        from: twilioPhoneNumber,
-        to: `+91${phoneNumber}`, // Assuming Indian phone numbers
-      });
-      console.log(`OTP sent to ${phoneNumber} via Twilio`);
+  if (!isGupshupConfigured) {
+    // Gupshup not configured - log OTP for development/testing
+    console.log(`[DEV MODE] OTP for ${phoneNumber}: ${otp}`);
+    return true;
+  }
+
+  try {
+    // Format phone number with country code (India: 91)
+    const formattedPhone = phoneNumber.startsWith("91") ? phoneNumber : `91${phoneNumber}`;
+    
+    // Prepare the template message payload
+    // NOTE: You need to create an OTP template in Gupshup dashboard
+    // Template name example: "otp_verification"
+    // Template format example: "Your verification code is {{1}}. Valid for 5 minutes."
+    const templateMessage = {
+      type: "template",
+      template: {
+        name: process.env.GUPSHUP_OTP_TEMPLATE_NAME || "otp_verification",
+        language: {
+          code: "en"
+        },
+        components: [
+          {
+            type: "body",
+            parameters: [
+              {
+                type: "text",
+                text: otp
+              }
+            ]
+          }
+        ]
+      }
+    };
+
+    // Build form data for Gupshup API
+    const formData = new URLSearchParams();
+    formData.append("channel", "whatsapp");
+    formData.append("source", GUPSHUP_SOURCE_NUMBER);
+    formData.append("destination", formattedPhone);
+    formData.append("message", JSON.stringify(templateMessage));
+    
+    // Optional: Add app name if configured
+    if (GUPSHUP_APP_NAME) {
+      formData.append("src.name", GUPSHUP_APP_NAME);
+    }
+
+    const response = await fetch(GUPSHUP_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "apikey": GUPSHUP_API_KEY,
+      },
+      body: formData.toString(),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok && responseData.status === "submitted") {
+      console.log(`OTP sent to ${phoneNumber} via Gupshup WhatsApp. Message ID: ${responseData.messageId}`);
       return true;
-    } catch (twilioError) {
-      console.error("Twilio error:", twilioError);
-      // Continue anyway for development/testing
+    } else {
+      console.error("Gupshup API error:", responseData);
+      
+      // If template message fails, try sending as a text message (fallback for testing)
+      // This only works if the user has messaged your WhatsApp number in the last 24 hours
+      return await sendOTPAsTextMessage(formattedPhone, otp);
+    }
+  } catch (error) {
+    console.error("Error sending OTP via Gupshup:", error);
+    
+    // Log OTP for development if sending fails
+    console.log(`[FALLBACK] OTP for ${phoneNumber}: ${otp}`);
+    return false;
+  }
+};
+
+/**
+ * Fallback: Send OTP as a text message (session message)
+ * This only works if user has initiated conversation in last 24 hours
+ */
+const sendOTPAsTextMessage = async (formattedPhone, otp) => {
+  try {
+    const textMessage = {
+      type: "text",
+      text: `Your verification code is: ${otp}\n\nThis code is valid for 5 minutes. Do not share this code with anyone.`
+    };
+
+    const formData = new URLSearchParams();
+    formData.append("channel", "whatsapp");
+    formData.append("source", GUPSHUP_SOURCE_NUMBER);
+    formData.append("destination", formattedPhone);
+    formData.append("message", JSON.stringify(textMessage));
+    
+    if (GUPSHUP_APP_NAME) {
+      formData.append("src.name", GUPSHUP_APP_NAME);
+    }
+
+    const response = await fetch(GUPSHUP_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "apikey": GUPSHUP_API_KEY,
+      },
+      body: formData.toString(),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok && responseData.status === "submitted") {
+      console.log(`OTP sent to ${formattedPhone} via Gupshup (text message). Message ID: ${responseData.messageId}`);
+      return true;
+    } else {
+      console.error("Gupshup text message error:", responseData);
       return false;
     }
-  } else {
-    return true;
+  } catch (error) {
+    console.error("Error sending text message via Gupshup:", error);
+    return false;
   }
 };
 
@@ -238,7 +348,7 @@ export const sendOTP = async (req, res) => {
     const otpKey = OTP_PREFIX + phoneNumber;
     await redis.setex(otpKey, OTP_EXPIRY_SECONDS, JSON.stringify({ otp }));
 
-    // Send OTP via Twilio or log to console
+    // Send OTP via Gupshup WhatsApp
     await sendOTPMessage(phoneNumber, otp);
 
     // Update throttle data
@@ -392,7 +502,7 @@ export const resendOTP = async (req, res) => {
     // Update OTP in Redis with fresh TTL
     await redis.setex(otpKey, OTP_EXPIRY_SECONDS, JSON.stringify({ otp }));
 
-    // Send OTP via Twilio or log to console
+    // Send OTP via Gupshup WhatsApp
     await sendOTPMessage(phoneNumber, otp);
 
     // Update throttle data
