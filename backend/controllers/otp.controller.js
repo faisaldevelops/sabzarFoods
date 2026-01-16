@@ -1,8 +1,7 @@
-import twilio from "twilio";
-import crypto from "crypto";
 import User from "../models/user.model.js";
 import { redis } from "../lib/redis.js";
 import { generateTokens, storeRefreshToken, setCookies } from "./auth.controller.js";
+import { sendWhatsAppOTP, isGupshupConfigured } from "../lib/gupshup.js";
 
 // Redis key prefixes
 const OTP_PREFIX = "otp:";
@@ -16,16 +15,6 @@ const MAX_RESENDS_PER_WINDOW = 3; // Maximum resends allowed in the time window
 const THROTTLE_WINDOW_SECONDS = 15 * 60; // 15 minutes
 const MAX_FAILED_ATTEMPTS = 3; // Maximum failed OTP attempts
 const FREEZE_DURATION_SECONDS = 15 * 60; // 15 minutes freeze
-
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-
-let twilioClient = null;
-if (accountSid && authToken) {
-  twilioClient = twilio(accountSid, authToken);
-}
 
 // Generate 4-digit OTP
 const generateOTP = () => {
@@ -154,23 +143,22 @@ const clearFailedAttempts = async (phoneNumber) => {
   await redis.del(FAILED_ATTEMPTS_PREFIX + phoneNumber);
 };
 
-// Send OTP via Twilio or log to console
+// Send OTP via Gupshup WhatsApp
 const sendOTPMessage = async (phoneNumber, otp) => {
-  if (twilioClient && twilioPhoneNumber) {
-    try {
-      await twilioClient.messages.create({
-        body: `Your verification code is: ${otp}. Valid for 5 minutes.`,
-        from: twilioPhoneNumber,
-        to: `+91${phoneNumber}`, // Assuming Indian phone numbers
-      });
-      console.log(`OTP sent to ${phoneNumber} via Twilio`);
+  if (isGupshupConfigured()) {
+    const result = await sendWhatsAppOTP(phoneNumber, otp);
+    if (result.success) {
+      console.log(`OTP sent to ${phoneNumber} via Gupshup WhatsApp`);
       return true;
-    } catch (twilioError) {
-      console.error("Twilio error:", twilioError);
-      // Continue anyway for development/testing
+    } else {
+      console.error("Gupshup error:", result.error);
+      // Log OTP for development if WhatsApp fails
+      console.log(`DEV: OTP for ${phoneNumber}: ${otp}`);
       return false;
     }
   } else {
+    // Development mode - just log
+    console.log(`DEV: OTP for ${phoneNumber}: ${otp}`);
     return true;
   }
 };

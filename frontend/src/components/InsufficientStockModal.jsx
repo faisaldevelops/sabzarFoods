@@ -1,13 +1,12 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, AlertTriangle, Minus, ShoppingBag, Bell, Search } from "lucide-react";
+import { X, AlertTriangle, Minus, ShoppingBag, Search } from "lucide-react";
 
 const InsufficientStockModal = ({ 
   isOpen, 
   onClose, 
   insufficientItems = [], 
   onReduceQuantity,
-  onBrowseSimilar,
-  onJoinWaitlist 
+  onBrowseSimilar
 }) => {
   if (!isOpen) return null;
 
@@ -90,17 +89,6 @@ const InsufficientStockModal = ({
                 Reduce to Available Quantity
               </motion.button>
             )}
-
-            {/* Join Waitlist Option */}
-            <motion.button
-              onClick={() => onJoinWaitlist && onJoinWaitlist(insufficientItems)}
-              className="w-full flex items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-3 text-sm font-medium text-stone-900 hover:bg-stone-50 transition-colors"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Bell size={16} />
-              Notify When Available
-            </motion.button>
 
             {/* Browse Similar Items */}
             <motion.button

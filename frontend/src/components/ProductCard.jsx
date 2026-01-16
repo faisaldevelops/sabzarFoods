@@ -1,14 +1,12 @@
-import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus, Bell } from "lucide-react";
+import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus } from "lucide-react";
 import { useCartStore } from "../stores/useCartStore";
 import toast from "react-hot-toast";
 import { useState } from "react";
 import BuyNowModal from "./BuyNowModal";
-import WaitlistModal from "./WaitlistModal";
 
 const ProductCard = ({ product }) => {
 	const { addToCart, cart, updateQuantity } = useCartStore();
 	const [showBuyNow, setShowBuyNow] = useState(false);
-	const [showWaitlist, setShowWaitlist] = useState(false);
 	
 	// Calculate available stock (stock - reserved)
 	const availableStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0);
@@ -68,13 +66,6 @@ const ProductCard = ({ product }) => {
 								<span className='text-white text-sm font-medium'>
 									OUT OF STOCK
 								</span>
-								<button
-									onClick={() => setShowWaitlist(true)}
-									className='mt-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-full flex items-center gap-1 transition-colors'
-								>
-									<Bell size={12} />
-									Notify Me
-								</button>
 							</div>
 						</div>
 					)}
@@ -169,12 +160,6 @@ const ProductCard = ({ product }) => {
 			<BuyNowModal 
 				isOpen={showBuyNow}
 				onClose={() => setShowBuyNow(false)}
-				product={product}
-			/>
-			
-			<WaitlistModal
-				isOpen={showWaitlist}
-				onClose={() => setShowWaitlist(false)}
 				product={product}
 			/>
 		</>

@@ -291,12 +291,6 @@ const OrderSummary = () => {
 		navigate("/");
 	};
 
-	// Handle join waitlist (placeholder - could be implemented later)
-	const handleJoinWaitlist = () => {
-		toast.success("You'll be notified when items are back in stock");
-		setShowInsufficientStock(false);
-	};
-
 	// Handle hold expiration
 	const handleHoldExpire = () => {
 		toast.error("Your checkout session has expired. Please try again.");
@@ -524,7 +518,6 @@ const OrderSummary = () => {
 				insufficientItems={insufficientItems}
 				onReduceQuantity={handleReduceQuantity}
 				onBrowseSimilar={handleBrowseSimilar}
-				onJoinWaitlist={handleJoinWaitlist}
 			/>
 		</motion.div>
 	);
