@@ -2,13 +2,12 @@
  * Gupshup WhatsApp API Service
  * 
  * Sends template messages via Gupshup WhatsApp Business API
- * API Endpoint: https://api.gupshup.io/sm/api/v1/template/msg
+ * API Endpoint: https://api.gupshup.io/wa/api/v1/template/msg
  */
 
-const GUPSHUP_TEMPLATE_API = "https://api.gupshup.io/sm/api/v1/template/msg";
+const GUPSHUP_TEMPLATE_API = "https://api.gupshup.io/wa/api/v1/template/msg";
 
 const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
-const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME; // Your Gupshup app name (required to identify the bot)
 const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER; // Your WhatsApp Business number (e.g., 917834811114)
 const GUPSHUP_OTP_TEMPLATE_ID = process.env.GUPSHUP_OTP_TEMPLATE_ID; // Template UUID for OTP
 
@@ -42,7 +41,6 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 		
 		const requestBody = {
 			source: GUPSHUP_SOURCE_NUMBER,
-			"src.name": GUPSHUP_APP_NAME,
 			destination: formattedPhone,
 			template: JSON.stringify({
 				id: GUPSHUP_OTP_TEMPLATE_ID,
@@ -54,7 +52,6 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 		console.log("=== Gupshup API Request ===");
 		console.log("URL:", GUPSHUP_TEMPLATE_API);
 		console.log("API Key:", GUPSHUP_API_KEY ? `${GUPSHUP_API_KEY.substring(0, 8)}...` : "NOT SET");
-		console.log("App Name:", GUPSHUP_APP_NAME || "NOT SET");
 		console.log("Source Number:", GUPSHUP_SOURCE_NUMBER || "NOT SET");
 		console.log("Template ID:", GUPSHUP_OTP_TEMPLATE_ID || "NOT SET");
 		console.log("Destination:", formattedPhone);
@@ -99,7 +96,7 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
  * @returns {boolean}
  */
 export const isGupshupConfigured = () => {
-	return !!(GUPSHUP_API_KEY && GUPSHUP_APP_NAME && GUPSHUP_SOURCE_NUMBER && GUPSHUP_OTP_TEMPLATE_ID);
+	return !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER && GUPSHUP_OTP_TEMPLATE_ID);
 };
 
 export default {
