@@ -11,8 +11,10 @@
 
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
+import { sendOrderPlacedEmail } from "./ses.js";
 
 // Helper: hash + base62 encode
 function generatePublicOrderId(orderData) {
@@ -345,6 +347,34 @@ export const finalizeOrder = async (orderId, razorpayPaymentId = null) => {
       await session.commitTransaction();
     } else {
       await order.save();
+    }
+    
+    // Send order confirmation email asynchronously
+    // Populate order with product details and get user email
+    try {
+      const populatedOrder = await Order.findById(order._id)
+        .populate({
+          path: "products.product",
+          select: "name price image",
+        })
+        .lean();
+      
+      // Get user email
+      const user = await User.findById(order.user).select("email").lean();
+      
+      if (user?.email && populatedOrder) {
+        // Send email asynchronously - don't block the response
+        sendOrderPlacedEmail(populatedOrder, user.email)
+          .then((result) => {
+            if (result.success) {
+              console.log(`[SES] Order placed email sent for order ${order.publicOrderId}`);
+            }
+          })
+          .catch((err) => console.error("[SES] Failed to send order placed email:", err));
+      }
+    } catch (emailError) {
+      // Log but don't fail the order finalization
+      console.error("[SES] Error preparing order email:", emailError);
     }
     
     return { success: true, order };

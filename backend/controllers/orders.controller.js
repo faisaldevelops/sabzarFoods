@@ -3,47 +3,31 @@ import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
-import twilio from "twilio";
 import { getDeliveryType } from "../lib/pricing.js";
+import { sendOrderPlacedEmail, sendOrderShippedEmail, sendOrderDeliveredEmail } from "../lib/ses.js";
 
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-
-let twilioClient = null;
-if (accountSid && authToken) {
-	twilioClient = twilio(accountSid, authToken);
-}
-
-// Helper function to send SMS notification (currently logging instead of sending)
-const sendOrderStatusSMS = async (phoneNumber, orderPublicId, status) => {
+/**
+ * Send email notification for order status change
+ * @param {Object} order - The order object (should be populated with products)
+ * @param {string} userEmail - User's email address
+ * @param {string} status - New tracking status
+ */
+const sendOrderStatusEmailNotification = async (order, userEmail, status) => {
 	try {
-		let message = "";
-		if (status === "shipped") {
-			message = `Your order #${orderPublicId} has been shipped! Track your order to see delivery updates.`;
-		} else if (status === "delivered") {
-			message = `Your order #${orderPublicId} has been delivered! Thank you for shopping with us.`;
-		} else {
-			// Don't send SMS for other statuses
-			return { success: false, reason: "Status not eligible for SMS" };
+		if (!userEmail) {
+			console.log(`[EMAIL] No email address for order ${order.publicOrderId}`);
+			return { success: false, reason: "No email address" };
 		}
 
-		// Log SMS instead of sending (SMS sending disabled)
-		console.log(`[SMS LOG] Would send SMS to ${phoneNumber} for order ${orderPublicId}`);
-		console.log(`[SMS LOG] Message: ${message}`);
-		console.log(`[SMS LOG] Status: ${status}`);
-		
-		// Original SMS sending code (commented out):
-		// await twilioClient.messages.create({
-		// 	body: message,
-		// 	from: twilioPhoneNumber,
-		// 	to: `+91${phoneNumber}`,
-		// });
-
-		return { success: true, logged: true };
+		if (status === "shipped") {
+			return await sendOrderShippedEmail(order, userEmail);
+		} else if (status === "delivered") {
+			return await sendOrderDeliveredEmail(order, userEmail);
+		} else {
+			return { success: false, reason: "Status not eligible for email" };
+		}
 	} catch (error) {
-		console.error(`[SMS LOG] Error logging SMS for ${phoneNumber}:`, error.message);
+		console.error(`[EMAIL] Error sending email for ${order.publicOrderId}:`, error.message);
 		return { success: false, reason: error.message };
 	}
 };
@@ -240,7 +224,12 @@ export const updateOrderTracking = async (req, res) => {
 		const { orderId } = req.params;
 		const { trackingStatus, trackingNumber, deliveryPartner, estimatedDelivery, note } = req.body;
 
-		const order = await Order.findById(orderId).populate('user', 'phoneNumber');
+		const order = await Order.findById(orderId)
+			.populate('user', 'phoneNumber email')
+			.populate({
+				path: 'products.product',
+				select: 'name price image',
+			});
 		if (!order) {
 			return res.status(404).json({ message: "Order not found" });
 		}
@@ -256,11 +245,11 @@ export const updateOrderTracking = async (req, res) => {
 				note: note || `Status updated to ${trackingStatus}`,
 			});
 
-			// Log SMS notification (instead of sending) for shipped and delivered statuses
-			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.phoneNumber) {
-				// Log SMS instead of sending (asynchronously, don't wait for it to complete)
-				sendOrderStatusSMS(order.user.phoneNumber, order.publicOrderId, trackingStatus)
-					.catch(error => console.error("[SMS LOG] SMS notification error:", error));
+			// Send email notification for shipped and delivered statuses
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.email) {
+				// Send email asynchronously - don't wait for it to complete
+				sendOrderStatusEmailNotification(order.toObject(), order.user.email, trackingStatus)
+					.catch(error => console.error("[EMAIL] Email notification error:", error));
 			}
 		}
 
@@ -1351,6 +1340,18 @@ export const createManualOrder = async (req, res) => {
 				select: 'name price image'
 			})
 			.lean();
+
+		// Send order confirmation email for manual orders if customer has email
+		const userEmail = populatedOrder.user?.email || customerEmail;
+		if (userEmail) {
+			sendOrderPlacedEmail(populatedOrder, userEmail)
+				.then((result) => {
+					if (result.success) {
+						console.log(`[SES] Order placed email sent for manual order ${populatedOrder.publicOrderId}`);
+					}
+				})
+				.catch((err) => console.error("[SES] Failed to send order placed email for manual order:", err));
+		}
 
 		res.status(201).json({
 			success: true,
