@@ -514,7 +514,7 @@ const OrderslistTab = () => {
                                 </span>
                             )}
                         </div>
-                        <p className="text-sm text-gray-400">{order.user.email || order.user.phoneNumber}</p>
+                        <p className="text-sm text-gray-400">{order.user.phoneNumber || order.user.email}</p>
                         {order.isManualOrder && (
                             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                                 <span>Payment: <span className="text-gray-300 capitalize">{order.paymentMethod?.replace('_', ' ')}</span></span>
