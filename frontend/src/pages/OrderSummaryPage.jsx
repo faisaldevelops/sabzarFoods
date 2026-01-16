@@ -184,6 +184,28 @@ const OrderSummaryPage = () => {
 				name: SHOP_CONFIG.name,
 				description: "Order Payment",
 				order_id: orderId,
+				config: {
+					display: {
+						blocks: {
+							upi: {
+								name: "Pay via UPI",
+								instruments: [
+									{ method: "upi", flows: ["qr", "collect", "intent"], apps: ["google_pay", "phonepe", "paytm"] }
+								]
+							},
+							card: {
+								name: "Pay via Card",
+								instruments: [
+									{ method: "card" }
+								]
+							}
+						},
+						sequence: ["block.upi", "block.card"],
+						preferences: {
+							show_default_blocks: false
+						}
+					}
+				},
 				handler: async function (response) {
 					try {
 						const verifyRes = await axios.post("/payments/razorpay-verify", {
@@ -284,12 +306,6 @@ const OrderSummaryPage = () => {
 		setShowInsufficientStock(false);
 		localStorage.removeItem("pendingBuyNowOrder");
 		navigate("/");
-	};
-
-	// Handle join waitlist (placeholder)
-	const handleJoinWaitlist = () => {
-		toast.success("You'll be notified when this item is back in stock");
-		setShowInsufficientStock(false);
 	};
 
 	// Handle hold expiration
@@ -529,7 +545,6 @@ const OrderSummaryPage = () => {
 				insufficientItems={insufficientItems}
 				onReduceQuantity={handleReduceQuantity}
 				onBrowseSimilar={handleBrowseSimilar}
-				onJoinWaitlist={handleJoinWaitlist}
 			/>
 		</div>
 	);

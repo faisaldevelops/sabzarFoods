@@ -2,7 +2,6 @@ import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
 import { extractCloudinaryPublicId } from "../lib/cloudinaryUtils.js";
-import { notifyWaitlist } from "./waitlist.controller.js";
 
 export const getAllProducts = async (req, res) => {
 	try {
@@ -104,44 +103,17 @@ export const updateProductStock = async (req, res) => {
 			return res.status(404).json({ message: "Product not found" });
 		}
 
-		const wasOutOfStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0) <= 0;
-
 		if (stockQuantity !== undefined) {
 			product.stockQuantity = stockQuantity;
 		}
 
 		const updatedProduct = await product.save();
-		
-		// Check if product is now back in stock
-		const isNowInStock = (updatedProduct.stockQuantity || 0) - (updatedProduct.reservedQuantity || 0) > 0;
-		
-		// If product was out of stock and is now in stock, notify waitlist
-		if (wasOutOfStock && isNowInStock) {
-			console.log(`Product ${updatedProduct.name} is back in stock, notifying waitlist...`);
-			notifyWaitlist(updatedProduct._id.toString()).catch(err => {
-				console.error("Error notifying waitlist:", err);
-			});
-		}
-		
 		res.json(updatedProduct);
 	} catch (error) {
 		console.log("Error in updateProductStock controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
-
-const updateStock = (stockQuantity, product) => {
-	const wasOutOfStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0) <= 0;
-	product.stockQuantity = stockQuantity;
-	const isNowInStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0) > 0;
-
-	if (wasOutOfStock && isNowInStock) {
-		console.log(`Product ${product.name} is back in stock, notifying waitlist...`);
-		notifyWaitlist(product._id.toString()).catch(err => {
-			console.error("Error notifying waitlist:", err);
-		});
-	}
-}
 
 export const updateProduct = async (req, res) => {
 	try {
@@ -177,7 +149,7 @@ export const updateProduct = async (req, res) => {
 		if (name !== undefined) product.name = name;
 		if (description !== undefined) product.description = description;
 		if (price !== undefined) product.price = price;
-		if (stockQuantity !== undefined) updateStock(stockQuantity, product);
+		if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
 		if (cloudinaryResponse?.secure_url) product.image = cloudinaryResponse.secure_url;
 		
 		const updatedProduct = await product.save();
