@@ -40,24 +40,40 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 	try {
 		const formattedPhone = formatPhoneNumber(phoneNumber);
 		
+		const requestBody = {
+			source: GUPSHUP_SOURCE_NUMBER,
+			"src.name": GUPSHUP_APP_NAME,
+			destination: formattedPhone,
+			template: JSON.stringify({
+				id: GUPSHUP_OTP_TEMPLATE_ID,
+				params: [otp]
+			})
+		};
+		
+		// Debug logging
+		console.log("=== Gupshup API Request ===");
+		console.log("URL:", GUPSHUP_TEMPLATE_API);
+		console.log("API Key:", GUPSHUP_API_KEY ? `${GUPSHUP_API_KEY.substring(0, 8)}...` : "NOT SET");
+		console.log("App Name:", GUPSHUP_APP_NAME || "NOT SET");
+		console.log("Source Number:", GUPSHUP_SOURCE_NUMBER || "NOT SET");
+		console.log("Template ID:", GUPSHUP_OTP_TEMPLATE_ID || "NOT SET");
+		console.log("Destination:", formattedPhone);
+		console.log("Request Body:", requestBody);
+		
 		const response = await fetch(GUPSHUP_TEMPLATE_API, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/x-www-form-urlencoded",
 				"apikey": GUPSHUP_API_KEY,
 			},
-			body: new URLSearchParams({
-				source: GUPSHUP_SOURCE_NUMBER,
-				"src.name": GUPSHUP_APP_NAME,
-				destination: formattedPhone,
-				template: JSON.stringify({
-					id: GUPSHUP_OTP_TEMPLATE_ID,
-					params: [otp] // OTP value goes into {{1}} placeholder
-				})
-			}).toString(),
+			body: new URLSearchParams(requestBody).toString(),
 		});
 
 		const data = await response.json();
+		
+		console.log("=== Gupshup API Response ===");
+		console.log("Status:", response.status);
+		console.log("Response:", JSON.stringify(data, null, 2));
 		
 		if (response.ok && data.status === "submitted") {
 			console.log(`OTP sent to ${formattedPhone} via Gupshup template. MessageId: ${data.messageId}`);
