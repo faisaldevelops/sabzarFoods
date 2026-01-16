@@ -212,7 +212,7 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
                 <p className="mt-1 text-xs text-red-600">{phoneError}</p>
               ) : (
                 <p className="mt-1 text-xs text-stone-500">
-                  We'll send you a verification code
+                  We'll send a verification code via WhatsApp
                 </p>
               )}
             </div>

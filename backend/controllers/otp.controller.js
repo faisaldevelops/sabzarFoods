@@ -166,7 +166,7 @@ const sendOTPMessage = async (phoneNumber, otp) => {
 // Send OTP to phone number
 export const sendOTP = async (req, res) => {
   try {
-    const { phoneNumber, isSignup } = req.body;
+    const { phoneNumber } = req.body;
 
     if (!phoneNumber) {
       return res.status(400).json({ message: "Phone number is required" });
@@ -199,34 +199,13 @@ export const sendOTP = async (req, res) => {
       });
     }
 
-    // Check if user exists
-    const userExists = await User.findOne({ phoneNumber });
-
-    // Note: User enumeration trade-off
-    // The following checks reveal account existence to prevent confusion during signup/login.
-    // This is a deliberate UX decision per requirements, trading some security for better user experience.
-    
-    // Only enforce signup/login distinction when isSignup is explicitly provided
-    // When isSignup is undefined (e.g., from checkout modal), allow both new and existing users
-    if (isSignup !== undefined) {
-      // If signup and user already exists, return error
-      if (isSignup && userExists) {
-        return res.status(400).json({ message: "Phone number already registered. Please login instead." });
-      }
-
-      // If logging in and user doesn't exist, return error
-      if (!isSignup && !userExists) {
-        return res.status(400).json({ message: "Phone number not registered. Please sign up first." });
-      }
-    }
-
     const otp = generateOTP();
 
     // Store OTP in Redis with TTL (auto-expires)
     const otpKey = OTP_PREFIX + phoneNumber;
     await redis.setex(otpKey, OTP_EXPIRY_SECONDS, JSON.stringify({ otp }));
 
-    // Send OTP via Twilio or log to console
+    // Send OTP via Gupshup WhatsApp
     await sendOTPMessage(phoneNumber, otp);
 
     // Update throttle data
@@ -234,7 +213,6 @@ export const sendOTP = async (req, res) => {
 
     res.json({
       message: "OTP sent successfully",
-      userExists: !!userExists,
     });
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -245,7 +223,7 @@ export const sendOTP = async (req, res) => {
 // Verify OTP and login/signup user
 export const verifyOTP = async (req, res) => {
   try {
-    const { phoneNumber, otp, name } = req.body;
+    const { phoneNumber, otp } = req.body;
 
     if (!phoneNumber || !otp) {
       return res.status(400).json({ message: "Phone number and OTP are required" });
@@ -294,29 +272,18 @@ export const verifyOTP = async (req, res) => {
     await redis.del(THROTTLE_PREFIX + phoneNumber);
     await clearFailedAttempts(phoneNumber);
 
-    // Check if user exists
+    // Check if user exists, create if not
     let user = await User.findOne({ phoneNumber });
     let isNewUser = false;
 
     if (!user) {
-      // Create new user
-      if (!name) {
-        return res.status(400).json({ message: "Name is required for new users" });
-      }
-
+      // Create new user with phone number as temporary name
       user = await User.create({
-        name,
+        name: `User ${phoneNumber.slice(-4)}`, // Default name using last 4 digits
         phoneNumber,
-        isGuest: false, // Not a guest since they authenticated
+        isGuest: false,
       });
       isNewUser = true;
-    } else {
-      // User exists - this is a login, not signup
-      // Update name if provided and different
-      if (name && name !== user.name) {
-        user.name = name;
-        await user.save();
-      }
     }
 
     // Generate tokens and set cookies

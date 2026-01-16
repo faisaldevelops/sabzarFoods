@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useUserStore } from "../stores/useUserStore";
@@ -30,13 +29,8 @@ const LoginPage = () => {
 
 		setLoading(true);
 		try {
-			const response = await axios.post("/otp/send", { phoneNumber, isSignup: false });
+			await axios.post("/otp/send", { phoneNumber });
 			setOtpSuccess("OTP sent successfully");
-			
-			// In development, show OTP in toast
-			if (response.data.otp) {
-				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
-			}
 			
 			setStep("otp");
 			setResendCooldown(60); // Start 60-second cooldown
@@ -64,13 +58,8 @@ const LoginPage = () => {
 		setOtpError("");
 		setOtpSuccess("");
 		try {
-			const response = await axios.post("/otp/resend", { phoneNumber });
+			await axios.post("/otp/resend", { phoneNumber });
 			setOtpSuccess("OTP resent successfully");
-			
-			// In development, show OTP in toast
-			if (response.data.otp) {
-				toast.success(`Dev Mode - OTP: ${response.data.otp}`, { duration: 10000 });
-			}
 			
 			setResendCooldown(60); // Reset 60-second cooldown
 			
@@ -147,10 +136,10 @@ const LoginPage = () => {
 				transition={{ duration: 0.4 }}
 			>
 				<h2 className='text-3xl font-bold text-stone-900 mb-2 tracking-tight'>
-					{step === "phone" ? "Login" : "Verify Code"}
+					{step === "phone" ? "Login / Sign Up" : "Verify Code"}
 				</h2>
 				<p className='text-sm text-stone-600 font-light'>
-					{step === "phone" ? "Enter your phone number to continue" : `Code sent to +91${phoneNumber}`}
+					{step === "phone" ? "Enter your phone number to continue" : `Code sent to +91${phoneNumber} via WhatsApp`}
 				</p>
 			</motion.div>
 
@@ -181,8 +170,10 @@ const LoginPage = () => {
 									sm:text-sm transition-all ${phoneError ? 'border-red-500 focus:ring-red-500' : 'border-stone-300 focus:ring-stone-800'}`}
 									placeholder='10-digit mobile number'
 								/>
-								{phoneError && (
+								{phoneError ? (
 									<p className='mt-2 text-sm text-red-600'>{phoneError}</p>
+								) : (
+									<p className='mt-2 text-sm text-stone-500'>We'll send a verification code via WhatsApp</p>
 								)}
 							</div>
 
@@ -270,14 +261,6 @@ const LoginPage = () => {
 						</form>
 					)}
 
-					<div className='mt-6 text-center'>
-						<p className='text-sm text-stone-600'>
-							Don't have an account?{" "}
-							<Link to='/signup' className='text-stone-900 font-medium hover:underline'>
-								Sign up
-							</Link>
-						</p>
-					</div>
 				</div>
 			</motion.div>
 		</div>

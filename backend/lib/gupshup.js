@@ -48,15 +48,6 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 			})
 		};
 		
-		// Debug logging
-		console.log("=== Gupshup API Request ===");
-		console.log("URL:", GUPSHUP_TEMPLATE_API);
-		console.log("API Key:", GUPSHUP_API_KEY ? `${GUPSHUP_API_KEY.substring(0, 8)}...` : "NOT SET");
-		console.log("Source Number:", GUPSHUP_SOURCE_NUMBER || "NOT SET");
-		console.log("Template ID:", GUPSHUP_OTP_TEMPLATE_ID || "NOT SET");
-		console.log("Destination:", formattedPhone);
-		console.log("Request Body:", requestBody);
-		
 		const response = await fetch(GUPSHUP_TEMPLATE_API, {
 			method: "POST",
 			headers: {
@@ -68,15 +59,11 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 
 		const data = await response.json();
 		
-		console.log("=== Gupshup API Response ===");
-		console.log("Status:", response.status);
-		console.log("Response:", JSON.stringify(data, null, 2));
-		
 		if (response.ok && data.status === "submitted") {
-			console.log(`OTP sent to ${formattedPhone} via Gupshup template. MessageId: ${data.messageId}`);
+			console.log(`OTP sent to ${formattedPhone} via Gupshup WhatsApp`);
 			return { success: true, messageId: data.messageId };
 		} else {
-			console.error("Gupshup template API error:", data);
+			console.error("Gupshup API error:", data);
 			return {
 				success: false,
 				error: data.message || `Error code: ${data.code || 'unknown'}`,
