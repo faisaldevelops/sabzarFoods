@@ -11,7 +11,6 @@
 
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
-import User from "../models/user.model.js";
 import mongoose from "mongoose";
 import crypto from "crypto";
 import { sendOrderPlacedEmail } from "./ses.js";
@@ -350,7 +349,7 @@ export const finalizeOrder = async (orderId, razorpayPaymentId = null) => {
     }
     
     // Send order confirmation email asynchronously
-    // Populate order with product details and get user email
+    // Use email from address field (optional)
     try {
       const populatedOrder = await Order.findById(order._id)
         .populate({
@@ -359,18 +358,20 @@ export const finalizeOrder = async (orderId, razorpayPaymentId = null) => {
         })
         .lean();
       
-      // Get user email
-      const user = await User.findById(order.user).select("email").lean();
+      // Get email from address field (optional)
+      const addressEmail = populatedOrder?.address?.email;
       
-      if (user?.email && populatedOrder) {
+      if (addressEmail && populatedOrder) {
         // Send email asynchronously - don't block the response
-        sendOrderPlacedEmail(populatedOrder, user.email)
+        sendOrderPlacedEmail(populatedOrder, addressEmail)
           .then((result) => {
             if (result.success) {
-              console.log(`[SES] Order placed email sent for order ${order.publicOrderId}`);
+              console.log(`[SES] Order placed email sent for order ${order.publicOrderId} to ${addressEmail}`);
             }
           })
           .catch((err) => console.error("[SES] Failed to send order placed email:", err));
+      } else {
+        console.log(`[SES] No email in address for order ${order.publicOrderId}, skipping notification`);
       }
     } catch (emailError) {
       // Log but don't fail the order finalization

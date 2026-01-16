@@ -225,7 +225,7 @@ export const updateOrderTracking = async (req, res) => {
 		const { trackingStatus, trackingNumber, deliveryPartner, estimatedDelivery, note } = req.body;
 
 		const order = await Order.findById(orderId)
-			.populate('user', 'phoneNumber email')
+			.populate('user', 'phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
@@ -246,9 +246,11 @@ export const updateOrderTracking = async (req, res) => {
 			});
 
 			// Send email notification for shipped and delivered statuses
-			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.email) {
+			// Use email from address field (optional)
+			const addressEmail = order.address?.email;
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && addressEmail) {
 				// Send email asynchronously - don't wait for it to complete
-				sendOrderStatusEmailNotification(order.toObject(), order.user.email, trackingStatus)
+				sendOrderStatusEmailNotification(order.toObject(), addressEmail, trackingStatus)
 					.catch(error => console.error("[EMAIL] Email notification error:", error));
 			}
 		}
@@ -1307,6 +1309,7 @@ export const createManualOrder = async (req, res) => {
 			address: {
 				name: address.name || customerName,
 				phoneNumber: address.phoneNumber || customerPhone,
+				email: address.email || customerEmail || undefined, // Optional email for notifications
 				pincode: address.pincode,
 				houseNumber: address.houseNumber || "",
 				streetAddress: address.streetAddress || "",
@@ -1341,13 +1344,13 @@ export const createManualOrder = async (req, res) => {
 			})
 			.lean();
 
-		// Send order confirmation email for manual orders if customer has email
-		const userEmail = populatedOrder.user?.email || customerEmail;
-		if (userEmail) {
-			sendOrderPlacedEmail(populatedOrder, userEmail)
+		// Send order confirmation email for manual orders if address has email
+		const addressEmail = populatedOrder.address?.email || customerEmail;
+		if (addressEmail) {
+			sendOrderPlacedEmail(populatedOrder, addressEmail)
 				.then((result) => {
 					if (result.success) {
-						console.log(`[SES] Order placed email sent for manual order ${populatedOrder.publicOrderId}`);
+						console.log(`[SES] Order placed email sent for manual order ${populatedOrder.publicOrderId} to ${addressEmail}`);
 					}
 				})
 				.catch((err) => console.error("[SES] Failed to send order placed email for manual order:", err));

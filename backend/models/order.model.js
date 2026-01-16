@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 const addressSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phoneNumber: { type: String, required: true },
+  email: { type: String }, // Optional email for order notifications
   pincode: { type: String, required: true },
   houseNumber: { type: String, required: true },
   streetAddress: { type: String, required: true },
