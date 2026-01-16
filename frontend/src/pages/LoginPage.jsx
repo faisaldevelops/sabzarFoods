@@ -198,6 +198,9 @@ const LoginPage = () => {
 								<input
 									id='otp'
 									type='text'
+									inputMode='numeric'
+									pattern='[0-9]*'
+									autoComplete='one-time-code'
 									required
 									value={otp}
 									onChange={(e) => {
