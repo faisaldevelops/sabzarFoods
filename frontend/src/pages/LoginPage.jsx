@@ -208,6 +208,14 @@ const LoginPage = () => {
 										setOtpError("");
 										setOtpSuccess("");
 									}}
+									onPaste={(e) => {
+										e.preventDefault();
+										const pastedData = e.clipboardData.getData('text');
+										const digits = pastedData.replace(/\D/g, "").slice(0, 4);
+										setOtp(digits);
+										setOtpError("");
+										setOtpSuccess("");
+									}}
 									className={`block w-full px-4 py-3 bg-white border rounded-md
 									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:border-transparent
 									sm:text-sm text-center text-lg font-mono tracking-widest transition-all ${otpError ? 'border-red-500 focus:ring-red-500' : otpSuccess ? 'border-green-500 focus:ring-green-500' : 'border-stone-300 focus:ring-stone-800'}`}
