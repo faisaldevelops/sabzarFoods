@@ -8,6 +8,7 @@
 const GUPSHUP_TEMPLATE_API = "https://api.gupshup.io/sm/api/v1/template/msg";
 
 const GUPSHUP_API_KEY = process.env.GUPSHUP_API_KEY;
+const GUPSHUP_APP_NAME = process.env.GUPSHUP_APP_NAME; // Your Gupshup app name (required to identify the bot)
 const GUPSHUP_SOURCE_NUMBER = process.env.GUPSHUP_SOURCE_NUMBER; // Your WhatsApp Business number (e.g., 917834811114)
 const GUPSHUP_OTP_TEMPLATE_ID = process.env.GUPSHUP_OTP_TEMPLATE_ID; // Template UUID for OTP
 
@@ -47,6 +48,7 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
 			},
 			body: new URLSearchParams({
 				source: GUPSHUP_SOURCE_NUMBER,
+				"src.name": GUPSHUP_APP_NAME,
 				destination: formattedPhone,
 				template: JSON.stringify({
 					id: GUPSHUP_OTP_TEMPLATE_ID,
@@ -81,7 +83,7 @@ export const sendWhatsAppOTP = async (phoneNumber, otp) => {
  * @returns {boolean}
  */
 export const isGupshupConfigured = () => {
-	return !!(GUPSHUP_API_KEY && GUPSHUP_SOURCE_NUMBER && GUPSHUP_OTP_TEMPLATE_ID);
+	return !!(GUPSHUP_API_KEY && GUPSHUP_APP_NAME && GUPSHUP_SOURCE_NUMBER && GUPSHUP_OTP_TEMPLATE_ID);
 };
 
 export default {
