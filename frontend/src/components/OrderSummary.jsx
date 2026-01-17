@@ -542,7 +542,11 @@ const OrderSummary = () => {
 							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
 						</dl>
 					</>
-				) : null}
+				) : (
+					<p className='text-xs text-stone-500 italic'>
+						Add delivery address to see shipping charges
+					</p>
+				)}
 					<dl className='flex items-center justify-between gap-4 border-t border-stone-300 pt-2'>
 						<dt className='text-base font-bold text-stone-900'>Total</dt>
 						<dd className='text-base font-bold text-stone-900'>₹{formattedTotal}</dd>

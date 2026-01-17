@@ -374,9 +374,11 @@ const OrderSummaryPage = () => {
 	}
 
 	const totalPrice = (orderData.product.price * orderData.quantity).toFixed(2);
+	// Only show full total (with delivery + platform fee) when pricing breakdown is available
+	// Otherwise just show item cost - delivery charges require an address
 	const finalTotal = pricingBreakdown 
 		? pricingBreakdown.total.toFixed(2)
-		: (parseFloat(totalPrice) + 199).toFixed(2); // Fallback to old calculation
+		: totalPrice;
 
 	return (
 		<div className='py-8 md:py-16 bg-stone-50 min-h-screen'>
@@ -548,7 +550,11 @@ const OrderSummaryPage = () => {
 												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
 											</dl>
 										</>
-									) : null}
+									) : (
+										<p className='text-xs text-gray-400 italic'>
+											Add delivery address to see shipping charges
+										</p>
+									)}
 									
 									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
 										<dt className='text-base font-bold text-white'>Total</dt>
