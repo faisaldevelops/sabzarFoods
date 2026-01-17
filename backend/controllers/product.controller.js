@@ -15,7 +15,15 @@ export const getAllProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, description, price, image, stockQuantity } = req.body;
+		const { name, description, actualPrice, price, image, stockQuantity } = req.body;
+
+		// Validate required fields
+		if (!name || !description || !price || !image) {
+			return res.status(400).json({ 
+				message: "Validation error", 
+				error: "Name, description, price, and image are required" 
+			});
+		}
 
 		let cloudinaryResponse = null;
 
@@ -26,6 +34,7 @@ export const createProduct = async (req, res) => {
 		const product = await Product.create({
 			name,
 			description,
+			actualPrice: actualPrice || price, // Default to price if actualPrice not provided
 			price,
 			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
 			stockQuantity: stockQuantity || 0,
