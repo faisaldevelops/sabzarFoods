@@ -197,9 +197,8 @@ const LoginPage = () => {
 								</label>
 								<input
 									id='otp'
-									type='text'
+									type='tel'
 									inputMode='numeric'
-									pattern='[0-9]*'
 									autoComplete='one-time-code'
 									required
 									value={otp}
@@ -209,10 +208,17 @@ const LoginPage = () => {
 										setOtpError("");
 										setOtpSuccess("");
 									}}
+									onInput={(e) => {
+										const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+										setOtp(value);
+										setOtpError("");
+										setOtpSuccess("");
+									}}
 									className={`block w-full px-4 py-3 bg-white border rounded-md
 									text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:border-transparent
 									sm:text-sm text-center text-lg font-mono tracking-widest transition-all ${otpError ? 'border-red-500 focus:ring-red-500' : otpSuccess ? 'border-green-500 focus:ring-green-500' : 'border-stone-300 focus:ring-stone-800'}`}
 									placeholder='0000'
+									maxLength={10}
 								/>
 								{otpError && (
 									<p className='mt-2 text-sm text-red-600'>{otpError}</p>

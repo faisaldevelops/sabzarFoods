@@ -240,12 +240,17 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" size={20} />
                 <input
-                  type="text"
+                  type="tel"
                   inputMode="numeric"
-                  pattern="[0-9]*"
                   autoComplete="one-time-code"
                   value={otp}
                   onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setOtp(value);
+                    setOtpError("");
+                    setOtpSuccess("");
+                  }}
+                  onInput={(e) => {
                     const value = e.target.value.replace(/\D/g, "").slice(0, 4);
                     setOtp(value);
                     setOtpError("");
@@ -255,6 +260,7 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
                   className={`w-full rounded-md border px-10 py-2.5 text-center text-2xl tracking-widest focus:ring-2 focus:border-transparent ${otpError ? 'border-red-500 bg-red-50 text-red-900 focus:ring-red-500' : otpSuccess ? 'border-green-500 bg-green-50 text-green-900 focus:ring-green-500' : 'border-stone-300 bg-white text-stone-900 focus:ring-stone-800'}`}
                   required
                   disabled={loading}
+                  maxLength={10}
                 />
               </div>
               {otpError && (
