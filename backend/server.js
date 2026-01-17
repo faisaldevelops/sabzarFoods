@@ -17,6 +17,7 @@ import bomRoutes from "./routes/bom.route.js";
 import financeRoutes from "./routes/finance.route.js";
 import { connectDB } from "./lib/db.js";
 import { startHoldExpiryJob, stopHoldExpiryJob } from "./lib/stockHold.js";
+import { razorpayWebhook } from "./controllers/payments.razorpay.controller.js";
 
 dotenv.config();
 
@@ -42,7 +43,7 @@ app.options("*", cors());
 
 /* =======================
    Razorpay Webhook
-   (RAW BODY ONLY HERE)
+   (RAW BODY - must be before express.json() middleware)
 ======================= */
 app.post(
   "/api/payments/razorpay-webhook",
@@ -50,7 +51,8 @@ app.post(
   (req, res, next) => {
     req.rawBody = req.body;
     next();
-  }
+  },
+  razorpayWebhook
 );
 
 /* =======================
