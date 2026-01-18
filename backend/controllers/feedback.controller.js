@@ -2,40 +2,12 @@
  * Feedback Controller
  * 
  * Handles anonymous feedback submissions with:
- * - hCaptcha verification
  * - Honeypot field detection (bot protection)
  * - Input sanitization
  * - Email sending (no database storage)
  */
 
 import { sendEmail, isSESConfigured } from "../lib/ses.js";
-
-/**
- * Verify hCaptcha token
- */
-async function verifyHCaptcha(token) {
-  const secret = process.env.HCAPTCHA_SECRET_KEY;
-  
-  // If no secret configured, skip verification (for development)
-  if (!secret) {
-    console.warn("HCAPTCHA_SECRET_KEY not configured, skipping captcha verification");
-    return true;
-  }
-
-  try {
-    const response = await fetch("https://hcaptcha.com/siteverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: `response=${token}&secret=${secret}`,
-    });
-    
-    const data = await response.json();
-    return data.success === true;
-  } catch (error) {
-    console.error("hCaptcha verification error:", error);
-    return false;
-  }
-}
 
 /**
  * Sanitize input to prevent XSS and injection attacks
@@ -63,13 +35,12 @@ function sanitizeInput(str) {
 
 /**
  * Submit feedback
- * Expects: { message, captchaToken, website (honeypot) }
+ * Expects: { message, website (honeypot), _hp_time (timing honeypot) }
  */
 export const submitFeedback = async (req, res) => {
   try {
     const { 
       message, 
-      captchaToken,
       website,      // Honeypot field - should be empty
       _hp_time      // Honeypot timing field - should be at least 3 seconds
     } = req.body;
@@ -90,17 +61,6 @@ export const submitFeedback = async (req, res) => {
         console.log("Feedback rejected: form submitted too quickly");
         return res.json({ success: true, message: "Thank you for your feedback!" });
       }
-    }
-
-    // === CAPTCHA VERIFICATION ===
-    
-    if (!captchaToken) {
-      return res.status(400).json({ success: false, message: "Please complete the captcha" });
-    }
-    
-    const captchaValid = await verifyHCaptcha(captchaToken);
-    if (!captchaValid) {
-      return res.status(400).json({ success: false, message: "Captcha verification failed. Please try again." });
     }
 
     // === INPUT VALIDATION ===

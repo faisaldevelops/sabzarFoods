@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Send, CheckCircle, Loader2 } from "lucide-react";
-import HCaptcha from "@hcaptcha/react-hcaptcha";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 
@@ -10,55 +9,11 @@ const FeedbackPage = () => {
 	const [honeypotTime, setHoneypotTime] = useState(Date.now());
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isSubmitted, setIsSubmitted] = useState(false);
-	const captchaRef = useRef(null);
-	const pendingSubmitRef = useRef(null);
-
-	// hCaptcha site key - use test key for development, real key for production
-	const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || "10000000-ffff-ffff-ffff-000000000001";
 
 	// Set honeypot timing on mount
 	useEffect(() => {
 		setHoneypotTime(Date.now());
 	}, []);
-
-	// Called when captcha is verified - now submit the form
-	const handleCaptchaVerify = async (token) => {
-		if (!pendingSubmitRef.current) return;
-		
-		await submitFeedback(token);
-	};
-
-	const handleCaptchaError = () => {
-		toast.error("Captcha failed. Please try again.");
-		setIsSubmitting(false);
-		pendingSubmitRef.current = null;
-	};
-
-	const submitFeedback = async (captchaToken) => {
-		try {
-			const res = await axios.post("/feedback/submit", {
-				message,
-				captchaToken,
-				website: "", // Honeypot field - leave empty
-				_hp_time: honeypotTime, // Timing honeypot
-			});
-
-			if (res.data.success) {
-				setIsSubmitted(true);
-				toast.success("Feedback submitted successfully!");
-			} else {
-				toast.error(res.data.message || "Failed to submit feedback");
-				captchaRef.current?.resetCaptcha();
-			}
-		} catch (error) {
-			const errorMessage = error.response?.data?.message || "Failed to submit feedback. Please try again.";
-			toast.error(errorMessage);
-			captchaRef.current?.resetCaptcha();
-		} finally {
-			setIsSubmitting(false);
-			pendingSubmitRef.current = null;
-		}
-	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -70,11 +25,26 @@ const FeedbackPage = () => {
 		}
 
 		setIsSubmitting(true);
-		pendingSubmitRef.current = true;
 
-		// Trigger invisible captcha - this will open a popup if needed
-		// Once verified, handleCaptchaVerify will be called with the token
-		captchaRef.current?.execute();
+		try {
+			const res = await axios.post("/feedback/submit", {
+				message,
+				website: "", // Honeypot field - leave empty
+				_hp_time: honeypotTime, // Timing honeypot
+			});
+
+			if (res.data.success) {
+				setIsSubmitted(true);
+				toast.success("Feedback submitted successfully!");
+			} else {
+				toast.error(res.data.message || "Failed to submit feedback");
+			}
+		} catch (error) {
+			const errorMessage = error.response?.data?.message || "Failed to submit feedback. Please try again.";
+			toast.error(errorMessage);
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	// Success state
@@ -101,7 +71,6 @@ const FeedbackPage = () => {
 									setIsSubmitted(false);
 									setMessage("");
 									setHoneypotTime(Date.now());
-									captchaRef.current?.resetCaptcha();
 								}}
 								className='inline-flex items-center justify-center px-6 py-3 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors'
 							>
@@ -164,16 +133,6 @@ const FeedbackPage = () => {
 								{message.length}/5000
 							</p>
 						</div>
-
-						{/* Invisible hCaptcha - triggers on submit */}
-						<HCaptcha
-							ref={captchaRef}
-							sitekey={HCAPTCHA_SITE_KEY}
-							size="invisible"
-							onVerify={handleCaptchaVerify}
-							onError={handleCaptchaError}
-							onExpire={handleCaptchaError}
-						/>
 
 						{/* Submit Button */}
 						<button

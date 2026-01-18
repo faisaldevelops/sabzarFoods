@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle, Trash2 } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -24,6 +24,14 @@ const OrderslistTab = () => {
         currentStatus: null,
         newStatus: null,
         orderPublicId: null
+    });
+    
+    // Delete confirmation modal state
+    const [deleteModal, setDeleteModal] = useState({
+        isOpen: false,
+        orderId: null,
+        orderPublicId: null,
+        isDeleting: false
     });
     
     // Shipping details state (for when changing to shipped)
@@ -226,6 +234,50 @@ const OrderslistTab = () => {
             currentStatus: null,
             newStatus: null,
             orderPublicId: null
+        });
+    };
+
+    const handleDeleteClick = (orderId, orderPublicId) => {
+        setDeleteModal({
+            isOpen: true,
+            orderId,
+            orderPublicId,
+            isDeleting: false
+        });
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deleteModal.orderId) return;
+        
+        setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+        
+        try {
+            const response = await axios.delete(`/orders/${deleteModal.orderId}`);
+            
+            if (response.data.success) {
+                toast.success(`Order ${deleteModal.orderPublicId} deleted`);
+                // Refetch orders to update the list
+                await fetchAllOrders();
+            }
+        } catch (error) {
+            console.error("Error deleting order:", error);
+            toast.error(error.response?.data?.message || "Failed to delete order");
+        } finally {
+            setDeleteModal({
+                isOpen: false,
+                orderId: null,
+                orderPublicId: null,
+                isDeleting: false
+            });
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setDeleteModal({
+            isOpen: false,
+            orderId: null,
+            orderPublicId: null,
+            isDeleting: false
         });
     };
 
@@ -550,9 +602,16 @@ const OrderslistTab = () => {
                             )}
                         </div>
                         
-                        {/* Tracking Status Badge */}
-                        <div className="flex justify-end">
+                        {/* Tracking Status Badge and Delete Button */}
+                        <div className="flex items-center justify-end gap-2">
                             {getStatusBadge(order.trackingStatus)}
+                            <button
+                                onClick={() => handleDeleteClick(order.orderId, order.publicOrderId || order.orderId)}
+                                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                title="Delete order"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -755,6 +814,51 @@ const OrderslistTab = () => {
                                 className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {updatingOrder === confirmationModal.orderId ? 'Updating...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    )}
+
+    {/* Delete Confirmation Modal */}
+    {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700"
+            >
+                <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                        <Trash2 className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-white mb-2">
+                            Delete Order
+                        </h3>
+                        <p className="text-gray-300 text-sm mb-4">
+                            Are you sure you want to permanently delete Order <span className="font-semibold text-white">#{deleteModal.orderPublicId}</span>?
+                        </p>
+                        <p className="text-red-400 text-xs mb-4 bg-red-500/10 p-2 rounded border border-red-500/20">
+                            This action cannot be undone. The order will be permanently removed from the database.
+                        </p>
+                        
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={handleCancelDelete}
+                                disabled={deleteModal.isDeleting}
+                                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                disabled={deleteModal.isDeleting}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {deleteModal.isDeleting ? 'Deleting...' : 'Delete Order'}
                             </button>
                         </div>
                     </div>

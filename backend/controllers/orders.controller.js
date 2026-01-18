@@ -1394,3 +1394,50 @@ export const createManualOrder = async (req, res) => {
 		});
 	}
 };
+
+/**
+ * Delete an order from the database (admin only)
+ * This is a permanent deletion - use with caution
+ */
+export const deleteOrder = async (req, res) => {
+	try {
+		const { orderId } = req.params;
+
+		if (!orderId) {
+			return res.status(400).json({
+				success: false,
+				message: "Order ID is required"
+			});
+		}
+
+		// Find the order first to get details for logging
+		const order = await Order.findById(orderId);
+
+		if (!order) {
+			return res.status(404).json({
+				success: false,
+				message: "Order not found"
+			});
+		}
+
+		// Log the deletion for audit purposes
+		console.log(`[DELETE ORDER] Admin ${req.user._id} deleting order ${order.publicOrderId} (${orderId}), status: ${order.status}, trackingStatus: ${order.trackingStatus}, amount: ₹${order.totalAmount}`);
+
+		// Delete the order
+		await Order.findByIdAndDelete(orderId);
+
+		console.log(`[DELETE ORDER] Order ${order.publicOrderId} deleted successfully`);
+
+		res.status(200).json({
+			success: true,
+			message: `Order ${order.publicOrderId} deleted successfully`
+		});
+
+	} catch (error) {
+		console.error('Error deleting order:', error);
+		res.status(500).json({
+			success: false,
+			message: error.message || 'Server error deleting order'
+		});
+	}
+};
