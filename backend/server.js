@@ -15,6 +15,7 @@ import addressRoutes from "./routes/address.route.js";
 import expenseRoutes from "./routes/expense.route.js";
 import bomRoutes from "./routes/bom.route.js";
 import financeRoutes from "./routes/finance.route.js";
+import feedbackRoutes from "./routes/feedback.route.js";
 import { connectDB } from "./lib/db.js";
 import { startHoldExpiryJob, stopHoldExpiryJob } from "./lib/stockHold.js";
 import { razorpayWebhook } from "./controllers/payments.razorpay.controller.js";
@@ -75,6 +76,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/bom", bomRoutes);
 app.use("/api/finance", financeRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 /* =======================
    Start Server
