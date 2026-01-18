@@ -554,38 +554,30 @@ export const razorpayWebhook = async (req, res) => {
       const payment = event.payload.payment.entity;
       const razorpayOrderId = payment.order_id;
       
-      console.log(`Webhook: Received payment.failed for order ${razorpayOrderId}`);
+      console.log(`Webhook: Received payment.failed for order ${razorpayOrderId}, error: ${payment.error_description || 'unknown'}`);
       
-      // Find order by razorpay order id
-      // Use atomic update to prevent race conditions
-      const order = await Order.findOneAndUpdate(
-        { 
-          razorpayOrderId: razorpayOrderId,
-          status: { $in: ["hold", "pending", "processing_payment"] } // Only update if in these states
-        },
-        {
-          $set: {
-            status: "cancelled",
-            trackingStatus: "cancelled"
-          },
-          $push: {
-            trackingHistory: {
-              status: "cancelled",
-              timestamp: new Date(),
-              note: `Payment failed - ${payment.error_description || "order cancelled"}`
-            }
-          }
-        },
-        { new: true }
-      );
+      // NOTE: We do NOT cancel the order on payment.failed because:
+      // 1. Users can retry payment multiple times on the same Razorpay order
+      // 2. UPI apps sometimes auto-retry failed payments
+      // 3. The hold timer will handle expiration if no successful payment comes through
+      //
+      // Just log the failure for now - the order stays in "hold" status
+      const order = await Order.findOne({ razorpayOrderId: razorpayOrderId });
       
       if (order) {
-        // Release reserved stock
-        await releaseReservedStock(order.products);
-        console.log(`Webhook: Cancelled order ${order._id} and released stock due to payment failure`);
+        // Add to tracking history for visibility, but don't change status
+        await Order.findByIdAndUpdate(order._id, {
+          $push: {
+            trackingHistory: {
+              status: order.status, // Keep current status
+              timestamp: new Date(),
+              note: `Payment attempt failed - ${payment.error_description || "will retry or expire"}`
+            }
+          }
+        });
+        console.log(`Webhook: Logged payment failure for order ${order._id}, order remains in ${order.status} status`);
       } else {
-        // Order might already be paid, expired, or cancelled - that's fine
-        console.log(`Webhook: No eligible order found to cancel for razorpay order ${razorpayOrderId}`);
+        console.log(`Webhook: No order found for razorpay order ${razorpayOrderId}`);
       }
       
     } else if (eventType === "order.paid") {
