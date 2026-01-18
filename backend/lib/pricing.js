@@ -120,8 +120,8 @@ export function calculateDeliveryCharge(address) {
  */
 export function calculatePlatformFee(subtotal) {
   const config = loadPricingConfig();
-  const constant = config.platformFee?.constant || 5;
-  const razorpayPercentage = config.platformFee?.razorpayPercentage || 2.0;
+  const constant = config.platformFee?.constant ?? 5;
+  const razorpayPercentage = config.platformFee?.razorpayPercentage ?? 2.0;
   
   // Razorpay fee is calculated on the subtotal (before adding platform fee)
   const razorpayFee = (subtotal * razorpayPercentage) / 100;
