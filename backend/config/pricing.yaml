@@ -4,11 +4,11 @@
 delivery:
   # Local delivery charges (J&K pincodes)
   local:
-    price: 84  # in rupees
+    price: 54  # in rupees
   
   # National delivery charges (other states/regions)
   national:
-    price:  154 # in rupees
+    price:  124 # in rupees
   
   # Local delivery is determined by pincode
   # All pincodes from Jammu & Kashmir (J&K) are considered local
@@ -27,8 +27,8 @@ delivery:
 
 platformFee:
   # Constant platform fee (in rupees)
-  constant: 5
+  constant: 9
   
   # Razorpay percentage fee (e.g., 2.0 means 2%)
-  razorpayPercentage: 2.0
+  razorpayPercentage: 0.0
 
