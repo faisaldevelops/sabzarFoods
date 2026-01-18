@@ -7,11 +7,11 @@ import toast from "react-hot-toast";
 
 const FeedbackPage = () => {
 	const [message, setMessage] = useState("");
-	const [captchaToken, setCaptchaToken] = useState(null);
 	const [honeypotTime, setHoneypotTime] = useState(Date.now());
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isSubmitted, setIsSubmitted] = useState(false);
 	const captchaRef = useRef(null);
+	const pendingSubmitRef = useRef(null);
 
 	// hCaptcha site key - use test key for development, real key for production
 	const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || "10000000-ffff-ffff-ffff-000000000001";
@@ -21,29 +21,20 @@ const FeedbackPage = () => {
 		setHoneypotTime(Date.now());
 	}, []);
 
-	const handleCaptchaVerify = (token) => {
-		setCaptchaToken(token);
+	// Called when captcha is verified - now submit the form
+	const handleCaptchaVerify = async (token) => {
+		if (!pendingSubmitRef.current) return;
+		
+		await submitFeedback(token);
 	};
 
-	const handleCaptchaExpire = () => {
-		setCaptchaToken(null);
+	const handleCaptchaError = () => {
+		toast.error("Captcha failed. Please try again.");
+		setIsSubmitting(false);
+		pendingSubmitRef.current = null;
 	};
 
-	const handleSubmit = async (e) => {
-		e.preventDefault();
-
-		// Validation
-		if (!message || message.trim().length < 10) {
-			toast.error("Please provide a message (at least 10 characters)");
-			return;
-		}
-		if (!captchaToken) {
-			toast.error("Please complete the captcha");
-			return;
-		}
-
-		setIsSubmitting(true);
-
+	const submitFeedback = async (captchaToken) => {
 		try {
 			const res = await axios.post("/feedback/submit", {
 				message,
@@ -57,19 +48,33 @@ const FeedbackPage = () => {
 				toast.success("Feedback submitted successfully!");
 			} else {
 				toast.error(res.data.message || "Failed to submit feedback");
-				// Reset captcha on error
 				captchaRef.current?.resetCaptcha();
-				setCaptchaToken(null);
 			}
 		} catch (error) {
 			const errorMessage = error.response?.data?.message || "Failed to submit feedback. Please try again.";
 			toast.error(errorMessage);
-			// Reset captcha on error
 			captchaRef.current?.resetCaptcha();
-			setCaptchaToken(null);
 		} finally {
 			setIsSubmitting(false);
+			pendingSubmitRef.current = null;
 		}
+	};
+
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+
+		// Validation
+		if (!message || message.trim().length < 10) {
+			toast.error("Please provide a message (at least 10 characters)");
+			return;
+		}
+
+		setIsSubmitting(true);
+		pendingSubmitRef.current = true;
+
+		// Trigger invisible captcha - this will open a popup if needed
+		// Once verified, handleCaptchaVerify will be called with the token
+		captchaRef.current?.execute();
 	};
 
 	// Success state
@@ -95,8 +100,8 @@ const FeedbackPage = () => {
 								onClick={() => {
 									setIsSubmitted(false);
 									setMessage("");
-									setCaptchaToken(null);
 									setHoneypotTime(Date.now());
+									captchaRef.current?.resetCaptcha();
 								}}
 								className='inline-flex items-center justify-center px-6 py-3 border border-stone-300 text-stone-700 rounded-lg hover:bg-stone-50 transition-colors'
 							>
@@ -160,20 +165,20 @@ const FeedbackPage = () => {
 							</p>
 						</div>
 
-						{/* hCaptcha */}
-						<div className='flex justify-center'>
-							<HCaptcha
-								ref={captchaRef}
-								sitekey={HCAPTCHA_SITE_KEY}
-								onVerify={handleCaptchaVerify}
-								onExpire={handleCaptchaExpire}
-							/>
-						</div>
+						{/* Invisible hCaptcha - triggers on submit */}
+						<HCaptcha
+							ref={captchaRef}
+							sitekey={HCAPTCHA_SITE_KEY}
+							size="invisible"
+							onVerify={handleCaptchaVerify}
+							onError={handleCaptchaError}
+							onExpire={handleCaptchaError}
+						/>
 
 						{/* Submit Button */}
 						<button
 							type='submit'
-							disabled={isSubmitting || !captchaToken}
+							disabled={isSubmitting}
 							className='w-full flex items-center justify-center gap-2 px-6 py-3 bg-stone-800 text-white rounded-lg hover:bg-stone-700 focus:ring-4 focus:ring-stone-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
 						>
 							{isSubmitting ? (
