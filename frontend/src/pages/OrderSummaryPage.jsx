@@ -573,6 +573,10 @@ const OrderSummaryPage = () => {
 									{isProcessing ? "Processing..." : "Proceed to Buy"}
 								</motion.button>
 
+								<p className='text-xs text-center text-gray-500'>
+									Cash on Delivery coming soon
+								</p>
+
 								<button
 									onClick={() => {
 										localStorage.removeItem("pendingBuyNowOrder");

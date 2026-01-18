@@ -563,6 +563,10 @@ const OrderSummary = () => {
 					{isProcessing ? "Processing..." : "Buy"}
 				</motion.button>
 
+				<p className='text-xs text-center text-stone-400'>
+					Cash on Delivery coming soon
+				</p>
+
 				<div className='flex items-center justify-center gap-2'>
 					<span className='text-sm font-normal text-stone-600'>or</span>
 					<Link
