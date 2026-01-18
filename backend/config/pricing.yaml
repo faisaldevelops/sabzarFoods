@@ -19,11 +19,15 @@ delivery:
   usePincodeLogic: true
   localPincodePrefixes:
     - "180"  # Jammu region
+    - "181"
+    - "182" # Jammu region
+    - "183" # Jammu region
+    - "184" # Jammu region
     - "190"  # Srinagar/Kashmir region
     - "191"  # Kashmir region
     - "192"  # Kashmir region
     - "193"  # Kashmir region
-    - "194"  # Kashmir/Ladakh region
+    - "194"  # Kashmir region
 
 platformFee:
   # Constant platform fee (in rupees)

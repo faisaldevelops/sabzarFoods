@@ -15,6 +15,7 @@ import {
 } from "../lib/stockHold.js";
 import { calculatePricingBreakdown } from "../lib/pricing.js";
 import { validateIndianAddress } from "../lib/addressValidation.js";
+import { sendEmail, isSESConfigured } from "../lib/ses.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -23,6 +24,119 @@ const razorpay = new Razorpay({
 
 // Hold duration in seconds (15 minutes)
 const HOLD_DURATION_SECONDS = 15 * 60;
+
+/**
+ * Send alert email for payments requiring manual review
+ */
+async function sendManualReviewAlert(order, paymentId, reason) {
+  if (!isSESConfigured()) {
+    console.warn("SES not configured, cannot send manual review alert email");
+    return;
+  }
+
+  const alertEmail = "orders@sabzarfoods.in";
+  const dashboardUrl = `https://dashboard.razorpay.com/app/payments/${paymentId}`;
+  
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #dc2626; color: white; padding: 20px; text-align: center; }
+    .content { background: #fef2f2; padding: 20px; border: 1px solid #fecaca; }
+    .field { margin-bottom: 12px; }
+    .label { font-weight: bold; color: #991b1b; }
+    .value { margin-top: 4px; }
+    .action { background: #1c1917; color: white; padding: 12px 24px; text-decoration: none; display: inline-block; border-radius: 6px; margin-top: 15px; }
+    .footer { padding: 15px; font-size: 12px; color: #666; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚠️ Manual Review Required</h1>
+    </div>
+    <div class="content">
+      <p><strong>Reason:</strong> ${reason}</p>
+      
+      <div class="field">
+        <div class="label">Order ID:</div>
+        <div class="value">${order._id}</div>
+      </div>
+      <div class="field">
+        <div class="label">Public Order ID:</div>
+        <div class="value">${order.publicOrderId || 'N/A'}</div>
+      </div>
+      <div class="field">
+        <div class="label">Order Status:</div>
+        <div class="value">${order.status}</div>
+      </div>
+      <div class="field">
+        <div class="label">Razorpay Payment ID:</div>
+        <div class="value">${paymentId}</div>
+      </div>
+      <div class="field">
+        <div class="label">Amount:</div>
+        <div class="value">₹${order.totalAmount}</div>
+      </div>
+      <div class="field">
+        <div class="label">Customer:</div>
+        <div class="value">${order.address?.name || 'N/A'} - ${order.address?.phoneNumber || 'N/A'}</div>
+      </div>
+      
+      <p><strong>Action Required:</strong> Please review this payment and either:</p>
+      <ul>
+        <li>Reinstate the order and fulfill it, OR</li>
+        <li>Issue a refund via Razorpay dashboard</li>
+      </ul>
+      
+      <a href="${dashboardUrl}" class="action">View Payment in Razorpay</a>
+    </div>
+    <div class="footer">
+      <p>This is an automated alert from Sabzar Foods payment system.</p>
+      <p>Time: ${new Date().toISOString()}</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  const textBody = `
+⚠️ MANUAL REVIEW REQUIRED
+==========================
+
+Reason: ${reason}
+
+Order ID: ${order._id}
+Public Order ID: ${order.publicOrderId || 'N/A'}
+Order Status: ${order.status}
+Razorpay Payment ID: ${paymentId}
+Amount: ₹${order.totalAmount}
+Customer: ${order.address?.name || 'N/A'} - ${order.address?.phoneNumber || 'N/A'}
+
+Action Required:
+- Reinstate the order and fulfill it, OR
+- Issue a refund via Razorpay dashboard
+
+Razorpay Dashboard: ${dashboardUrl}
+
+Time: ${new Date().toISOString()}
+  `;
+
+  try {
+    await sendEmail({
+      to: alertEmail,
+      subject: `⚠️ ALERT: Payment received for ${order.status} order - Manual review required`,
+      htmlBody,
+      textBody
+    });
+    console.log(`Manual review alert email sent to ${alertEmail}`);
+  } catch (error) {
+    console.error("Failed to send manual review alert email:", error);
+  }
+}
 
 /**
  * Create a Razorpay order with HOLD status.
@@ -410,8 +524,16 @@ export const razorpayWebhook = async (req, res) => {
       if (order.status === "cancelled" || order.status === "expired") {
         console.warn(`Webhook: Order ${order._id} is ${order.status}, cannot process payment`);
         // This is a problematic situation - payment was made but order expired
-        // Log for manual review
+        // Log for manual review and send alert email
         console.error(`ALERT: Payment ${paymentId} received for ${order.status} order ${order._id}. Manual review required.`);
+        
+        // Send email alert (don't await - let it run in background)
+        sendManualReviewAlert(
+          order, 
+          paymentId, 
+          `Payment was received but order is already ${order.status}. The customer may have completed payment after the hold expired.`
+        ).catch(err => console.error("Failed to send alert email:", err));
+        
         return res.json({ status: "ok", message: "order not eligible" });
       }
       
