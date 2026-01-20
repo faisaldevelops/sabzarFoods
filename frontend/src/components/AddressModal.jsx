@@ -197,7 +197,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
                 value={form.email}
                 onChange={handleChange}
                 className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
-                placeholder="Optional"
+                placeholder="Email address"
               />
               {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
             </div>
