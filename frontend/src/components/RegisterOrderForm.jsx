@@ -367,7 +367,7 @@ const RegisterOrderForm = () => {
                     clearError('customerEmail');
                   }}
                   className={`w-full bg-gray-700 border rounded-md pl-10 pr-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 ${errors.customerEmail ? 'border-red-500' : 'border-gray-600'}`}
-                  placeholder="Email (optional)"
+                  placeholder="Email"
                 />
               </div>
               {errors.customerEmail && <p className="text-xs text-red-400 mt-1">{errors.customerEmail}</p>}
