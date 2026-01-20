@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Youtube, Instagram, Facebook } from "lucide-react";
 
 const Footer = () => {
 	return (
@@ -61,8 +62,42 @@ const Footer = () => {
 					</div>
 				</div>
 
+				{/* Social Media Section */}
+				<div className='border-t border-stone-200 my-8 pt-6'>
+					<h3 className='text-base font-semibold text-stone-900 mb-4'>Follow Us</h3>
+					<div className='flex gap-6 justify-center md:justify-start'>
+						<a
+							href='https://www.youtube.com/@sabzarfoodtv'
+							target='_blank'
+							rel='noopener noreferrer'
+							className='text-stone-600 hover:text-red-600 transition-colors'
+							aria-label='YouTube'
+						>
+							<Youtube size={24} />
+						</a>
+						<a
+							href='https://www.instagram.com/sabzarfoodtv'
+							target='_blank'
+							rel='noopener noreferrer'
+							className='text-stone-600 hover:text-pink-600 transition-colors'
+							aria-label='Instagram'
+						>
+							<Instagram size={24} />
+						</a>
+						<a
+							href='https://www.facebook.com/sabzarfoodtv'
+							target='_blank'
+							rel='noopener noreferrer'
+							className='text-stone-600 hover:text-blue-600 transition-colors'
+							aria-label='Facebook'
+						>
+							<Facebook size={24} />
+						</a>
+					</div>
+				</div>
+
 				{/* Copyright */}
-				<div className='border-t border-stone-200 mt-8 pt-6'>
+				<div className='border-t border-stone-200 pt-6'>
 					<p className='text-sm text-stone-600 text-center'>
 						© {new Date().getFullYear()} Sabzar Foods. All rights reserved.
 					</p>
