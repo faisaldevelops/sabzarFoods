@@ -566,7 +566,12 @@ const OrderslistTab = () => {
                                 </span>
                             )}
                         </div>
-                        <p className="text-sm text-gray-400">{order.user.phoneNumber || order.user.email}</p>
+                        <div className="flex flex-col gap-1 mt-1">
+                            <p className="text-sm text-gray-400">{order.user.phoneNumber || order.user.email}</p>
+                            {order.address.email && (
+                                <p className="text-sm text-gray-400">Email: {order.address.email}</p>
+                            )}
+                        </div>
                         {order.isManualOrder && (
                             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                                 <span>Payment: <span className="text-gray-300 capitalize">{order.paymentMethod?.replace('_', ' ')}</span></span>
@@ -628,6 +633,33 @@ const OrderslistTab = () => {
                         </p>
                     </div>
                 </div>
+
+                {/* Tracking Information */}
+                {(order.trackingNumber || order.deliveryPartner) && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                        <p className="text-sm font-medium text-gray-300 mb-2">Tracking Information:</p>
+                        <div className="space-y-2">
+                            {order.deliveryPartner && (
+                                <div className="flex items-center text-xs gap-2">
+                                    <Truck className="w-4 h-4 text-purple-400" />
+                                    <span className="text-gray-400">Via:</span>
+                                    <span className="text-purple-400 font-medium">
+                                        {order.deliveryPartner === 'india_post' ? 'India Post' : 
+                                         order.deliveryPartner === 'delhivery' ? 'Delhivery' : 
+                                         order.deliveryPartner}
+                                    </span>
+                                </div>
+                            )}
+                            {order.trackingNumber && (
+                                <div className="flex items-center text-xs gap-2">
+                                    <Package className="w-4 h-4 text-emerald-400" />
+                                    <span className="text-gray-400">Tracking ID:</span>
+                                    <span className="font-mono text-emerald-400 font-medium">{order.trackingNumber}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
                 
                 {/* Admin Notes (for manual orders) */}
                 {order.adminNotes && (
