@@ -117,7 +117,7 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     if (!form.name.trim()) e.name = "Name is required";
     if (!/^\d{10}$/.test(form.phoneNumber)) e.phoneNumber = "Enter 10 digit phone";
     // Email is optional, but if provided, validate format
-    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    if (!form.email || (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))) {
       e.email = "Enter valid email";
     }
     if (!/^\d{6}$/.test(form.pincode)) e.pincode = "Enter 6 digit pincode";
