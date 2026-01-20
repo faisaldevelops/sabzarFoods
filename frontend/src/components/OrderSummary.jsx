@@ -532,16 +532,10 @@ const OrderSummary = () => {
 						<dd className='text-base font-medium text-stone-900'>...</dd>
 					</dl>
 				) : pricingBreakdown ? (
-					<>
-						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Delivery Charges</dt>
-							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
-						</dl>
-						<dl className='flex items-center justify-between gap-4'>
-							<dt className='text-base font-normal text-stone-700'>Platform Fee</dt>
-							<dd className='text-base font-medium text-stone-900'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
-						</dl>
-					</>
+					<dl className='flex items-center justify-between gap-4'>
+						<dt className='text-base font-normal text-stone-700'>Delivery Charges</dt>
+						<dd className='text-base font-medium text-stone-900'>₹{(pricingBreakdown.deliveryCharge + pricingBreakdown.platformFee.total).toFixed(2)}</dd>
+					</dl>
 				) : (
 					<p className='text-xs text-stone-500 italic'>
 						Add delivery address to see shipping charges
