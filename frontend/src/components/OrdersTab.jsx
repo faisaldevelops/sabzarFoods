@@ -345,7 +345,8 @@ const OrderslistTab = () => {
         if (pagination.totalPages <= 1) return null;
 
         const pages = [];
-        const maxVisiblePages = 5;
+        // Show fewer pages on mobile
+        const maxVisiblePages = 3;
         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
         let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
 
@@ -358,30 +359,31 @@ const OrderslistTab = () => {
         }
 
         return (
-            <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 mt-6 px-2">
+                {/* Previous button - icon only on mobile */}
                 <button
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={!pagination.hasPrevPage}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         pagination.hasPrevPage
                             ? 'bg-gray-700 text-white hover:bg-gray-600'
                             : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     }`}
                 >
                     <ChevronLeft className="w-4 h-4" />
-                    Previous
+                    <span className="hidden sm:inline">Previous</span>
                 </button>
 
                 {startPage > 1 && (
                     <>
                         <button
                             onClick={() => handlePageChange(1)}
-                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                            className="px-2 sm:px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
                         >
                             1
                         </button>
                         {startPage > 2 && (
-                            <span className="px-2 text-gray-400">...</span>
+                            <span className="px-1 sm:px-2 text-gray-400">...</span>
                         )}
                     </>
                 )}
@@ -390,7 +392,7 @@ const OrderslistTab = () => {
                     <button
                         key={page}
                         onClick={() => handlePageChange(page)}
-                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        className={`px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                             page === currentPage
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -403,27 +405,28 @@ const OrderslistTab = () => {
                 {endPage < pagination.totalPages && (
                     <>
                         {endPage < pagination.totalPages - 1 && (
-                            <span className="px-2 text-gray-400">...</span>
+                            <span className="px-1 sm:px-2 text-gray-400">...</span>
                         )}
                         <button
                             onClick={() => handlePageChange(pagination.totalPages)}
-                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                            className="px-2 sm:px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
                         >
                             {pagination.totalPages}
                         </button>
                     </>
                 )}
 
+                {/* Next button - icon only on mobile */}
                 <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={!pagination.hasNextPage}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         pagination.hasNextPage
                             ? 'bg-gray-700 text-white hover:bg-gray-600'
                             : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     }`}
                 >
-                    Next
+                    <span className="hidden sm:inline">Next</span>
                     <ChevronRight className="w-4 h-4" />
                 </button>
             </div>
