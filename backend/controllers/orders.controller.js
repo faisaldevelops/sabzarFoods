@@ -126,6 +126,7 @@ export const getOrdersData = async (req, res) => {
 				address: order.address,
 				trackingStatus: order.trackingStatus,
 				trackingNumber: order.trackingNumber,
+				deliveryPartner: order.deliveryPartner,
 				estimatedDelivery: order.estimatedDelivery,
 				trackingHistory: order.trackingHistory,
 				// Manual order fields

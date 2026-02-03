@@ -632,6 +632,25 @@ const OrderslistTab = () => {
                     </div>
                 </div>
                 
+                {/* Tracking Info */}
+                {(order.trackingNumber || order.deliveryPartner) && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                        <p className="text-sm font-medium text-gray-300 mb-1">Tracking Info:</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                            {order.deliveryPartner && (
+                                <span className="text-gray-400">
+                                    Partner: <span className="text-purple-400 capitalize">{order.deliveryPartner.replace('_', ' ')}</span>
+                                </span>
+                            )}
+                            {order.trackingNumber && (
+                                <span className="text-gray-400">
+                                    Tracking #: <span className="font-mono text-emerald-400">{order.trackingNumber}</span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+                
                 {/* Admin Notes (for manual orders) */}
                 {order.adminNotes && (
                     <div className="mt-4 pt-4 border-t border-gray-700">
