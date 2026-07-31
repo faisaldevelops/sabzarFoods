@@ -126,6 +126,7 @@ export const getOrdersData = async (req, res) => {
 				address: order.address,
 				trackingStatus: order.trackingStatus,
 				trackingNumber: order.trackingNumber,
+				deliveryPartner: order.deliveryPartner,
 				estimatedDelivery: order.estimatedDelivery,
 				trackingHistory: order.trackingHistory,
 				// Manual order fields
@@ -225,7 +226,7 @@ export const updateOrderTracking = async (req, res) => {
 		const { trackingStatus, trackingNumber, deliveryPartner, estimatedDelivery, note } = req.body;
 
 		const order = await Order.findById(orderId)
-			.populate('user', 'phoneNumber email')
+			.populate('user', 'phoneNumber')
 			.populate({
 				path: 'products.product',
 				select: 'name price image',
@@ -246,9 +247,11 @@ export const updateOrderTracking = async (req, res) => {
 			});
 
 			// Send email notification for shipped and delivered statuses
-			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && order.user?.email) {
+			// Use email from address field (optional)
+			const addressEmail = order.address?.email;
+			if ((trackingStatus === "shipped" || trackingStatus === "delivered") && addressEmail) {
 				// Send email asynchronously - don't wait for it to complete
-				sendOrderStatusEmailNotification(order.toObject(), order.user.email, trackingStatus)
+				sendOrderStatusEmailNotification(order.toObject(), addressEmail, trackingStatus)
 					.catch(error => console.error("[EMAIL] Email notification error:", error));
 			}
 		}
@@ -1307,6 +1310,7 @@ export const createManualOrder = async (req, res) => {
 			address: {
 				name: address.name || customerName,
 				phoneNumber: address.phoneNumber || customerPhone,
+				email: address.email || customerEmail || undefined, // Optional email for notifications
 				pincode: address.pincode,
 				houseNumber: address.houseNumber || "",
 				streetAddress: address.streetAddress || "",
@@ -1341,13 +1345,13 @@ export const createManualOrder = async (req, res) => {
 			})
 			.lean();
 
-		// Send order confirmation email for manual orders if customer has email
-		const userEmail = populatedOrder.user?.email || customerEmail;
-		if (userEmail) {
-			sendOrderPlacedEmail(populatedOrder, userEmail)
+		// Send order confirmation email for manual orders if address has email
+		const addressEmail = populatedOrder.address?.email || customerEmail;
+		if (addressEmail) {
+			sendOrderPlacedEmail(populatedOrder, addressEmail)
 				.then((result) => {
 					if (result.success) {
-						console.log(`[SES] Order placed email sent for manual order ${populatedOrder.publicOrderId}`);
+						console.log(`[SES] Order placed email sent for manual order ${populatedOrder.publicOrderId} to ${addressEmail}`);
 					}
 				})
 				.catch((err) => console.error("[SES] Failed to send order placed email for manual order:", err));
@@ -1388,6 +1392,53 @@ export const createManualOrder = async (req, res) => {
 		res.status(500).json({ 
 			success: false, 
 			message: error.message || 'Server error creating manual order' 
+		});
+	}
+};
+
+/**
+ * Delete an order from the database (admin only)
+ * This is a permanent deletion - use with caution
+ */
+export const deleteOrder = async (req, res) => {
+	try {
+		const { orderId } = req.params;
+
+		if (!orderId) {
+			return res.status(400).json({
+				success: false,
+				message: "Order ID is required"
+			});
+		}
+
+		// Find the order first to get details for logging
+		const order = await Order.findById(orderId);
+
+		if (!order) {
+			return res.status(404).json({
+				success: false,
+				message: "Order not found"
+			});
+		}
+
+		// Log the deletion for audit purposes
+		console.log(`[DELETE ORDER] Admin ${req.user._id} deleting order ${order.publicOrderId} (${orderId}), status: ${order.status}, trackingStatus: ${order.trackingStatus}, amount: ₹${order.totalAmount}`);
+
+		// Delete the order
+		await Order.findByIdAndDelete(orderId);
+
+		console.log(`[DELETE ORDER] Order ${order.publicOrderId} deleted successfully`);
+
+		res.status(200).json({
+			success: true,
+			message: `Order ${order.publicOrderId} deleted successfully`
+		});
+
+	} catch (error) {
+		console.error('Error deleting order:', error);
+		res.status(500).json({
+			success: false,
+			message: error.message || 'Server error deleting order'
 		});
 	}
 };

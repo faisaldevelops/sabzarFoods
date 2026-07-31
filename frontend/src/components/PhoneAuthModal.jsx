@@ -241,9 +241,11 @@ const PhoneAuthModal = ({ isOpen, onClose, onSuccess }) => {
                 <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 text-stone-400" size={20} />
                 <input
                   type="text"
+                  autoComplete="one-time-code"
                   value={otp}
                   onChange={(e) => {
-                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 4));
+                    const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setOtp(value);
                     setOtpError("");
                     setOtpSuccess("");
                   }}

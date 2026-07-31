@@ -198,10 +198,12 @@ const LoginPage = () => {
 								<input
 									id='otp'
 									type='text'
+									autoComplete='one-time-code'
 									required
 									value={otp}
 									onChange={(e) => {
-										setOtp(e.target.value.replace(/\D/g, "").slice(0, 4));
+										const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+										setOtp(value);
 										setOtpError("");
 										setOtpSuccess("");
 									}}

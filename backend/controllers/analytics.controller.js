@@ -8,6 +8,12 @@ export const getAnalyticsData = async () => {
 
 	const salesData = await Order.aggregate([
 		{
+			// Only count orders with successful payment
+			$match: {
+				status: "paid"
+			}
+		},
+		{
 			$group: {
 				_id: null, // it groups all documents together,
 				totalSales: { $sum: 1 },
@@ -35,6 +41,8 @@ export const getDailySalesData = async (startDate, endDate) => {
 						$gte: startDate,
 						$lte: endDate,
 					},
+					// Only count orders with successful payment
+					status: "paid"
 				},
 			},
 			{

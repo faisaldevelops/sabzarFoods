@@ -49,6 +49,11 @@ const Footer = () => {
 									Email: orders@sabzarfoods.in
 								</a>
 							</li>
+							<li>
+								<Link to='/feedback' className='text-sm text-stone-600 hover:text-stone-900 transition-colors'>
+									Share Feedback
+								</Link>
+							</li>
 							<li className='text-sm text-stone-600'>
 								Address: Main Chowk, Kupwara, Dist Kupwara, J&K, India. 193222
 							</li>

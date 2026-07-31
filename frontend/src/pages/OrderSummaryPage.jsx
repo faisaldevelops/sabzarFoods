@@ -107,6 +107,46 @@ const OrderSummaryPage = () => {
 		}
 	}, [showAddressDropdown]);
 
+	// Check for pending order on page load (handles GPay intent return)
+	useEffect(() => {
+		const checkPendingOrder = async () => {
+			const pendingOrderStr = sessionStorage.getItem("pendingOrder");
+			if (!pendingOrderStr) return;
+
+			try {
+				const pendingOrder = JSON.parse(pendingOrderStr);
+				const { localOrderId, razorpayOrderId } = pendingOrder;
+
+				// Check if order was already paid (webhook might have processed it)
+				const res = await axios.get(`/payments/hold-status?localOrderId=${localOrderId}`);
+				
+				if (res.data?.status === "paid") {
+					// Order was paid while user was in GPay - redirect to success
+					toast.success("Payment successful!");
+					sessionStorage.removeItem("pendingOrder");
+					localStorage.removeItem("pendingBuyNowOrder");
+					window.location.href = `/purchase-success?orderId=${encodeURIComponent(razorpayOrderId)}`;
+				} else if (res.data?.status === "hold" && !res.data?.isExpired) {
+					// Order still in hold - restore timer state
+					setHoldInfo({
+						expiresAt: res.data.expiresAt,
+						localOrderId,
+						holdDurationSeconds: res.data.remainingSeconds
+					});
+				} else {
+					// Order expired or cancelled - clear pending
+					sessionStorage.removeItem("pendingOrder");
+				}
+			} catch (err) {
+				// Order not found or error - clear pending
+				console.error("Error checking pending order:", err);
+				sessionStorage.removeItem("pendingOrder");
+			}
+		};
+
+		checkPendingOrder();
+	}, []);
+
 	const handlePlaceOrder = () => {
 		// Check if address is selected
 		if (!addresses || addresses.length === 0) {
@@ -159,6 +199,13 @@ const OrderSummaryPage = () => {
 
 			// Store hold info for countdown timer
 			setHoldInfo({ expiresAt, localOrderId, holdDurationSeconds });
+			
+			// Persist to sessionStorage for recovery after GPay intent returns
+			sessionStorage.setItem("pendingOrder", JSON.stringify({ 
+				localOrderId, 
+				razorpayOrderId: orderId,
+				expiresAt 
+			}));
 
 			// dynamically load Razorpay script (if not loaded)
 			const rzpScriptLoaded = await new Promise((resolve) => {
@@ -218,8 +265,9 @@ const OrderSummaryPage = () => {
 						if (verifyRes.data?.success) {
 							toast.success("Payment successful!");
 							setHoldInfo(null);
-							// Clear pending order
+							// Clear pending orders
 							localStorage.removeItem("pendingBuyNowOrder");
+							sessionStorage.removeItem("pendingOrder");
 							window.location.href = `/purchase-success?orderId=${encodeURIComponent(orderId)}`;
 						} else {
 							// Check for insufficient stock error
@@ -262,6 +310,7 @@ const OrderSummaryPage = () => {
 							}
 						}
 						setHoldInfo(null);
+						sessionStorage.removeItem("pendingOrder");
 					}
 				},
 				prefill: {
@@ -313,6 +362,7 @@ const OrderSummaryPage = () => {
 		toast.error("Your checkout session has expired. Please try again.");
 		setHoldInfo(null);
 		setIsProcessing(false);
+		sessionStorage.removeItem("pendingOrder");
 	};
 
 	if (!orderData) {
@@ -324,9 +374,11 @@ const OrderSummaryPage = () => {
 	}
 
 	const totalPrice = (orderData.product.price * orderData.quantity).toFixed(2);
+	// Only show full total (with delivery + platform fee) when pricing breakdown is available
+	// Otherwise just show item cost - delivery charges require an address
 	const finalTotal = pricingBreakdown 
 		? pricingBreakdown.total.toFixed(2)
-		: (parseFloat(totalPrice) + 199).toFixed(2); // Fallback to old calculation
+		: totalPrice;
 
 	return (
 		<div className='py-8 md:py-16 bg-stone-50 min-h-screen'>
@@ -488,17 +540,15 @@ const OrderSummaryPage = () => {
 											<dd className='text-base font-medium text-white'>...</dd>
 										</dl>
 									) : pricingBreakdown ? (
-										<>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Shipping</dt>
-												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.deliveryCharge.toFixed(2)}</dd>
-											</dl>
-											<dl className='flex items-center justify-between gap-4'>
-												<dt className='text-base font-normal text-gray-300'>Platform Fee</dt>
-												<dd className='text-base font-medium text-white'>₹{pricingBreakdown.platformFee.total.toFixed(2)}</dd>
-											</dl>
-										</>
-									) : null}
+										<dl className='flex items-center justify-between gap-4'>
+											<dt className='text-base font-normal text-gray-300'>Delivery Charges</dt>
+											<dd className='text-base font-medium text-white'>₹{(pricingBreakdown.deliveryCharge + pricingBreakdown.platformFee.total).toFixed(2)}</dd>
+										</dl>
+									) : (
+										<p className='text-xs text-gray-400 italic'>
+											Add delivery address to see shipping charges
+										</p>
+									)}
 									
 									<dl className='flex items-center justify-between gap-4 border-t border-gray-600 pt-2'>
 										<dt className='text-base font-bold text-white'>Total</dt>
@@ -516,6 +566,10 @@ const OrderSummaryPage = () => {
 									<ShoppingBag size={16} className="mr-2" />
 									{isProcessing ? "Processing..." : "Proceed to Buy"}
 								</motion.button>
+
+								<p className='text-xs text-center text-gray-500'>
+									Cash on Delivery coming soon
+								</p>
 
 								<button
 									onClick={() => {

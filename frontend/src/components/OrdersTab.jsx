@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Truck, Package, CheckCircle, XCircle, Search, Filter, Download, ChevronLeft, ChevronRight, AlertTriangle, Trash2 } from "lucide-react";
 import axios from "../lib/axios";
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -24,6 +24,14 @@ const OrderslistTab = () => {
         currentStatus: null,
         newStatus: null,
         orderPublicId: null
+    });
+    
+    // Delete confirmation modal state
+    const [deleteModal, setDeleteModal] = useState({
+        isOpen: false,
+        orderId: null,
+        orderPublicId: null,
+        isDeleting: false
     });
     
     // Shipping details state (for when changing to shipped)
@@ -229,6 +237,50 @@ const OrderslistTab = () => {
         });
     };
 
+    const handleDeleteClick = (orderId, orderPublicId) => {
+        setDeleteModal({
+            isOpen: true,
+            orderId,
+            orderPublicId,
+            isDeleting: false
+        });
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deleteModal.orderId) return;
+        
+        setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+        
+        try {
+            const response = await axios.delete(`/orders/${deleteModal.orderId}`);
+            
+            if (response.data.success) {
+                toast.success(`Order ${deleteModal.orderPublicId} deleted`);
+                // Refetch orders to update the list
+                await fetchAllOrders();
+            }
+        } catch (error) {
+            console.error("Error deleting order:", error);
+            toast.error(error.response?.data?.message || "Failed to delete order");
+        } finally {
+            setDeleteModal({
+                isOpen: false,
+                orderId: null,
+                orderPublicId: null,
+                isDeleting: false
+            });
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setDeleteModal({
+            isOpen: false,
+            orderId: null,
+            orderPublicId: null,
+            isDeleting: false
+        });
+    };
+
     if (isLoading) {
 		return <div className="text-center text-gray-300 py-8">Loading...</div>;
 	}
@@ -293,7 +345,8 @@ const OrderslistTab = () => {
         if (pagination.totalPages <= 1) return null;
 
         const pages = [];
-        const maxVisiblePages = 5;
+        // Show fewer pages on mobile
+        const maxVisiblePages = 3;
         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
         let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
 
@@ -306,30 +359,31 @@ const OrderslistTab = () => {
         }
 
         return (
-            <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-2 mt-6 px-2">
+                {/* Previous button - icon only on mobile */}
                 <button
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={!pagination.hasPrevPage}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         pagination.hasPrevPage
                             ? 'bg-gray-700 text-white hover:bg-gray-600'
                             : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     }`}
                 >
                     <ChevronLeft className="w-4 h-4" />
-                    Previous
+                    <span className="hidden sm:inline">Previous</span>
                 </button>
 
                 {startPage > 1 && (
                     <>
                         <button
                             onClick={() => handlePageChange(1)}
-                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                            className="px-2 sm:px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
                         >
                             1
                         </button>
                         {startPage > 2 && (
-                            <span className="px-2 text-gray-400">...</span>
+                            <span className="px-1 sm:px-2 text-gray-400">...</span>
                         )}
                     </>
                 )}
@@ -338,7 +392,7 @@ const OrderslistTab = () => {
                     <button
                         key={page}
                         onClick={() => handlePageChange(page)}
-                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        className={`px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                             page === currentPage
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -351,27 +405,28 @@ const OrderslistTab = () => {
                 {endPage < pagination.totalPages && (
                     <>
                         {endPage < pagination.totalPages - 1 && (
-                            <span className="px-2 text-gray-400">...</span>
+                            <span className="px-1 sm:px-2 text-gray-400">...</span>
                         )}
                         <button
                             onClick={() => handlePageChange(pagination.totalPages)}
-                            className="px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                            className="px-2 sm:px-3 py-2 rounded-md text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
                         >
                             {pagination.totalPages}
                         </button>
                     </>
                 )}
 
+                {/* Next button - icon only on mobile */}
                 <button
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={!pagination.hasNextPage}
-                    className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 sm:px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                         pagination.hasNextPage
                             ? 'bg-gray-700 text-white hover:bg-gray-600'
                             : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     }`}
                 >
-                    Next
+                    <span className="hidden sm:inline">Next</span>
                     <ChevronRight className="w-4 h-4" />
                 </button>
             </div>
@@ -550,9 +605,16 @@ const OrderslistTab = () => {
                             )}
                         </div>
                         
-                        {/* Tracking Status Badge */}
-                        <div className="flex justify-end">
+                        {/* Tracking Status Badge and Delete Button */}
+                        <div className="flex items-center justify-end gap-2">
                             {getStatusBadge(order.trackingStatus)}
+                            <button
+                                onClick={() => handleDeleteClick(order.orderId, order.publicOrderId || order.orderId)}
+                                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                title="Delete order"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -569,6 +631,25 @@ const OrderslistTab = () => {
                         </p>
                     </div>
                 </div>
+                
+                {/* Tracking Info */}
+                {(order.trackingNumber || order.deliveryPartner) && (
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                        <p className="text-sm font-medium text-gray-300 mb-1">Tracking Info:</p>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                            {order.deliveryPartner && (
+                                <span className="text-gray-400">
+                                    Partner: <span className="text-purple-400 capitalize">{order.deliveryPartner.replace('_', ' ')}</span>
+                                </span>
+                            )}
+                            {order.trackingNumber && (
+                                <span className="text-gray-400">
+                                    Tracking #: <span className="font-mono text-emerald-400">{order.trackingNumber}</span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
                 
                 {/* Admin Notes (for manual orders) */}
                 {order.adminNotes && (
@@ -755,6 +836,51 @@ const OrderslistTab = () => {
                                 className="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {updatingOrder === confirmationModal.orderId ? 'Updating...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    )}
+
+    {/* Delete Confirmation Modal */}
+    {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 border border-gray-700"
+            >
+                <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                        <Trash2 className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-white mb-2">
+                            Delete Order
+                        </h3>
+                        <p className="text-gray-300 text-sm mb-4">
+                            Are you sure you want to permanently delete Order <span className="font-semibold text-white">#{deleteModal.orderPublicId}</span>?
+                        </p>
+                        <p className="text-red-400 text-xs mb-4 bg-red-500/10 p-2 rounded border border-red-500/20">
+                            This action cannot be undone. The order will be permanently removed from the database.
+                        </p>
+                        
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={handleCancelDelete}
+                                disabled={deleteModal.isDeleting}
+                                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-md hover:bg-gray-600 transition-colors text-sm font-medium disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                disabled={deleteModal.isDeleting}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {deleteModal.isDeleting ? 'Deleting...' : 'Delete Order'}
                             </button>
                         </div>
                     </div>

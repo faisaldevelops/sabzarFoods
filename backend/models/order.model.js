@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 const addressSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phoneNumber: { type: String, required: true },
+  email: { type: String }, // Optional email for order notifications
   pincode: { type: String, required: true },
   houseNumber: { type: String, required: true },
   streetAddress: { type: String, required: true },
@@ -67,7 +68,7 @@ const orderSchema = new mongoose.Schema(
     expiresAt: { type: Date, default: null }, // Hold expiration time (e.g., 15 minutes from creation)
     trackingStatus: {
       type: String,
-      enum: ["pending", "processing", "ready", "shipped", "delivered", "cancelled"],
+      enum: ["pending", "hold", "paid", "processing", "ready", "shipped", "delivered", "cancelled", "expired"],
       default: "pending",
     },
     trackingNumber: {
@@ -87,7 +88,7 @@ const orderSchema = new mongoose.Schema(
       {
         status: {
           type: String,
-          enum: ["pending", "processing", "ready", "shipped", "delivered", "cancelled"],
+          enum: ["pending", "hold", "paid", "processing", "ready", "shipped", "delivered", "cancelled", "expired"],
           required: true,
         },
         timestamp: {

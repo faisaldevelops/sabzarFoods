@@ -48,6 +48,12 @@ export const isSESConfigured = () => {
  * @param {string} params.textBody - Plain text content of the email
  */
 export const sendEmail = async ({ to, subject, htmlBody, textBody }) => {
+  console.log("[SES] Attempting to send email...");
+  console.log(`[SES] Config check - ACCESS_KEY: ${process.env.AWS_SES_ACCESS_KEY_ID ? 'SET' : 'MISSING'}`);
+  console.log(`[SES] Config check - SECRET_KEY: ${process.env.AWS_SES_SECRET_ACCESS_KEY ? 'SET' : 'MISSING'}`);
+  console.log(`[SES] Config check - FROM_EMAIL: ${process.env.AWS_SES_FROM_EMAIL || 'MISSING'}`);
+  console.log(`[SES] Config check - REGION: ${AWS_REGION}`);
+  
   if (!isSESConfigured()) {
     console.log("[SES] Not configured, skipping email send");
     console.log(`[SES] Would send to: ${to}`);
@@ -59,6 +65,8 @@ export const sendEmail = async ({ to, subject, htmlBody, textBody }) => {
     console.log("[SES] No recipient email provided, skipping");
     return { success: false, reason: "No recipient email" };
   }
+
+  console.log(`[SES] Sending to: ${to}, Subject: ${subject}`);
 
   try {
     const client = getSESClient();
