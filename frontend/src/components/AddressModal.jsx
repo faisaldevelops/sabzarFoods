@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
+import toast from "react-hot-toast";
+import { checkProductDeliverability } from "../lib/deliveryValidation";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
@@ -24,10 +26,64 @@ const emptyAddress = {
   state: "",
 };
 
-const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
+const AddressModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  initial = null,
+  restrictedProduct = null,
+  restrictedProducts = null,
+}) => {
   const [form, setForm] = useState(initial ?? emptyAddress);
   const [errors, setErrors] = useState({});
   const [pincodeLoading, setPincodeLoading] = useState(false);
+
+  // Auto-detect target products being purchased (from props or localStorage pending order)
+  const targetProducts = useMemo(() => {
+    if (restrictedProduct) return [restrictedProduct];
+    if (Array.isArray(restrictedProducts) && restrictedProducts.length > 0) return restrictedProducts;
+    try {
+      const pending = localStorage.getItem("pendingBuyNowOrder");
+      if (pending) {
+        const parsed = JSON.parse(pending);
+        if (parsed?.product) return [parsed.product];
+      }
+    } catch {
+      // Ignore
+    }
+    return [];
+  }, [restrictedProduct, restrictedProducts]);
+
+  // Live deliverability evaluation for entered PIN code & location
+  const deliveryCheck = useMemo(() => {
+    if (!form.pincode || form.pincode.length !== 6 || targetProducts.length === 0) {
+      return { isDeliverable: true, message: "" };
+    }
+
+    for (const item of targetProducts) {
+      const prod = item?.product || item;
+      const res = checkProductDeliverability(prod, {
+        pincode: form.pincode,
+        state: form.state,
+        city: form.city,
+        district: form.city,
+      });
+
+      if (!res.isDeliverable) {
+        // If pincode is actively loading postal details, don't show red error yet
+        if (pincodeLoading && !form.state && !form.city) {
+          return { isDeliverable: true, message: "", checking: true };
+        }
+        return {
+          isDeliverable: false,
+          productName: prod?.name,
+          message: res.reason || `Delivery is not available to PIN code ${form.pincode}. This product is deliverable in selected regions only.`,
+        };
+      }
+    }
+
+    return { isDeliverable: true, message: "" };
+  }, [targetProducts, form.pincode, form.state, form.city, pincodeLoading]);
 
   useEffect(() => {
     setForm(initial ?? emptyAddress);
@@ -120,7 +176,11 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       e.email = "Enter valid email";
     }
-    if (!/^\d{6}$/.test(form.pincode)) e.pincode = "Enter 6 digit pincode";
+    if (!/^\d{6}$/.test(form.pincode)) {
+      e.pincode = "Enter 6 digit pincode";
+    } else if (!deliveryCheck.isDeliverable) {
+      e.pincode = deliveryCheck.message || "Delivery is not available to this PIN code";
+    }
     if (!form.houseNumber.trim()) e.houseNumber = "House number required";
     if (!form.streetAddress.trim()) e.streetAddress = "Street address required";
     if (!form.city.trim()) e.city = "City is required";
@@ -134,7 +194,12 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
   };
 
   const handleSave = () => {
-    if (!validate()) return;
+    if (!validate()) {
+      if (!deliveryCheck.isDeliverable) {
+        toast.error(deliveryCheck.message || "Delivery is not available to this PIN code.");
+      }
+      return;
+    }
     onSave?.(form);
     onClose?.();
   };
@@ -210,11 +275,25 @@ const AddressModal = ({ isOpen, onClose, onSave, initial = null }) => {
               value={form.pincode}
               onChange={handleChange}
               inputMode="numeric"
-              className="mt-1 w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent"
+              className={`mt-1 w-full rounded-md border ${
+                !deliveryCheck.isDeliverable ? "border-red-500 ring-1 ring-red-500" : "border-stone-300"
+              } bg-white px-3 py-2.5 text-base sm:text-sm text-stone-900 focus:ring-2 focus:ring-stone-800 focus:border-transparent`}
               placeholder="6 digits"
             />
             {pincodeLoading && <p className="text-xs text-blue-600 mt-1">Fetching location details...</p>}
-            {errors.pincode && <p className="text-xs text-red-600">{errors.pincode}</p>}
+            
+            {/* Immediate warning message if entered PIN code is not deliverable */}
+            {!deliveryCheck.isDeliverable && (
+              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-800 flex items-start gap-2">
+                <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-950">Delivery Not Available</p>
+                  <p className="mt-0.5 text-red-800 leading-relaxed">{deliveryCheck.message}</p>
+                </div>
+              </div>
+            )}
+            
+            {errors.pincode && deliveryCheck.isDeliverable && <p className="text-xs text-red-600 mt-1">{errors.pincode}</p>}
           </div>
 
           <div>

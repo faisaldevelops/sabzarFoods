@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShoppingBag, MapPin, Plus, ChevronDown } from "lucide-react";
+import { ShoppingBag, MapPin, Plus, ChevronDown, AlertCircle, Info, CheckCircle2 } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import { useAddressStore } from "../stores/useAddressStore";
 import axios from "../lib/axios";
@@ -10,6 +10,7 @@ import AddressModal from "../components/AddressModal";
 import InsufficientStockModal from "../components/InsufficientStockModal";
 import CountdownTimer from "../components/CountdownTimer";
 import { SHOP_CONFIG, PAYMENT_CONFIG } from "../config/constants";
+import { checkProductDeliverability, isProductRestricted } from "../lib/deliveryValidation";
 
 const OrderSummaryPage = () => {
 	const [orderData, setOrderData] = useState(null);
@@ -25,6 +26,17 @@ const OrderSummaryPage = () => {
 	const { user } = useUserStore();
 	const { address: addresses, fetchAddresses, createAddress, loading: addressLoading } = useAddressStore();
 	const navigate = useNavigate();
+
+	const selectedAddress = addresses?.[selectedAddressIndex] || null;
+	const isRestricted = isProductRestricted(orderData?.product);
+
+	// Evaluate deliverability for the currently selected address
+	const deliveryStatus = useMemo(() => {
+		if (!orderData?.product || !selectedAddress) {
+			return { isDeliverable: true, message: "" };
+		}
+		return checkProductDeliverability(orderData.product, selectedAddress);
+	}, [orderData?.product, selectedAddress]);
 
 	useEffect(() => {
 		// Retrieve pending order from localStorage
@@ -151,6 +163,11 @@ const OrderSummaryPage = () => {
 		// Check if address is selected
 		if (!addresses || addresses.length === 0) {
 			toast.error("Please add a delivery address");
+			return;
+		}
+
+		if (!deliveryStatus.isDeliverable) {
+			toast.error(deliveryStatus.reason || "Delivery is not available to this PIN code / address.");
 			return;
 		}
 
@@ -410,17 +427,30 @@ const OrderSummaryPage = () => {
 									<div className='space-y-2'>
 										<p className='text-sm font-semibold text-gray-300'>Delivery Address</p>
 										{addresses && addresses.length > 0 ? (
-											<div className='relative address-dropdown-container'>
+											<div className='relative address-dropdown-container space-y-2'>
 												<button
 													onClick={() => setShowAddressDropdown(!showAddressDropdown)}
-													className='w-full text-left rounded-lg border border-gray-600 bg-gray-900 p-4 hover:bg-gray-800 transition-colors'
+													className={`w-full text-left rounded-lg border ${
+														!deliveryStatus.isDeliverable ? 'border-red-500/70 bg-gray-900 ring-1 ring-red-500/40' : 'border-gray-600 bg-gray-900'
+													} p-4 hover:bg-gray-800 transition-colors`}
 												>
 													<div className='flex items-start gap-3'>
-														<MapPin className='text-emerald-400 mt-1 flex-shrink-0' size={20} />
+														<MapPin className={`${!deliveryStatus.isDeliverable ? 'text-red-400' : 'text-emerald-400'} mt-1 flex-shrink-0`} size={20} />
 														<div className='flex-1 min-w-0'>
-															<p className='font-medium text-white'>
-																{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
-															</p>
+															<div className='flex items-center gap-2'>
+																<p className='font-medium text-white'>
+																	{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
+																</p>
+																{isRestricted && (
+																	<span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+																		deliveryStatus.isDeliverable 
+																			? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+																			: 'bg-red-950 text-red-300 border border-red-800'
+																	}`}>
+																		{deliveryStatus.isDeliverable ? 'Deliverable' : 'Not Deliverable'}
+																	</span>
+																)}
+															</div>
 															{addresses[selectedAddressIndex]?.email && (
 																<p className='text-sm text-gray-400'>{addresses[selectedAddressIndex]?.email}</p>
 															)}
@@ -436,47 +466,79 @@ const OrderSummaryPage = () => {
 													</div>
 												</button>
 
+												{/* Prominent warning message when selected PIN code is not deliverable */}
+												{!deliveryStatus.isDeliverable && (
+													<div className='rounded-lg border border-red-500/50 bg-red-950/40 p-3.5 text-xs text-red-200 shadow-sm flex items-start gap-2.5'>
+														<AlertCircle className='w-4 h-4 text-red-400 flex-shrink-0 mt-0.5' />
+														<div>
+															<p className='font-semibold text-red-300'>
+																Delivery Not Available to PIN Code {addresses[selectedAddressIndex]?.pincode}
+															</p>
+															<p className='mt-1 text-red-200/90 leading-relaxed'>
+																{deliveryStatus.reason || `${orderData.product.name} is deliverable to selected regions only.`}
+															</p>
+															<p className='mt-1 text-[11px] text-red-300/80'>
+																Please select another address or add an eligible address to continue.
+															</p>
+														</div>
+													</div>
+												)}
+
 												{/* Address Dropdown */}
 												{showAddressDropdown && (
 													<div className='absolute z-10 w-full mt-2 bg-gray-800 border border-gray-600 rounded-lg shadow-lg flex flex-col max-h-64 address-dropdown-container'>
 														{/* Scrollable address list */}
 														<div className='overflow-y-auto flex-1'>
-															{addresses.map((addr, index) => (
-																<button
-																	key={addr._id || index}
-																	onClick={() => {
-																		setSelectedAddressIndex(index);
-																		setShowAddressDropdown(false);
-																	}}
-																	className={`w-full text-left p-4 hover:bg-gray-700 transition-colors border-b border-gray-700 ${
-																		selectedAddressIndex === index ? 'bg-gray-700' : ''
-																	}`}
-																>
-																	<div className='flex items-start gap-3'>
-																		<MapPin className='text-emerald-400 mt-1 flex-shrink-0' size={18} />
-																		<div className='flex-1 min-w-0'>
-																			<p className='font-medium text-white'>
-																				{addr.name} • {addr.phoneNumber}
-																			</p>
-																			{addr.email && <p className='text-sm text-gray-400'>{addr.email}</p>}
-																			<p className='text-sm text-gray-300 mt-1'>
-																				{addr.houseNumber}, {addr.streetAddress}
-																				{addr.landmark && `, ${addr.landmark}`}
-																			</p>
-																			<p className='text-sm text-gray-300'>
-																				{addr.city}, {addr.state} - {addr.pincode}
-																			</p>
-																		</div>
-																		{selectedAddressIndex === index && (
-																			<div className='h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0'>
-																				<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
-																					<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
-																				</svg>
+															{addresses.map((addr, index) => {
+																const addrDeliverability = isRestricted ? checkProductDeliverability(orderData.product, addr) : { isDeliverable: true };
+																return (
+																	<button
+																		key={addr._id || index}
+																		onClick={() => {
+																			setSelectedAddressIndex(index);
+																			setShowAddressDropdown(false);
+																		}}
+																		className={`w-full text-left p-4 hover:bg-gray-700 transition-colors border-b border-gray-700 ${
+																			selectedAddressIndex === index ? 'bg-gray-700' : ''
+																		}`}
+																	>
+																		<div className='flex items-start gap-3'>
+																			<MapPin className={`${addrDeliverability.isDeliverable ? 'text-emerald-400' : 'text-red-400'} mt-1 flex-shrink-0`} size={18} />
+																			<div className='flex-1 min-w-0'>
+																				<div className='flex items-center gap-2'>
+																					<p className='font-medium text-white'>
+																						{addr.name} • {addr.phoneNumber}
+																					</p>
+																					{isRestricted && (
+																						<span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+																							addrDeliverability.isDeliverable 
+																								? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+																								: 'bg-red-950 text-red-300 border border-red-800'
+																						}`}>
+																							{addrDeliverability.isDeliverable ? 'Deliverable' : 'Not Deliverable'}
+																						</span>
+																					)}
+																				</div>
+																				{addr.email && <p className='text-sm text-gray-400'>{addr.email}</p>}
+																				<p className='text-sm text-gray-300 mt-1'>
+																					{addr.houseNumber}, {addr.streetAddress}
+																					{addr.landmark && `, ${addr.landmark}`}
+																				</p>
+																				<p className='text-sm text-gray-300'>
+																					{addr.city}, {addr.state} - {addr.pincode}
+																				</p>
 																			</div>
-																		)}
-																	</div>
-																</button>
-															))}
+																			{selectedAddressIndex === index && (
+																				<div className='h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0'>
+																					<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
+																						<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
+																					</svg>
+																				</div>
+																			)}
+																		</div>
+																	</button>
+																);
+															})}
 														</div>
 														{/* Always visible Add New Address button */}
 														<button
@@ -558,13 +620,17 @@ const OrderSummaryPage = () => {
 
 								<motion.button
 									className='flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed'
-									whileHover={{ scale: isProcessing ? 1 : 1.05 }}
-									whileTap={{ scale: isProcessing ? 1 : 0.95 }}
+									whileHover={{ scale: (isProcessing || !deliveryStatus.isDeliverable) ? 1 : 1.05 }}
+									whileTap={{ scale: (isProcessing || !deliveryStatus.isDeliverable) ? 1 : 0.95 }}
 									onClick={handlePlaceOrder}
-									disabled={isProcessing}
+									disabled={isProcessing || !deliveryStatus.isDeliverable}
 								>
 									<ShoppingBag size={16} className="mr-2" />
-									{isProcessing ? "Processing..." : "Proceed to Buy"}
+									{!deliveryStatus.isDeliverable
+										? "Delivery Not Available to this PIN Code"
+										: isProcessing
+										? "Processing..."
+										: "Proceed to Buy"}
 								</motion.button>
 
 								<p className='text-xs text-center text-gray-500'>
@@ -591,6 +657,7 @@ const OrderSummaryPage = () => {
 				onClose={() => setShowAddressForm(false)}
 				onSave={handleSaveNewAddress}
 				loading={addressLoading}
+				restrictedProduct={orderData?.product}
 			/>
 
 			<InsufficientStockModal

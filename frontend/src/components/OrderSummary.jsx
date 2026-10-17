@@ -3,15 +3,16 @@ import { useCartStore } from "../stores/useCartStore";
 import { useUserStore } from "../stores/useUserStore";
 import { useAddressStore } from "../stores/useAddressStore";
 import { Link, useNavigate } from "react-router-dom";
-import { MoveRight, MapPin, Plus, ChevronDown } from "lucide-react";
+import { MoveRight, MapPin, Plus, ChevronDown, AlertCircle } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import PhoneAuthModal from "./PhoneAuthModal";
 import AddressModal from "./AddressModal";
 import InsufficientStockModal from "./InsufficientStockModal";
 import CountdownTimer from "./CountdownTimer";
 import { SHOP_CONFIG } from "../config/constants";
+import { checkProductsDeliverability, checkProductDeliverability, isProductRestricted } from "../lib/deliveryValidation";
 
 const OrderSummary = () => {
 	const [isProcessing, setIsProcessing] = useState(false);
@@ -34,6 +35,20 @@ const OrderSummary = () => {
 	const formattedSubtotal = subtotal.toFixed(2);
 	const formattedSavings = savings.toFixed(2);
 	
+	const selectedAddress = addresses?.[selectedAddressIndex] || null;
+
+	const hasRestrictedItems = useMemo(() => {
+		return (cart || []).some((item) => isProductRestricted(item.product || item));
+	}, [cart]);
+
+	// Evaluate deliverability for the currently selected address against all items in cart
+	const deliveryStatus = useMemo(() => {
+		if (!cart || cart.length === 0 || !selectedAddress) {
+			return { isDeliverable: true, nonDeliverableItems: [] };
+		}
+		return checkProductsDeliverability(cart, selectedAddress);
+	}, [cart, selectedAddress]);
+
 	// Calculate total with pricing breakdown if available
 	// Only show full total (with delivery + platform fee) when pricing breakdown is available
 	// Otherwise just show cart total without extra charges
@@ -157,6 +172,12 @@ const OrderSummary = () => {
 		// Check if address is selected
 		if (!addresses || addresses.length === 0) {
 			toast.error("Please add a delivery address");
+			return;
+		}
+
+		if (!deliveryStatus.isDeliverable) {
+			const itemNames = deliveryStatus.nonDeliverableItems.map(i => i.product.name).join(", ");
+			toast.error(`Delivery is not available to PIN code ${selectedAddress?.pincode} for: ${itemNames}`);
 			return;
 		}
 
@@ -394,17 +415,30 @@ const OrderSummary = () => {
 					<div className='space-y-2'>
 						<p className='text-sm font-semibold text-stone-700'>Delivery Address</p>
 						{addresses && addresses.length > 0 ? (
-							<div className='relative address-dropdown-container'>
+							<div className='relative address-dropdown-container space-y-2'>
 								<button
 									onClick={() => setShowAddressDropdown(!showAddressDropdown)}
-									className='w-full text-left rounded-lg border border-stone-300 bg-stone-50 p-4 hover:bg-stone-100 transition-colors'
+									className={`w-full text-left rounded-lg border ${
+										!deliveryStatus.isDeliverable ? 'border-red-400 bg-red-50/30 ring-1 ring-red-400' : 'border-stone-300 bg-stone-50'
+									} p-4 hover:bg-stone-100 transition-colors`}
 								>
 									<div className='flex items-start gap-3'>
-										<MapPin className='text-stone-600 mt-1 flex-shrink-0' size={20} />
+										<MapPin className={`${!deliveryStatus.isDeliverable ? 'text-red-500' : 'text-stone-600'} mt-1 flex-shrink-0`} size={20} />
 										<div className='flex-1 min-w-0'>
-											<p className='font-medium text-stone-900'>
-												{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
-											</p>
+											<div className='flex items-center gap-2'>
+												<p className='font-medium text-stone-900'>
+													{addresses[selectedAddressIndex]?.name} • {addresses[selectedAddressIndex]?.phoneNumber}
+												</p>
+												{hasRestrictedItems && (
+													<span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+														deliveryStatus.isDeliverable 
+															? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+															: 'bg-red-100 text-red-800 border border-red-200'
+													}`}>
+														{deliveryStatus.isDeliverable ? 'Deliverable' : 'Not Deliverable'}
+													</span>
+												)}
+											</div>
 											{addresses[selectedAddressIndex]?.email && (
 												<p className='text-sm text-stone-600'>{addresses[selectedAddressIndex]?.email}</p>
 											)}
@@ -420,47 +454,86 @@ const OrderSummary = () => {
 									</div>
 								</button>
 
+								{/* Warning message when selected PIN code is not deliverable */}
+								{!deliveryStatus.isDeliverable && (
+									<div className='rounded-lg border border-red-200 bg-red-50 p-3.5 text-xs text-red-800 shadow-sm flex items-start gap-2.5'>
+										<AlertCircle className='w-4 h-4 text-red-600 flex-shrink-0 mt-0.5' />
+										<div>
+											<p className='font-semibold text-red-950'>
+												Delivery Not Available to PIN Code {addresses[selectedAddressIndex]?.pincode}
+											</p>
+											<p className='mt-1 text-red-800 leading-relaxed'>
+												The following product{deliveryStatus.nonDeliverableItems.length > 1 ? 's are' : ' is'} deliverable in selected regions only and cannot be shipped to this location:
+											</p>
+											<ul className='mt-1 list-disc list-inside space-y-0.5 font-medium text-red-900'>
+												{deliveryStatus.nonDeliverableItems.map(({ product }) => (
+													<li key={product._id || product.id || product.name}>
+														{product.name}
+													</li>
+												))}
+											</ul>
+											<p className='mt-1.5 text-[11px] text-red-700'>
+												Please select another address or remove restricted items to continue.
+											</p>
+										</div>
+									</div>
+								)}
+
 								{/* Address Dropdown */}
 								{showAddressDropdown && (
 									<div className='absolute z-10 w-full mt-2 bg-white border border-stone-300 rounded-lg shadow-lg flex flex-col max-h-64 address-dropdown-container'>
 										{/* Scrollable address list */}
 										<div className='overflow-y-auto flex-1'>
-											{addresses.map((addr, index) => (
-												<button
-													key={addr._id || index}
-													onClick={() => {
-														setSelectedAddressIndex(index);
-														setShowAddressDropdown(false);
-													}}
-													className={`w-full text-left p-4 hover:bg-stone-50 transition-colors border-b border-stone-200 ${
-														selectedAddressIndex === index ? 'bg-stone-100' : ''
-													}`}
-												>
-													<div className='flex items-start gap-3'>
-														<MapPin className='text-stone-600 mt-1 flex-shrink-0' size={18} />
-														<div className='flex-1 min-w-0'>
-															<p className='font-medium text-stone-900'>
-																{addr.name} • {addr.phoneNumber}
-															</p>
-															{addr.email && <p className='text-sm text-stone-600'>{addr.email}</p>}
-															<p className='text-sm text-stone-700 mt-1'>
-																{addr.houseNumber}, {addr.streetAddress}
-																{addr.landmark && `, ${addr.landmark}`}
-															</p>
-															<p className='text-sm text-stone-700'>
-																{addr.city}, {addr.state} - {addr.pincode}
-															</p>
-														</div>
-														{selectedAddressIndex === index && (
-															<div className='h-5 w-5 rounded-full bg-stone-800 flex items-center justify-center flex-shrink-0'>
-																<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
-																	<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
-																</svg>
+											{addresses.map((addr, index) => {
+												const addrStatus = hasRestrictedItems ? checkProductsDeliverability(cart, addr) : { isDeliverable: true };
+												return (
+													<button
+														key={addr._id || index}
+														onClick={() => {
+															setSelectedAddressIndex(index);
+															setShowAddressDropdown(false);
+														}}
+														className={`w-full text-left p-4 hover:bg-stone-50 transition-colors border-b border-stone-200 ${
+															selectedAddressIndex === index ? 'bg-stone-100' : ''
+														}`}
+													>
+														<div className='flex items-start gap-3'>
+															<MapPin className={`${!addrStatus.isDeliverable ? 'text-red-500' : 'text-stone-600'} mt-1 flex-shrink-0`} size={18} />
+															<div className='flex-1 min-w-0'>
+																<div className='flex items-center gap-2'>
+																	<p className='font-medium text-stone-900'>
+																		{addr.name} • {addr.phoneNumber}
+																	</p>
+																	{hasRestrictedItems && (
+																		<span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+																			addrStatus.isDeliverable 
+																				? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+																				: 'bg-red-100 text-red-800 border border-red-200'
+																		}`}>
+																			{addrStatus.isDeliverable ? 'Deliverable' : 'Not Deliverable'}
+																		</span>
+																	)}
+																</div>
+																{addr.email && <p className='text-sm text-stone-600'>{addr.email}</p>}
+																<p className='text-sm text-stone-700 mt-1'>
+																	{addr.houseNumber}, {addr.streetAddress}
+																	{addr.landmark && `, ${addr.landmark}`}
+																</p>
+																<p className='text-sm text-stone-700'>
+																	{addr.city}, {addr.state} - {addr.pincode}
+																</p>
 															</div>
-														)}
-													</div>
-												</button>
-											))}
+															{selectedAddressIndex === index && (
+																<div className='h-5 w-5 rounded-full bg-stone-800 flex items-center justify-center flex-shrink-0'>
+																	<svg className='h-3 w-3 text-white' fill='currentColor' viewBox='0 0 20 20'>
+																		<path fillRule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clipRule='evenodd' />
+																	</svg>
+																</div>
+															)}
+														</div>
+													</button>
+												);
+											})}
 										</div>
 										{/* Always visible Add New Address button */}
 										<button
@@ -491,27 +564,38 @@ const OrderSummary = () => {
 				{/* Item Breakdown */}
 				<div className='space-y-2'>
 					<p className='text-sm font-semibold text-stone-700'>Items in your order:</p>
-					{cart.map((item) => (
-						<div key={item._id} className='flex items-center justify-between gap-3 pb-2 border-b border-stone-200'>
-							<div className='flex items-center gap-2 flex-1'>
-								<img 
-									src={item.image} 
-									alt={item.name}
-									className='w-10 h-10 rounded object-cover flex-shrink-0'
-								/>
-								<div className='flex-1 min-w-0'>
-									<p className='text-xs text-stone-700 truncate'>{item.name}</p>
-									<p className='text-xs text-stone-500'>Qty: {item.quantity}</p>
+					{cart.map((item) => {
+						const prod = item.product || item;
+						const itemDeliv = selectedAddress ? checkProductDeliverability(prod, selectedAddress) : { isDeliverable: true };
+						return (
+							<div key={item._id} className='flex items-center justify-between gap-3 pb-2 border-b border-stone-200'>
+								<div className='flex items-center gap-2 flex-1'>
+									<img 
+										src={item.image} 
+										alt={item.name}
+										className='w-10 h-10 rounded object-cover flex-shrink-0'
+									/>
+									<div className='flex-1 min-w-0'>
+										<p className='text-xs text-stone-700 truncate'>{item.name}</p>
+										<div className='flex items-center gap-2 mt-0.5'>
+											<p className='text-xs text-stone-500'>Qty: {item.quantity}</p>
+											{!itemDeliv.isDeliverable && (
+												<span className='text-[10px] text-red-600 font-medium bg-red-50 border border-red-200 px-1.5 py-0.5 rounded'>
+													Not deliverable to {selectedAddress?.pincode}
+												</span>
+											)}
+										</div>
+									</div>
+								</div>
+								<div className='flex flex-col items-end flex-shrink-0'>
+									{item.actualPrice && item.actualPrice > item.price && (
+										<span className='text-xs text-stone-400 line-through'>₹{(item.actualPrice * item.quantity).toFixed(2)}</span>
+									)}
+									<span className='text-sm font-medium text-stone-900'>₹{(item.price * item.quantity).toFixed(2)}</span>
 								</div>
 							</div>
-							<div className='flex flex-col items-end flex-shrink-0'>
-								{item.actualPrice && item.actualPrice > item.price && (
-									<span className='text-xs text-stone-400 line-through'>₹{(item.actualPrice * item.quantity).toFixed(2)}</span>
-								)}
-								<span className='text-sm font-medium text-stone-900'>₹{(item.price * item.quantity).toFixed(2)}</span>
-							</div>
-						</div>
-					))}
+						);
+					})}
 				</div>
 
 				<div className='space-y-2'>
@@ -549,12 +633,16 @@ const OrderSummary = () => {
 
 				<motion.button
 					className='flex w-full items-center justify-center rounded-lg bg-stone-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 focus:outline-none focus:ring-4 focus:ring-stone-300 disabled:opacity-50 disabled:cursor-not-allowed'
-					whileHover={{ scale: isProcessing ? 1 : 1.05 }}
-					whileTap={{ scale: isProcessing ? 1 : 0.95 }}
+					whileHover={{ scale: (isProcessing || !deliveryStatus.isDeliverable) ? 1 : 1.05 }}
+					whileTap={{ scale: (isProcessing || !deliveryStatus.isDeliverable) ? 1 : 0.95 }}
 					onClick={handlePlaceOrder}
-					disabled={isProcessing}
+					disabled={isProcessing || !deliveryStatus.isDeliverable}
 				>
-					{isProcessing ? "Processing..." : "Buy"}
+					{!deliveryStatus.isDeliverable
+						? "Delivery Not Available to this PIN Code"
+						: isProcessing
+						? "Processing..."
+						: "Buy"}
 				</motion.button>
 
 				<p className='text-xs text-center text-stone-400'>
@@ -584,6 +672,7 @@ const OrderSummary = () => {
 				onClose={() => setShowAddressForm(false)}
 				onSave={handleSaveNewAddress}
 				loading={addressLoading}
+				restrictedProducts={cart}
 			/>
 
 			<InsufficientStockModal

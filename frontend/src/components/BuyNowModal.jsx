@@ -1,18 +1,23 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, Plus, Minus, ShoppingBag } from "lucide-react";
+import { X, Plus, Minus, ShoppingBag, Info } from "lucide-react";
 import toast from "react-hot-toast";
 import { useUserStore } from "../stores/useUserStore";
 import { useNavigate } from "react-router-dom";
 import PhoneAuthModal from "./PhoneAuthModal";
+import DeliveryAreaModal from "./DeliveryAreaModal";
+import { isProductRestricted } from "../lib/deliveryValidation";
 
 const MAX_QUANTITY_PER_ITEM = 5; // Maximum quantity allowed per item
 
 const BuyNowModal = ({ isOpen, onClose, product }) => {
   const [quantity, setQuantity] = useState(1);
   const [showPhoneAuth, setShowPhoneAuth] = useState(false);
+  const [showAreaModal, setShowAreaModal] = useState(false);
   const { user } = useUserStore();
   const navigate = useNavigate();
+
+  const isRestricted = isProductRestricted(product);
 
   const handleIncrement = () => {
     if (quantity >= MAX_QUANTITY_PER_ITEM) {
@@ -128,6 +133,23 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
             </div>
           </div>
 
+          {/* Regional delivery restriction notice */}
+          {isRestricted && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 flex items-start gap-2">
+              <Info size={16} className="text-amber-700 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-amber-950">Notice:</span> This product is deliverable in selected regions only.
+                <button
+                  type="button"
+                  onClick={() => setShowAreaModal(true)}
+                  className="ml-1.5 font-medium text-emerald-700 underline hover:text-emerald-800"
+                >
+                  View eligible areas
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Countdown Timer when hold is active */}
 
           {/* Quantity Selector */}
@@ -181,6 +203,14 @@ const BuyNowModal = ({ isOpen, onClose, product }) => {
         onClose={() => setShowPhoneAuth(false)}
         onSuccess={handleAuthSuccess}
       />
+
+      {isRestricted && (
+        <DeliveryAreaModal
+          isOpen={showAreaModal}
+          onClose={() => setShowAreaModal(false)}
+          product={product}
+        />
+      )}
     </>
   );
 };

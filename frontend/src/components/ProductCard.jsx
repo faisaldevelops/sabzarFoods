@@ -1,12 +1,17 @@
-import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus } from "lucide-react";
+import { ShoppingCart, AlertCircle, Tag, Zap, Plus, Minus, Info } from "lucide-react";
 import { useCartStore } from "../stores/useCartStore";
 import toast from "react-hot-toast";
 import { useState } from "react";
 import BuyNowModal from "./BuyNowModal";
+import DeliveryAreaModal from "./DeliveryAreaModal";
+import { isProductRestricted } from "../lib/deliveryValidation";
 
 const ProductCard = ({ product }) => {
 	const { addToCart, cart, updateQuantity } = useCartStore();
 	const [showBuyNow, setShowBuyNow] = useState(false);
+	const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+	
+	const hasAreaRestriction = isProductRestricted(product);
 	
 	// Calculate available stock (stock - reserved)
 	const availableStock = (product.stockQuantity || 0) - (product.reservedQuantity || 0);
@@ -57,6 +62,27 @@ const ProductCard = ({ product }) => {
 						src={product.image} 
 						alt={product.name} 
 					/>
+
+					{/* Delivery Area Info (i) Button - ONLY shown on products not deliverable all over India */}
+					{hasAreaRestriction && (
+						<button
+							type='button'
+							onClick={(e) => {
+								e.stopPropagation();
+								setShowDeliveryModal(true);
+							}}
+							className='absolute top-2.5 left-2.5 sm:top-3 sm:left-3 z-10 flex items-center gap-1.5 bg-stone-900/85 hover:bg-stone-950 text-white backdrop-blur-md p-1 sm:px-2.5 sm:py-1 rounded-full shadow-md border border-white/20 transition-all hover:scale-105 active:scale-95 cursor-pointer'
+							title='Selected addresses only. Click for details.'
+							aria-label={`View delivery info for ${product.name}`}
+						>
+							<span className='flex h-5 w-5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-emerald-500 text-stone-950 font-serif font-bold text-xs sm:text-[11px] italic leading-none'>
+								i
+							</span>
+							<span className='hidden sm:inline text-xs font-medium text-stone-100'>
+								Selected Areas
+							</span>
+						</button>
+					)}
 					
 					{/* Overlay for out of stock */}
 					{isOutOfStock && (
@@ -72,8 +98,8 @@ const ProductCard = ({ product }) => {
 					
 					{/* Low stock badge */}
 					{isLowStock && (
-						<div className='absolute top-3 right-3'>
-							<span className='bg-amber-500/90 backdrop-blur-sm text-white text-[10px] sm:text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm'>
+						<div className='absolute top-2.5 right-2.5 sm:top-3 sm:right-3'>
+							<span className='bg-amber-500/90 backdrop-blur-sm text-white text-[10px] sm:text-xs font-medium px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full flex items-center gap-1 shadow-sm'>
 								<Tag size={10} />
 								{availableStock} left
 							</span>
@@ -162,6 +188,15 @@ const ProductCard = ({ product }) => {
 				onClose={() => setShowBuyNow(false)}
 				product={product}
 			/>
+
+			{/* Delivery Area Modal - Shown on clicking the (i) button */}
+			{hasAreaRestriction && (
+				<DeliveryAreaModal
+					isOpen={showDeliveryModal}
+					onClose={() => setShowDeliveryModal(false)}
+					product={product}
+				/>
+			)}
 		</>
 	);
 };

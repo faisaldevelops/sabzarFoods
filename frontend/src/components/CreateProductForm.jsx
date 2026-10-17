@@ -4,24 +4,43 @@ import { PlusCircle, Upload, Loader } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import toast from "react-hot-toast";
 import { validateImageFile, readFileAsBase64 } from "../lib/imageValidation";
+import DeliveryRestrictionSelector from "./DeliveryRestrictionSelector";
+
+const initialProductState = {
+	name: "",
+	description: "",
+	actualPrice: "",
+	price: "",
+	image: "",
+	stockQuantity: "",
+	isRestricted: false,
+	restrictionType: "none",
+	restrictedPincodes: [],
+	restrictedLocations: [],
+};
 
 const CreateProductForm = () => {
-	const [newProduct, setNewProduct] = useState({
-		name: "",
-		description: "",
-		actualPrice: "",
-		price: "",
-		image: "",
-		stockQuantity: "",
-	});
+	const [newProduct, setNewProduct] = useState(initialProductState);
 
 	const { createProduct, loading } = useProductStore();
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
+
+		// Validate restrictions if set
+		if (newProduct.restrictionType === "pincodes" && (!newProduct.restrictedPincodes || newProduct.restrictedPincodes.length === 0)) {
+			toast.error("Please add at least one PIN code, or select All India");
+			return;
+		}
+
+		if (newProduct.restrictionType === "districts" && (!newProduct.restrictedLocations || newProduct.restrictedLocations.length === 0)) {
+			toast.error("Please select at least one district, or select All India");
+			return;
+		}
+
 		try {
 			await createProduct(newProduct);
-			setNewProduct({ name: "", description: "", actualPrice: "", price: "", image: "", stockQuantity: "" });
+			setNewProduct(initialProductState);
 		} catch {
 			console.log("error creating a product");
 		}
@@ -44,7 +63,7 @@ const CreateProductForm = () => {
 
 	return (
 		<motion.div
-			className='bg-gray-800 shadow-lg rounded-lg p-8 mb-8 max-w-xl mx-auto'
+			className='bg-gray-800 shadow-lg rounded-lg p-8 mb-8 max-w-3xl mx-auto'
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
 			transition={{ duration: 0.8 }}
@@ -153,6 +172,19 @@ const CreateProductForm = () => {
 					</label>
 					{newProduct.image && <span className='ml-3 text-sm text-gray-400'>Image uploaded </span>}
 				</div>
+
+				{/* Delivery / Area Restrictions */}
+				<DeliveryRestrictionSelector
+					restrictionType={newProduct.restrictionType}
+					restrictedPincodes={newProduct.restrictedPincodes}
+					restrictedLocations={newProduct.restrictedLocations}
+					onChange={(restrictionData) => {
+						setNewProduct((prev) => ({
+							...prev,
+							...restrictionData,
+						}));
+					}}
+				/>
 
 				<button
 					type='submit'

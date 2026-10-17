@@ -15,6 +15,7 @@ import {
 } from "../lib/stockHold.js";
 import { calculatePricingBreakdown } from "../lib/pricing.js";
 import { validateIndianAddress } from "../lib/addressValidation.js";
+import { validateProductDelivery } from "../lib/deliveryRestriction.js";
 import { sendEmail, isSESConfigured } from "../lib/ses.js";
 
 const razorpay = new Razorpay({
@@ -158,6 +159,27 @@ export const createRazorpayOrder = async (req, res) => {
         message: "Invalid address. Only Indian addresses are allowed.",
         errors: validation.errors 
       });
+    }
+
+    // Validate delivery restrictions for each product
+    for (const item of products) {
+      const prodId = item.product || item._id;
+      if (prodId) {
+        const productDoc = await Product.findById(prodId);
+        if (productDoc) {
+          const deliveryCheck = validateProductDelivery(productDoc, address);
+          if (!deliveryCheck.isDeliverable) {
+            return res.status(400).json({
+              message: deliveryCheck.message || "Delivery is not available to this PIN code / location.",
+              deliveryRestricted: true,
+              restrictedProduct: {
+                _id: productDoc._id,
+                name: productDoc.name,
+              }
+            });
+          }
+        }
+      }
     }
 
     // Check stock availability (considering reserved quantities)

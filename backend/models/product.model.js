@@ -44,6 +44,31 @@ const productSchema = new mongoose.Schema(
 			default: 0,
 			min: 0,
 		},
+		isRestricted: {
+			type: Boolean,
+			default: false,
+		},
+		restrictionType: {
+			type: String,
+			enum: ["none", "pincodes", "districts", "both"],
+			default: "none",
+		},
+		restrictedPincodes: {
+			type: [String],
+			default: [],
+		},
+		restrictedLocations: [
+			{
+				state: {
+					type: String,
+					required: true,
+				},
+				districts: {
+					type: [String],
+					default: [],
+				},
+			},
+		],
 	},
 	{ timestamps: true }
 );

@@ -1,21 +1,28 @@
 import { motion } from "framer-motion";
-import { Trash, Edit } from "lucide-react";
+import { Trash, Edit, Globe, Mail, CheckSquare, Layers } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { validateImageFile, readFileAsBase64 } from "../lib/imageValidation";
+import DeliveryRestrictionSelector from "./DeliveryRestrictionSelector";
+
+const emptyEditForm = {
+  name: "",
+  description: "",
+  actualPrice: "",
+  price: "",
+  stockQuantity: "",
+  image: "",
+  isRestricted: false,
+  restrictionType: "none",
+  restrictedPincodes: [],
+  restrictedLocations: [],
+};
 
 const ProductsList = () => {
   const { deleteProduct, products, updateProduct } = useProductStore();
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    description: "",
-    actualPrice: "",
-    price: "",
-    stockQuantity: "",
-    image: "",
-  });
+  const [editForm, setEditForm] = useState(emptyEditForm);
 
   const handleEditClick = (product) => {
     setEditingProduct(product._id);
@@ -26,19 +33,16 @@ const ProductsList = () => {
       price: product.price,
       stockQuantity: product.stockQuantity,
       image: product.image,
+      isRestricted: product.isRestricted || false,
+      restrictionType: product.restrictionType || "none",
+      restrictedPincodes: product.restrictedPincodes || [],
+      restrictedLocations: product.restrictedLocations || [],
     });
   };
 
   const handleEditCancel = () => {
     setEditingProduct(null);
-    setEditForm({
-      name: "",
-      description: "",
-      actualPrice: "",
-      price: "",
-      stockQuantity: "",
-      image: "",
-    });
+    setEditForm(emptyEditForm);
   };
 
   const handleEditSave = async () => {
@@ -70,6 +74,17 @@ const ProductsList = () => {
         toast.error('Please enter a valid stock quantity');
         return;
       }
+
+      // Validate restrictions
+      if (editForm.restrictionType === "pincodes" && (!editForm.restrictedPincodes || editForm.restrictedPincodes.length === 0)) {
+        toast.error('Please add at least one PIN code, or select All India');
+        return;
+      }
+
+      if (editForm.restrictionType === "districts" && (!editForm.restrictedLocations || editForm.restrictedLocations.length === 0)) {
+        toast.error('Please select at least one district, or select All India');
+        return;
+      }
       
       const updatedData = {
         name: editForm.name.trim(),
@@ -78,18 +93,65 @@ const ProductsList = () => {
         price,
         stockQuantity,
         image: editForm.image,
+        isRestricted: editForm.isRestricted,
+        restrictionType: editForm.restrictionType,
+        restrictedPincodes: editForm.restrictedPincodes,
+        restrictedLocations: editForm.restrictedLocations,
       };
       await updateProduct(editingProduct, updatedData);
       setEditingProduct(null);
-      setEditForm({
-        name: "",
-        description: "",
-        actualPrice: "",
-        price: "",
-        stockQuantity: "",
-        image: "",
-      });
+      setEditForm(emptyEditForm);
     }
+  };
+
+  const renderDeliveryBadge = (product) => {
+    if (!product.isRestricted || product.restrictionType === "none") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-700/70 text-gray-300 border border-gray-600/50">
+          <Globe className="w-3 h-3 text-emerald-400" />
+          <span>All India</span>
+        </span>
+      );
+    }
+
+    if (product.restrictionType === "pincodes") {
+      const pinCount = product.restrictedPincodes?.length || 0;
+      return (
+        <span 
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-950/80 text-blue-300 border border-blue-700/60"
+          title={product.restrictedPincodes?.slice(0, 10).join(", ") + (pinCount > 10 ? "..." : "")}
+        >
+          <Mail className="w-3 h-3 text-blue-400" />
+          <span>{pinCount} PIN code{pinCount !== 1 ? "s" : ""}</span>
+        </span>
+      );
+    }
+
+    if (product.restrictionType === "districts") {
+      const locs = product.restrictedLocations || [];
+      const totalDistricts = locs.reduce((acc, l) => acc + (l.districts?.length || 0), 0);
+      const stateNames = locs.map((l) => l.state).join(", ");
+      return (
+        <span 
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-950/80 text-purple-300 border border-purple-700/60"
+          title={locs.map((l) => `${l.state}: ${l.districts?.join(", ")}`).join(" | ")}
+        >
+          <CheckSquare className="w-3 h-3 text-purple-400" />
+          <span className="truncate max-w-[140px]">{locs.length} State{locs.length !== 1 ? "s" : ""} ({totalDistricts} dist)</span>
+        </span>
+      );
+    }
+
+    if (product.restrictionType === "both") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-700/60">
+          <Layers className="w-3 h-3 text-emerald-400" />
+          <span>PINs & Districts</span>
+        </span>
+      );
+    }
+
+    return null;
   };
 
   const handleImageChange = async (e) => {
@@ -109,7 +171,7 @@ const ProductsList = () => {
   
   return (
     <motion.div
-      className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto"
+      className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-6xl mx-auto"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
@@ -137,6 +199,12 @@ const ProductsList = () => {
                   className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
                 >
                   Stock
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                >
+                  Delivery Area
                 </th>
 
                 <th
@@ -183,6 +251,9 @@ const ProductsList = () => {
                       {product.stockQuantity === 0 && ' (Out of Stock)'}
                       {product.stockQuantity > 0 && product.stockQuantity < 10 && ' (Low Stock)'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {renderDeliveryBadge(product)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex gap-2">
@@ -248,6 +319,10 @@ const ProductsList = () => {
                   {product.stockQuantity > 0 && product.stockQuantity < 10 && ' (Low)'}
                 </span>
               </p>
+
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {renderDeliveryBadge(product)}
+              </div>
             </div>
 
             <div className="flex flex-col items-end gap-2">
@@ -274,7 +349,7 @@ const ProductsList = () => {
       {/* Edit Modal */}
       {editingProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-semibold text-white mb-4">Edit Product</h3>
             
             <div className="space-y-4">
@@ -344,6 +419,19 @@ const ProductsList = () => {
                   <img src={editForm.image} alt="Preview" className="mt-2 h-32 w-32 object-cover rounded-md" />
                 )}
               </div>
+
+              {/* Delivery / Area Restrictions */}
+              <DeliveryRestrictionSelector
+                restrictionType={editForm.restrictionType}
+                restrictedPincodes={editForm.restrictedPincodes}
+                restrictedLocations={editForm.restrictedLocations}
+                onChange={(restrictionData) => {
+                  setEditForm((prev) => ({
+                    ...prev,
+                    ...restrictionData,
+                  }));
+                }}
+              />
 
               <div className="flex gap-3 mt-6">
                 <button

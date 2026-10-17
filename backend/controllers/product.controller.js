@@ -15,7 +15,18 @@ export const getAllProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
 	try {
-		const { name, description, actualPrice, price, image, stockQuantity } = req.body;
+		const {
+			name,
+			description,
+			actualPrice,
+			price,
+			image,
+			stockQuantity,
+			isRestricted,
+			restrictionType,
+			restrictedPincodes,
+			restrictedLocations,
+		} = req.body;
 
 		// Validate required fields
 		if (!name || !description || !price || !image) {
@@ -31,6 +42,27 @@ export const createProduct = async (req, res) => {
 			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
 		}
 
+		// Sanitize restrictions
+		const validRestrictionType = ["none", "pincodes", "districts", "both"].includes(restrictionType)
+			? restrictionType
+			: "none";
+		const effectiveIsRestricted = Boolean(isRestricted && validRestrictionType !== "none");
+
+		const cleanedPincodes = Array.isArray(restrictedPincodes)
+			? [...new Set(restrictedPincodes.map((p) => String(p).trim()).filter((p) => /^\d{6}$/.test(p)))]
+			: [];
+
+		const cleanedLocations = Array.isArray(restrictedLocations)
+			? restrictedLocations
+					.filter((loc) => loc && loc.state && typeof loc.state === "string")
+					.map((loc) => ({
+						state: loc.state.trim(),
+						districts: Array.isArray(loc.districts)
+							? [...new Set(loc.districts.map((d) => String(d).trim()).filter(Boolean))]
+							: [],
+					}))
+			: [];
+
 		const product = await Product.create({
 			name,
 			description,
@@ -38,6 +70,10 @@ export const createProduct = async (req, res) => {
 			price,
 			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
 			stockQuantity: stockQuantity || 0,
+			isRestricted: effectiveIsRestricted,
+			restrictionType: effectiveIsRestricted ? validRestrictionType : "none",
+			restrictedPincodes: cleanedPincodes,
+			restrictedLocations: cleanedLocations,
 		});
 
 		res.status(201).json(product);
@@ -126,7 +162,18 @@ export const updateProductStock = async (req, res) => {
 
 export const updateProduct = async (req, res) => {
 	try {
-		const { name, description, price, image, stockQuantity } = req.body;
+		const {
+			name,
+			description,
+			actualPrice,
+			price,
+			image,
+			stockQuantity,
+			isRestricted,
+			restrictionType,
+			restrictedPincodes,
+			restrictedLocations,
+		} = req.body;
 		const product = await Product.findById(req.params.id);
 		
 		if (!product) {
@@ -157,9 +204,40 @@ export const updateProduct = async (req, res) => {
 		// Update product fields
 		if (name !== undefined) product.name = name;
 		if (description !== undefined) product.description = description;
+		if (actualPrice !== undefined) product.actualPrice = actualPrice;
 		if (price !== undefined) product.price = price;
 		if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
 		if (cloudinaryResponse?.secure_url) product.image = cloudinaryResponse.secure_url;
+
+		// Update restriction fields if provided
+		if (restrictionType !== undefined || isRestricted !== undefined) {
+			const validRestrictionType = ["none", "pincodes", "districts", "both"].includes(restrictionType)
+				? restrictionType
+				: "none";
+			const effectiveIsRestricted = Boolean(isRestricted && validRestrictionType !== "none");
+			
+			product.isRestricted = effectiveIsRestricted;
+			product.restrictionType = effectiveIsRestricted ? validRestrictionType : "none";
+		}
+
+		if (restrictedPincodes !== undefined) {
+			product.restrictedPincodes = Array.isArray(restrictedPincodes)
+				? [...new Set(restrictedPincodes.map((p) => String(p).trim()).filter((p) => /^\d{6}$/.test(p)))]
+				: [];
+		}
+
+		if (restrictedLocations !== undefined) {
+			product.restrictedLocations = Array.isArray(restrictedLocations)
+				? restrictedLocations
+						.filter((loc) => loc && loc.state && typeof loc.state === "string")
+						.map((loc) => ({
+							state: loc.state.trim(),
+							districts: Array.isArray(loc.districts)
+								? [...new Set(loc.districts.map((d) => String(d).trim()).filter(Boolean))]
+								: [],
+						}))
+				: [];
+		}
 		
 		const updatedProduct = await product.save();
 		res.json(updatedProduct);
