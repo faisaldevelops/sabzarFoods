@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+*.timestamp-*.mjs
 /package-lock.json
 
 .env
@@ -39,6 +40,7 @@ eggs/
 lib/
 !backend/lib/
 !frontend/lib/
+!frontend/src/lib/
 lib64/
 parts/
 sdist/
