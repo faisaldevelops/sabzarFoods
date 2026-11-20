@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { PlusCircle, Upload, Loader } from "lucide-react";
+import { PlusCircle, Upload, Loader, Eye, EyeOff } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import toast from "react-hot-toast";
 import { validateImageFile, readFileAsBase64 } from "../lib/imageValidation";
@@ -13,6 +13,7 @@ const initialProductState = {
 	price: "",
 	image: "",
 	stockQuantity: "",
+	isHidden: false,
 	isRestricted: false,
 	restrictionType: "none",
 	restrictedPincodes: [],
@@ -185,6 +186,39 @@ const CreateProductForm = () => {
 						}));
 					}}
 				/>
+
+				{/* Visibility Toggle */}
+				<div className="p-3.5 bg-gray-700/60 border border-gray-600 rounded-md">
+					<label className="flex items-start gap-3 cursor-pointer">
+						<input
+							type="checkbox"
+							id="createIsHidden"
+							checked={newProduct.isHidden}
+							onChange={(e) => setNewProduct({ ...newProduct, isHidden: e.target.checked })}
+							className="mt-0.5 w-4 h-4 text-emerald-600 bg-gray-800 border-gray-500 rounded focus:ring-emerald-500 cursor-pointer"
+						/>
+						<div className="flex flex-col">
+							<span className="text-sm font-medium text-white flex items-center gap-2">
+								{newProduct.isHidden ? (
+									<span className="text-amber-400 flex items-center gap-1.5">
+										<EyeOff className="w-4 h-4" />
+										Hide Product from Front End
+									</span>
+								) : (
+									<span className="text-emerald-400 flex items-center gap-1.5">
+										<Eye className="w-4 h-4" />
+										Visible on Front End (Homepage)
+									</span>
+								)}
+							</span>
+							<span className="text-xs text-gray-400 mt-0.5">
+								{newProduct.isHidden
+									? "Product will be saved as hidden and will NOT appear on the customer homepage until unhidden."
+									: "Product will appear normally on the customer homepage."}
+							</span>
+						</div>
+					</label>
+				</div>
 
 				<button
 					type='submit'

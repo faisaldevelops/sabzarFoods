@@ -88,11 +88,11 @@ const tabs = [
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("create");
-  const { fetchAllProducts } = useProductStore();
+  const { fetchAdminProducts } = useProductStore();
 
   useEffect(() => {
-    fetchAllProducts();
-  }, [fetchAllProducts]);
+    fetchAdminProducts();
+  }, [fetchAdminProducts]);
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-gray-900 text-white">

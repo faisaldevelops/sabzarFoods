@@ -5,10 +5,23 @@ import { extractCloudinaryPublicId } from "../lib/cloudinaryUtils.js";
 
 export const getAllProducts = async (req, res) => {
 	try {
-		const products = await Product.find({}); // find all products
+		// By default return only visible products for store front, sorted by custom order
+		// If req.query.all === "true", return all products (e.g. for admin usage)
+		const query = req.query.all === "true" ? {} : { isHidden: { $ne: true } };
+		const products = await Product.find(query).sort({ order: 1, createdAt: 1 });
 		res.json({ products });
 	} catch (error) {
 		console.log("Error in getAllProducts controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+export const getAdminProducts = async (req, res) => {
+	try {
+		const products = await Product.find({}).sort({ order: 1, createdAt: 1 });
+		res.json({ products });
+	} catch (error) {
+		console.log("Error in getAdminProducts controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
@@ -22,6 +35,7 @@ export const createProduct = async (req, res) => {
 			price,
 			image,
 			stockQuantity,
+			isHidden,
 			isRestricted,
 			restrictionType,
 			restrictedPincodes,
@@ -63,6 +77,10 @@ export const createProduct = async (req, res) => {
 					}))
 			: [];
 
+		// Assign next order position to place new product at end of list
+		const lastProduct = await Product.findOne().sort({ order: -1 });
+		const nextOrder = lastProduct && typeof lastProduct.order === "number" ? lastProduct.order + 1 : 0;
+
 		const product = await Product.create({
 			name,
 			description,
@@ -70,6 +88,8 @@ export const createProduct = async (req, res) => {
 			price,
 			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
 			stockQuantity: stockQuantity || 0,
+			isHidden: Boolean(isHidden),
+			order: nextOrder,
 			isRestricted: effectiveIsRestricted,
 			restrictionType: effectiveIsRestricted ? validRestrictionType : "none",
 			restrictedPincodes: cleanedPincodes,
@@ -115,6 +135,9 @@ export const deleteProduct = async (req, res) => {
 export const getRecommendedProducts = async (req, res) => {
 	try {
 		const products = await Product.aggregate([
+			{
+				$match: { isHidden: { $ne: true } },
+			},
 			{
 				$sample: { size: 4 },
 			},
@@ -169,6 +192,8 @@ export const updateProduct = async (req, res) => {
 			price,
 			image,
 			stockQuantity,
+			isHidden,
+			order,
 			isRestricted,
 			restrictionType,
 			restrictedPincodes,
@@ -207,6 +232,8 @@ export const updateProduct = async (req, res) => {
 		if (actualPrice !== undefined) product.actualPrice = actualPrice;
 		if (price !== undefined) product.price = price;
 		if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
+		if (isHidden !== undefined) product.isHidden = Boolean(isHidden);
+		if (order !== undefined) product.order = Number(order);
 		if (cloudinaryResponse?.secure_url) product.image = cloudinaryResponse.secure_url;
 
 		// Update restriction fields if provided
@@ -243,6 +270,54 @@ export const updateProduct = async (req, res) => {
 		res.json(updatedProduct);
 	} catch (error) {
 		console.log("Error in updateProduct controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+export const toggleProductVisibility = async (req, res) => {
+	try {
+		const product = await Product.findById(req.params.id);
+		if (!product) {
+			return res.status(404).json({ message: "Product not found" });
+		}
+
+		if (req.body && req.body.isHidden !== undefined) {
+			product.isHidden = Boolean(req.body.isHidden);
+		} else {
+			product.isHidden = !product.isHidden;
+		}
+
+		const updatedProduct = await product.save();
+		res.json({
+			message: `Product is now ${updatedProduct.isHidden ? "hidden from" : "visible on"} the store`,
+			product: updatedProduct,
+		});
+	} catch (error) {
+		console.log("Error in toggleProductVisibility controller", error.message);
+		res.status(500).json({ message: "Server error", error: error.message });
+	}
+};
+
+export const reorderProducts = async (req, res) => {
+	try {
+		const { orderedIds } = req.body;
+		if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+			return res.status(400).json({ message: "orderedIds must be a non-empty array of product IDs" });
+		}
+
+		const bulkOps = orderedIds.map((id, index) => ({
+			updateOne: {
+				filter: { _id: id },
+				update: { $set: { order: index } },
+			},
+		}));
+
+		await Product.bulkWrite(bulkOps);
+
+		const products = await Product.find({}).sort({ order: 1, createdAt: 1 });
+		res.json({ message: "Products reordered successfully", products });
+	} catch (error) {
+		console.log("Error in reorderProducts controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
