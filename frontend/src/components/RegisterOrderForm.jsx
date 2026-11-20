@@ -41,7 +41,7 @@ const PAYMENT_STATUSES = [
 ];
 
 const RegisterOrderForm = () => {
-  const { products, fetchAllProducts } = useProductStore();
+  const { products, fetchAdminProducts } = useProductStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -72,8 +72,8 @@ const RegisterOrderForm = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    fetchAllProducts();
-  }, [fetchAllProducts]);
+    fetchAdminProducts();
+  }, [fetchAdminProducts]);
 
   // Clear field error when user types
   const clearError = (field) => {
@@ -238,7 +238,7 @@ const RegisterOrderForm = () => {
         setSelectedProducts([]);
         
         // Refresh products to update stock
-        fetchAllProducts();
+        fetchAdminProducts();
       }
     } catch (error) {
       console.error("Error creating manual order:", error);

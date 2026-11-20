@@ -44,6 +44,14 @@ const productSchema = new mongoose.Schema(
 			default: 0,
 			min: 0,
 		},
+		isHidden: {
+			type: Boolean,
+			default: false,
+		},
+		order: {
+			type: Number,
+			default: 0,
+		},
 		isRestricted: {
 			type: Boolean,
 			default: false,
