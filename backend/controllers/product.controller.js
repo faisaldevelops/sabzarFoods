@@ -2,6 +2,29 @@ import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
 import { extractCloudinaryPublicId } from "../lib/cloudinaryUtils.js";
+import { uploadToS3, deleteFromS3, isS3Url } from "../lib/s3.js";
+
+/**
+ * Helper to delete a product image from either S3 or Cloudinary
+ */
+const deleteProductImage = async (imageUrl) => {
+	if (!imageUrl) return;
+
+	if (isS3Url(imageUrl)) {
+		await deleteFromS3(imageUrl);
+		return;
+	}
+
+	const publicId = extractCloudinaryPublicId(imageUrl);
+	if (publicId) {
+		try {
+			await cloudinary.uploader.destroy(publicId);
+			console.log("Deleted image from Cloudinary:", publicId);
+		} catch (error) {
+			console.log("Error deleting image from Cloudinary:", error.message);
+		}
+	}
+};
 
 export const getAllProducts = async (req, res) => {
 	try {
@@ -50,10 +73,17 @@ export const createProduct = async (req, res) => {
 			});
 		}
 
-		let cloudinaryResponse = null;
+		let imageUrl = "";
 
 		if (image) {
-			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
+			const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME;
+			if (bucketName) {
+				const uploadResult = await uploadToS3(image, "products");
+				imageUrl = uploadResult.secure_url;
+			} else {
+				const cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
+				imageUrl = cloudinaryResponse?.secure_url || "";
+			}
 		}
 
 		// Sanitize restrictions
@@ -86,7 +116,7 @@ export const createProduct = async (req, res) => {
 			description,
 			actualPrice: actualPrice || price, // Default to price if actualPrice not provided
 			price,
-			image: cloudinaryResponse?.secure_url ? cloudinaryResponse.secure_url : "",
+			image: imageUrl,
 			stockQuantity: stockQuantity || 0,
 			isHidden: Boolean(isHidden),
 			order: nextOrder,
@@ -112,15 +142,7 @@ export const deleteProduct = async (req, res) => {
 		}
 
 		if (product.image) {
-			const publicId = extractCloudinaryPublicId(product.image);
-			if (publicId) {
-				try {
-					await cloudinary.uploader.destroy(publicId);
-					console.log("deleted image from cloudinary");
-				} catch (error) {
-					console.log("error deleting image from cloudinary", error);
-				}
-			}
+			await deleteProductImage(product.image);
 		}
 
 		await Product.findByIdAndDelete(req.params.id);
@@ -205,25 +227,24 @@ export const updateProduct = async (req, res) => {
 			return res.status(404).json({ message: "Product not found" });
 		}
 
-		// If there's a new image, upload it to Cloudinary
-		let cloudinaryResponse = null;
+		// If there's a new image, upload it to S3 (or Cloudinary fallback)
+		let newImageUrl = null;
 		// Check if image is base64 (new upload) by checking if it starts with data:image
 		const isNewImage = image && image.startsWith('data:image');
 		
 		if (isNewImage) {
-			// Delete old image from Cloudinary if it exists
+			// Delete old image from S3 or Cloudinary if it exists
 			if (product.image) {
-				const publicId = extractCloudinaryPublicId(product.image);
-				if (publicId) {
-					try {
-						await cloudinary.uploader.destroy(publicId);
-					} catch (error) {
-						console.log("error deleting old image from cloudinary", error);
-						// Continue with upload even if delete fails
-					}
-				}
+				await deleteProductImage(product.image);
 			}
-			cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
+			const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME;
+			if (bucketName) {
+				const uploadResult = await uploadToS3(image, "products");
+				newImageUrl = uploadResult.secure_url;
+			} else {
+				const cloudinaryResponse = await cloudinary.uploader.upload(image, { folder: "products" });
+				newImageUrl = cloudinaryResponse?.secure_url || null;
+			}
 		}
 
 		// Update product fields
@@ -234,7 +255,7 @@ export const updateProduct = async (req, res) => {
 		if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
 		if (isHidden !== undefined) product.isHidden = Boolean(isHidden);
 		if (order !== undefined) product.order = Number(order);
-		if (cloudinaryResponse?.secure_url) product.image = cloudinaryResponse.secure_url;
+		if (newImageUrl) product.image = newImageUrl;
 
 		// Update restriction fields if provided
 		if (restrictionType !== undefined || isRestricted !== undefined) {

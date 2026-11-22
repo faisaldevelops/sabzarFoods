@@ -7,12 +7,14 @@
 	"scripts": {
 		"dev": "nodemon server.js",
 		"start": "node server.js",
-		"cleanup:reservations": "node scripts/cleanupStuckReservations.js"
+		"cleanup:reservations": "node scripts/cleanupStuckReservations.js",
+		"migrate:images": "node scripts/migrateCloudinaryToS3.js"
 	},
 	"keywords": [],
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1175.0",
 		"@aws-sdk/client-ses": "^3.970.0",
 		"bcryptjs": "^2.4.3",
 		"body-parser": "^2.2.0",
